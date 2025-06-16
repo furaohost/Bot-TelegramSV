@@ -310,7 +310,7 @@ if __name__ != '__main__':
     try:
         # Chame a inicialização do SDK do Mercado Pago aqui
         # Isso garante que MERCADOPAGO_ACCESS_TOKEN já foi carregado
-        pagamentos.init_mercadopago_sdk() # <--- Adicionando esta linha aqui
+        pagamentos.init_mercadopago_sdk() # <--- ADICIONE ESTA LINHA OU VERIFIQUE SE JÁ ESTÁ
 
         if API_TOKEN and BASE_URL:
             bot.set_webhook(url=f"{BASE_URL}/{API_TOKEN}")
@@ -318,4 +318,4 @@ if __name__ != '__main__':
         else:
             print("ERRO: Variáveis de ambiente API_TOKEN ou BASE_URL não definidas.")
     except Exception as e:
-        print(f"Erro ao configurar o webhook do Telegram ou inicializar Mercado Pago: {e}")
+        print(f"Erro ao configurar o webhook do Telegram: {e}")
