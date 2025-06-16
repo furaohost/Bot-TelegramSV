@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Pedidos</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <div class="w-64 bg-purple-700 text-white p-6">
+            <h1 class="text-2xl font-bold mb-8">Painel</h1>
+            <ul class="space-y-4">
+                <li><a href="/" class="block hover:text-purple-300">Dashboard</a></li>
+                <li><a href="/pedidos" class="block text-purple-300 font-bold">Pedidos</a></li>
+                <li><a href="/logout" class="block hover:text-purple-300">Sair</a></li>
+            </ul>
+        </div>
+
+        <!-- Conteúdo principal -->
+        <div class="flex-1 p-10 overflow-y-auto">
+            <h2 class="text-3xl font-semibold text-gray-800 mb-6">Lista de Pedidos</h2>
+
+            <div class="bg-white shadow-md rounded-lg overflow-hidden">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-purple-600 text-white">
+                        <tr>
+                            <th class="px-6 py-3 text-left">Produto</th>
+                            <th class="px-6 py-3 text-left">Status</th>
+                            <th class="px-6 py-3 text-left">Comprador</th>
+                            <th class="px-6 py-3 text-left">Data</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        {% for pedido in pedidos %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4">{{ pedido['produto'] }}</td>
+                            <td class="px-6 py-4">
+                                {% if pedido['status'] == 'aprovado' %}
+                                    <span class="text-green-600 font-semibold">Aprovado</span>
+                                {% elif pedido['status'] == 'pendente' %}
+                                    <span class="text-yellow-500 font-semibold">Pendente</span>
+                                {% elif pedido['status'] == 'pago' %}
+                                    <span class="text-blue-600 font-semibold">Pago</span>
+                                {% else %}
+                                    <span>{{ pedido['status'] }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4">{{ pedido['comprador'] }}</td>
+                            <td class="px-6 py-4">{{ pedido['data'] }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center py-6 text-gray-400">Nenhum pedido encontrado.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

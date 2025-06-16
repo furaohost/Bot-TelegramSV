@@ -1,0 +1,139 @@
+{% extends "layout.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-semibold text-gray-900">Dashboard</h1>
+<p class="mt-1 text-sm text-gray-600">Visão geral do seu bot de vendas.</p>
+
+<!-- Cards de Métricas -->
+<div class="mt-6">
+    <dl class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
+            <dt class="truncate text-sm font-medium text-gray-500">Receita Total</dt>
+            <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900">R$ {{ "%.2f"|format(receita_total|float) }}</dd>
+        </div>
+        <div class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
+            <dt class="truncate text-sm font-medium text-gray-500">Vendas Aprovadas</dt>
+            <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900">{{ total_vendas }}</dd>
+        </div>
+        <div class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
+            <dt class="truncate text-sm font-medium text-gray-500">Usuários Registrados</dt>
+            <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900">{{ total_usuarios }}</dd>
+        </div>
+        <div class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
+            <dt class="truncate text-sm font-medium text-gray-500">Produtos Ativos</dt>
+            <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900">{{ total_produtos }}</dd>
+        </div>
+    </dl>
+</div>
+
+<!-- Div escondida para armazenar os dados do gráfico -->
+<div id="chartData" 
+     data-labels='{{ chart_labels|safe }}' 
+     data-values='{{ chart_data|safe }}'
+     class="hidden">
+</div>
+
+<!-- Seção do Gráfico de Vendas -->
+<div class="mt-8 bg-white p-6 rounded-lg shadow">
+    <h2 class="text-lg font-medium leading-6 text-gray-900">Receita nos Últimos 7 Dias</h2>
+    <div class="mt-4" style="height: 300px;">
+        <canvas id="salesChart"></canvas>
+    </div>
+</div>
+
+<!-- Tabela de Vendas Recentes ATUALIZADA -->
+<div class="mt-8">
+    <h2 class="text-lg font-medium leading-6 text-gray-900">Vendas Recentes</h2>
+    <div class="mt-4 overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+        <div class="min-w-full overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-300">
+                <thead class="bg-gray-50">
+                <tr>
+                    <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Comprador</th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Produto</th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Valor</th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Data</th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
+                </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 bg-white">
+                {% for venda in vendas_recentes %}
+                <tr>
+                    <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{{ venda.first_name or '' }} (@{{ venda.username or 'N/A' }})</td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ venda.nome }}</td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">R$ {{ "%.2f"|format(venda.preco) }}</td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ venda.data_venda }}</td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                        {% if venda.status == 'aprovado' %}
+                            <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">Aprovado</span>
+                        {% elif venda.status == 'expirado' %}
+                            <span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">Expirado</span>
+                        {% else %}
+                            <span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">Pendente</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="whitespace-nowrap px-3 py-4 text-sm text-center text-gray-500">Nenhuma venda registrada ainda.</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+        const chartElement = document.getElementById('chartData');
+        const labels = JSON.parse(chartElement.dataset.labels);
+        const dataValues = JSON.parse(chartElement.dataset.values);
+        const ctx = document.getElementById('salesChart').getContext('2d');
+        const salesChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Receita (R$)',
+                    data: dataValues,
+                    backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                    borderColor: 'rgba(79, 70, 229, 1)',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    fill: true,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value, index, values) { return 'R$ ' + value.toFixed(2); }
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) { label += ': '; }
+                                if (context.parsed.y !== null) {
+                                    label += new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(context.parsed.y);
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+
+{% endblock %}

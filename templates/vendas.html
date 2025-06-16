@@ -1,0 +1,211 @@
+{% extends "layout.html" %}
+
+{% block title %}Vendas{% endblock %}
+
+{% block content %}
+<div class="sm:flex sm:items-center sm:justify-between">
+    <div class="sm:flex-auto">
+        <h1 class="text-2xl font-semibold text-gray-900">Histórico de Vendas</h1>
+        <p class="mt-2 text-sm text-gray-700">Filtre e visualize todas as transações do seu bot.</p>
+    </div>
+</div>
+
+<!-- Seção de Filtros Avançados -->
+<div class="mt-6 p-4 bg-white rounded-lg shadow">
+    <form id="filterForm" method="GET" action="{{ url_for('vendas') }}">
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-x-4 gap-y-6 items-end">
+            
+            <!-- Campo de Pesquisa -->
+            <div class="md:col-span-4">
+                <label for="pesquisa" class="block text-sm font-medium text-gray-700">Pesquisar</label>
+                <input type="text" name="pesquisa" id="pesquisa" value="{{ request.args.get('pesquisa', '') }}" class="filter-input mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Nome, @usuario ou produto...">
+            </div>
+
+            <!-- Filtro por Produto -->
+            <div class="md:col-span-4">
+                <label for="produto_id" class="block text-sm font-medium text-gray-700">Produto</label>
+                <select id="produto_id" name="produto_id" class="filter-input mt-1 block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm">
+                    <option value="">Todos</option>
+                    {% for produto in produtos_disponiveis %}
+                        <option value="{{ produto.id }}" {% if request.args.get('produto_id')|int == produto.id %}selected{% endif %}>{{ produto.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Filtro por Status ATUALIZADO -->
+            <div class="md:col-span-4">
+                <label for="status" class="block text-sm font-medium text-gray-700">Status</label>
+                <select id="status" name="status" class="filter-input mt-1 block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm">
+                    <option value="">Todos</option>
+                    <option value="aprovado" {% if request.args.get('status') == 'aprovado' %}selected{% endif %}>Aprovado</option>
+                    <option value="pendente" {% if request.args.get('status') == 'pendente' %}selected{% endif %}>Pendente</option>
+                    <option value="expirado" {% if request.args.get('status') == 'expirado' %}selected{% endif %}>Expirado</option>
+                </select>
+            </div>
+            
+            <!-- Filtro por Data Específica -->
+            <div class="md:col-span-4">
+                <label for="data_inicio" class="block text-sm font-medium text-gray-700">De:</label>
+                <input type="date" name="data_inicio" id="data_inicio" value="{{ request.args.get('data_inicio', '') }}" class="filter-input mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            </div>
+            <div class="md:col-span-4">
+                <label for="data_fim" class="block text-sm font-medium text-gray-700">Até:</label>
+                <input type="date" name="data_fim" id="data_fim" value="{{ request.args.get('data_fim', '') }}" class="filter-input mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            </div>
+
+            <!-- Botão de Limpar -->
+            <div class="md:col-span-4 flex items-end">
+                <a href="{{ url_for('vendas') }}" class="flex w-full justify-center rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">Limpar Filtros</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+
+<div class="mt-8 flow-root">
+    <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+      <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
+        <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+          <table class="min-w-full divide-y divide-gray-300">
+            <thead class="bg-gray-50">
+              <tr>
+                <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Data</th>
+                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Comprador</th>
+                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Produto</th>
+                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Preço</th>
+                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
+                <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6"><span class="sr-only">Ações</span></th>
+              </tr>
+            </thead>
+            <!-- O corpo da tabela agora tem um ID para ser atualizado pelo JavaScript -->
+            <tbody id="vendas-table-body" class="divide-y divide-gray-200 bg-white">
+              {% for venda in vendas %}
+              <tr>
+                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-500 sm:pl-6">{{ venda.data_venda }}</td>
+                <td class="whitespace-nowrap px-3 py-4 text-sm font-medium text-gray-900">{{ venda.first_name }} (@{{ venda.username }})</td>
+                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ venda.nome }}</td>
+                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">R$ {{ "%.2f"|format(venda.preco) }}</td>
+                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                    {% if venda.status == 'aprovado' %}
+                        <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">Aprovado</span>
+                    {% elif venda.status == 'expirado' %}
+                        <span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">Expirado</span>
+                    {% else %}
+                        <span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">Pendente</span>
+                    {% endif %}
+                </td>
+                <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                    <button data-id="{{ venda.id }}" class="open-modal-button text-indigo-600 hover:text-indigo-900">Detalhes</button>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="5" class="py-4 text-center text-sm text-gray-500">Nenhuma venda encontrada para os filtros selecionados.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+</div>
+
+<!-- Modal de Detalhes -->
+<div id="details-modal" class="fixed inset-0 z-10 hidden overflow-y-auto bg-gray-500 bg-opacity-75 transition-opacity">
+    <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+        <div class="relative w-full max-w-lg transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all">
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <h3 class="text-lg font-medium leading-6 text-gray-900" id="modal-title">Detalhes da Venda</h3>
+                <div class="mt-4 border-t border-gray-200">
+                    <dl class="divide-y divide-gray-200">
+                        <div class="py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:py-5"><dt class="text-sm font-medium text-gray-500">Valor do Pagamento</dt><dd id="modal-valor" class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0"></dd></div>
+                        <div class="py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:py-5"><dt class="text-sm font-medium text-gray-500">ID da Transação (MP)</dt><dd id="modal-payment-id" class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0 break-words"></dd></div>
+                        <div class="py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:py-5"><dt class="text-sm font-medium text-gray-500">Nome do Pagador (MP)</dt><dd id="modal-payer-name" class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0"></dd></div>
+                        <div class="py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:py-5"><dt class="text-sm font-medium text-gray-500">E-mail do Pagador (MP)</dt><dd id="modal-payer-email" class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0"></dd></div>
+                    </dl>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                <button type="button" id="close-modal-button" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('filterForm');
+        const tableBody = document.getElementById('vendas-table-body');
+
+        const debounce = (func, delay) => {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), delay);
+            };
+        };
+
+        const updateResults = async () => {
+            const formData = new FormData(form);
+            const params = new URLSearchParams(formData).toString();
+            tableBody.style.opacity = '0.5';
+            try {
+                const response = await fetch(`${form.action}?${params}`);
+                const htmlText = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlText, 'text/html');
+                const newTableBody = doc.getElementById('vendas-table-body');
+                if (newTableBody) {
+                    tableBody.innerHTML = newTableBody.innerHTML;
+                }
+                history.pushState(null, '', `${form.action}?${params}`);
+            } catch (error) {
+                console.error('Erro ao atualizar os filtros:', error);
+            } finally {
+                tableBody.style.opacity = '1';
+            }
+        };
+
+        const debouncedUpdate = debounce(updateResults, 400);
+
+        document.querySelectorAll('.filter-input').forEach(input => {
+            const eventType = (input.tagName === 'INPUT' && input.type === 'text') ? 'input' : 'change';
+            input.addEventListener(eventType, (e) => {
+                e.preventDefault();
+                debouncedUpdate();
+            });
+        });
+        
+        // Lógica do Modal
+        const modal = document.getElementById('details-modal');
+        const closeModalButton = document.getElementById('close-modal-button');
+        const closeModal = () => modal.classList.add('hidden');
+        closeModalButton.addEventListener('click', closeModal);
+        modal.addEventListener('click', (event) => { if (event.target === modal) { closeModal(); } });
+        
+        const openModal = async (vendaId) => {
+            try {
+                const response = await fetch(`/venda_detalhes/${vendaId}`);
+                if (!response.ok) throw new Error('Venda não encontrada');
+                const data = await response.json();
+                const formattedPrice = data.preco ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.preco) : 'N/A';
+                document.getElementById('modal-valor').textContent = formattedPrice;
+                document.getElementById('modal-payment-id').textContent = data.payment_id || 'N/A';
+                document.getElementById('modal-payer-name').textContent = data.payer_name || 'N/A';
+                document.getElementById('modal-payer-email').textContent = data.payer_email || 'N/A';
+                modal.classList.remove('hidden');
+            } catch (error) {
+                console.error("Erro ao buscar detalhes da venda:", error);
+                alert('Não foi possível carregar os detalhes da venda.');
+            }
+        };
+
+        tableBody.addEventListener('click', (event) => {
+            if (event.target.classList.contains('open-modal-button')) {
+                openModal(event.target.dataset.id);
+            }
+        });
+    });
+</script>
+{% endblock %}
