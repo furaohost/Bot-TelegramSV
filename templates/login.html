@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -6,6 +7,7 @@
     <title>Login Admin</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700&display=swap" rel="stylesheet">
     <style>
+<<<<<<< Updated upstream
         :root {
             --bg-color: #1e1e1e;
             --card-bg: #252525;
@@ -36,6 +38,8 @@
             --error-text: #a8071a;
             --error-border: #ff4d4f;
         }
+=======
+>>>>>>> Stashed changes
         * {
             box-sizing: border-box;
             margin: 0;
@@ -74,7 +78,11 @@
         .container {
             display: flex;
             max-width: 800px;
+<<<<<<< Updated upstream
             width: 90%;
+=======
+            width: 100%;
+>>>>>>> Stashed changes
             background: var(--card-bg);
             box-shadow: 0 5px 15px rgba(0,0,0,0.3);
             border-radius: 20px;
@@ -116,13 +124,17 @@
             border: none;
             border-radius: 8px;
             cursor: pointer;
+<<<<<<< Updated upstream
             font-size: 16px;
             font-weight: 500;
+=======
+>>>>>>> Stashed changes
             transition: background 0.3s;
         }
         .btn:hover {
             background-color: var(--accent-hover);
         }
+<<<<<<< Updated upstream
         .flash-message {
             width: 100%;
             padding: 12px;
@@ -133,6 +145,15 @@
             background-color: var(--error-bg);
             color: var(--error-text);
             border: 1px solid var(--error-border);
+=======
+        .bottom-text {
+            margin-top: 15px;
+            color: var(--text-secondary);
+        }
+        .bottom-text a {
+            color: var(--accent-color);
+            text-decoration: none;
+>>>>>>> Stashed changes
         }
         .right {
             flex: 1;
@@ -145,6 +166,7 @@
             padding: 40px;
             text-align: center;
         }
+<<<<<<< Updated upstream
         .right h3 {
             font-size: 24px;
             margin-bottom: 15px;
@@ -153,13 +175,42 @@
             font-size: 14px;
             font-weight: 300;
             max-width: 300px;
+=======
+        :root {
+            --bg-color: #1e1e1e;
+            --card-bg: #252525;
+            --text-color: white;
+            --text-secondary: #ccc;
+            --accent-color: #00bcd4;
+            --accent-hover: #0097a7;
+            --border-color: #555;
+            --input-bg: #2a2a2a;
+            --placeholder-color: #bbb;
+            --right-bg: linear-gradient(135deg, #007c91, #005f6b);
+        }
+        .light-mode {
+            --bg-color: white;
+            --card-bg: #f4f7fa;
+            --text-color: #121212;
+            --text-secondary: #555;
+            --accent-color: #007c91;
+            --accent-hover: #005f6b;
+            --border-color: #ccc;
+            --input-bg: #ffffff;
+            --placeholder-color: #666;
+            --right-bg: linear-gradient(135deg, #00bcd4, #0097a7);
+>>>>>>> Stashed changes
         }
         @media (max-width: 768px) {
             .container {
                 flex-direction: column;
             }
             .right {
+<<<<<<< Updated upstream
                 display: none; /* Opcional: esconder a parte direita em telas pequenas */
+=======
+                padding: 20px;
+>>>>>>> Stashed changes
             }
         }
     </style>
@@ -169,6 +220,7 @@
 <div class="container">
     <div class="left">
         <h2>Login Admin</h2>
+<<<<<<< Updated upstream
         
         <!-- Bloco para exibir mensagens de erro -->
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -181,6 +233,9 @@
 
         <!-- Formulário de Login -->
         <form method="POST" action="{{ url_for('login') }}" style="width: 100%;">
+=======
+        <form method="POST" action="/login">
+>>>>>>> Stashed changes
             <div class="form-group">
                 <input type="text" name="username" placeholder="Usuário" required>
             </div>
@@ -191,13 +246,19 @@
         </form>
     </div>
     <div class="right">
+<<<<<<< Updated upstream
         <h3>🤖 Painel de Controle</h3>
         <p>Gerencie seus produtos, visualize vendas e acompanhe o crescimento do seu bot.</p>
+=======
+        <h3>Novas oportunidades para cooperação</h3>
+        <p>Gerencie seus arquivos, crie grupos de trabalho e compartilhe de forma fácil e eficiente.</p>
+>>>>>>> Stashed changes
     </div>
 </div>
 
 <script>
     function toggleTheme() {
+<<<<<<< Updated upstream
         const isLight = document.body.classList.toggle("light-mode");
         // Salva a preferência do tema no localStorage
         localStorage.setItem('theme', isLight ? 'light' : 'dark');
@@ -210,6 +271,10 @@
             document.body.classList.add('light-mode');
         }
     });
+=======
+        document.body.classList.toggle("light-mode");
+    }
+>>>>>>> Stashed changes
 </script>
 </body>
 </html>
