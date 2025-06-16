@@ -1,117 +1,135 @@
 import os
 import mercadopago
 
-# Remova a inicialização do sdk daqui:
-# sdk = mercadopago.SDK(MERCADOPAGO_ACCESS_TOKEN)
-# MERCADOPAGO_ACCESS_TOKEN = os.getenv('MERCADOPAGO_ACCESS_TOKEN')
-# BASE_URL = os.getenv('BASE_URL')
-
-# Declare sdk como global, mas inicialize-o depois
+# --- Variáveis Globais para o SDK ---
+# Serão inicializadas pela função init_mercadopago_sdk()
 sdk = None
-BASE_URL_GLOBAL = None # Use um nome diferente para evitar conflito ou ambiguidade
+BASE_URL_FOR_MP_WEBHOOK = None # Variável global para a BASE_URL usada especificamente pelo Mercado Pago
+
 
 def init_mercadopago_sdk():
     """
-    Inicializa o SDK do Mercado Pago e outras variáveis após ter certeza
-    que as variáveis de ambiente estão carregadas.
+    Inicializa o SDK do Mercado Pago e a BASE_URL global para o webhook do MP.
+    Esta função deve ser chamada após a garantia de que as variáveis de ambiente
+    já foram carregadas (ex: no main do app.py).
     """
-    global sdk, BASE_URL_GLOBAL # Declara que estamos modificando as variáveis globais
+    global sdk, BASE_URL_FOR_MP_WEBHOOK
 
-    # Leitura das variáveis de ambiente
+    # Lendo as chaves diretamente das Variáveis de Ambiente
     access_token = os.getenv('MERCADOPAGO_ACCESS_TOKEN')
-    base_url_env = os.getenv('BASE_URL')
+    base_url_env = os.getenv('BASE_URL') # Pega a BASE_URL definida no Render/app.py
 
+    # Verificações de segurança para garantir que os tokens não são None ou vazios
     if access_token is None or access_token == "":
-        raise ValueError("ERRO CRÍTICO: MERCADOPAGO_ACCESS_TOKEN não está definido ou está vazio.")
-    if base_url_env is None or base_url_env == "":
-        raise ValueError("ERRO CRÍTICO: BASE_URL não está definido ou está vazio.")
+        print("[ERRO FATAL MP] MERCADOPAGO_ACCESS_TOKEN não está definida ou está vazia.")
+        raise ValueError("MERCADOPAGO_ACCESS_TOKEN é obrigatória e não foi definida corretamente.")
 
-    sdk = mercadopago.SDK(access_token)
-    BASE_URL_GLOBAL = base_url_env
-    print("SDK do Mercado Pago inicializado com sucesso.")
+    if base_url_env is None or base_url_env == "":
+        print("[ERRO FATAL MP] BASE_URL não está definida ou está vazia para o webhook do Mercado Pago.")
+        raise ValueError("BASE_URL é obrigatória para configurar o webhook do Mercado Pago.")
+
+    try:
+        sdk = mercadopago.SDK(access_token)
+        BASE_URL_FOR_MP_WEBHOOK = base_url_env
+        print("SDK do Mercado Pago inicializado com sucesso.")
+    except Exception as e:
+        print(f"[ERRO FATAL MP] Erro ao inicializar SDK do Mercado Pago: {e}")
+        raise
 
 
 def criar_pagamento_pix(produto, user, venda_id):
     """
     Cria um pagamento PIX no Mercado Pago com todos os campos de qualidade recomendados.
     """
-    if sdk is None: # Garante que o SDK foi inicializado
-        print("[ERRO] SDK do Mercado Pago não inicializado. Tentando inicializar...")
+    global sdk, BASE_URL_FOR_MP_WEBHOOK
+
+    # Garante que o SDK foi inicializado antes de tentar usá-lo
+    if sdk is None or BASE_URL_FOR_MP_WEBHOOK is None:
+        print("[AVISO] SDK do Mercado Pago não inicializado ou BASE_URL_FOR_MP_WEBHOOK não definida. Tentando inicializar...")
         try:
             init_mercadopago_sdk()
         except ValueError as e:
-            print(f"[ERRO] Falha na inicialização do SDK: {e}")
-            return None
+            print(f"[ERRO] Falha na inicialização do SDK antes de criar pagamento: {e}")
+            return None # Retorna None se a inicialização falhar
 
-    if not BASE_URL_GLOBAL: # Usa a variável global agora
-        print("[ERRO] A variável de ambiente BASE_URL_GLOBAL não está definida mesmo após inicialização.")
-        return None
-        
-    notification_url = f"{BASE_URL_GLOBAL}/webhook/mercado-pago" # Usa a variável global agora
+    notification_url = f"{BASE_URL_FOR_MP_WEBHOOK}/webhook/mercado-pago"
     
-    # ... (restante do seu payment_data) ...
     payment_data = {
         'transaction_amount': float(produto['preco']),
         'payment_method_id': 'pix',
         'payer': {
-            'email': f"user_{user.id}@email.com",
+            'email': f"user_{user.id}@email.com", # Email genérico baseado no user_id
             'first_name': user.first_name or "Comprador",
             'last_name': user.last_name or "Bot",
             'identification': {
-                'type': 'OTHER',
-                'number': str(user.id)
+                'type': 'OTHER', # Tipo de identificação genérico
+                'number': str(user.id) # Usando o ID do Telegram como número de identificação
             }
         },
         'notification_url': notification_url,
-        'external_reference': str(venda_id),
+        'external_reference': str(venda_id), # Referência externa para associar o pagamento à sua venda
         'description': f"Venda de produto digital: {produto['nome']}",
-        'statement_descriptor': 'BOTVENDAS',
+        'statement_descriptor': 'BOTVENDAS', # Descritor que aparecerá na fatura do pagador (limite de caracteres)
         'additional_info': {
             "items": [
                 {
                     "id": str(produto['id']),
                     "title": produto['nome'],
                     "description": f"Conteúdo digital: {produto['nome']}",
-                    "category_id": "digital_content",
+                    "category_id": "digital_content", # Categoria de item (importante para PIX)
                     "quantity": 1,
                     "unit_price": float(produto['preco']),
                 }
             ],
+            # Informações do pagador adicionais (alguns campos são opcionais, mas recomendados)
             "payer": {
                 "first_name": user.first_name or "Comprador",
                 "last_name": user.last_name or "Bot",
                 "phone": {
-                    "area_code": "11",
-                    "number": "999999999"
+                    "area_code": "11", # Substituir por área real se tiver
+                    "number": "999999999" # Substituir por número real se tiver
                 }
             },
         }
     }
 
     try:
+        # A chamada real para a API do Mercado Pago para criar o pagamento
         payment_response = sdk.payment().create(payment_data)
         payment = payment_response["response"]
         return payment
-    except Exception as e:
-        print(f"Erro ao criar pagamento PIX: {e}")
-        if hasattr(e, 'response') and hasattr(e.response, 'json'):
-            print("Resposta do MP:", e.response.json())
+    except mercadopago.exceptions.MPApiException as e: # Captura exceções específicas do MP
+        print(f"[ERRO MP] Falha ao criar pagamento PIX (API Error): {e}")
+        if e.status and e.response: # Detalhes da resposta da API
+            print(f"Status HTTP: {e.status}")
+            print(f"Erro Mercado Pago: {e.response}")
         return None
+    except Exception as e: # Captura outras exceções genéricas
+        print(f"[ERRO GERAL] Falha ao criar pagamento PIX: {e}")
+        return None
+
 
 def verificar_status_pagamento(payment_id):
     """
     Verifica o status de um pagamento específico no Mercado Pago.
     """
-    if sdk is None: # Garante que o SDK foi inicializado
-        print("[ERRO] SDK do Mercado Pago não inicializado. Tentando inicializar...")
+    global sdk # Garante que estamos usando a variável global
+    if sdk is None:
+        print("[AVISO] SDK do Mercado Pago não inicializado. Tentando inicializar...")
         try:
             init_mercadopago_sdk()
         except ValueError as e:
-            print(f"[ERRO] Falha na inicialização do SDK: {e}")
+            print(f"[ERRO] Falha na inicialização do SDK antes de verificar pagamento: {e}")
             return None
     try:
         payment_info = sdk.payment().get(payment_id)
         return payment_info["response"]
+    except mercadopago.exceptions.MPApiException as e:
+        print(f"[ERRO MP] Falha ao verificar status do pagamento (API Error): {e}")
+        if e.status and e.response:
+            print(f"Status HTTP: {e.status}")
+            print(f"Erro Mercado Pago: {e.response}")
+        return None
     except Exception as e:
-        print(f"Erro ao verificar status do pagamento: {e}")
+        print(f"Erro geral ao verificar status do pagamento: {e}")
         return None

@@ -5,16 +5,18 @@ import requests
 import telebot
 from telebot import types
 import base64
-import pagamentos
+import pagamentos # Importar o módulo pagamentos
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.security import check_password_hash
 from datetime import datetime, timedelta, time
 
 # --- CONFIGURAÇÃO INICIAL ---
 API_TOKEN = os.getenv('API_TOKEN')
-BASE_URL = os.getenv('BASE_URL')
+BASE_URL = os.getenv('BASE_URL') # A URL base do seu serviço Render
 
-# --- CORREÇÃO PARA RENDER ---
+# --- Inicialização do Bot e App Flask ---
+# bot e app são inicializados aqui, mas os tokens serão usados posteriormente
+# quando as variáveis de ambiente estiverem garantidas
 bot = telebot.TeleBot(API_TOKEN, threaded=False)
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'uma_chave_padrao_muito_segura')
@@ -23,6 +25,7 @@ DB_NAME = 'dashboard.db'
 
 # --- FUNÇÕES AUXILIARES ---
 def get_db_connection():
+    # Caminho do banco de dados para Render e local
     db_path = os.path.join('/var/data/sqlite', DB_NAME) if os.path.exists('/var/data/sqlite') else DB_NAME
     conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row 
@@ -34,7 +37,7 @@ def get_or_register_user(user: types.User):
     if db_user is None:
         data_registro = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         conn.execute("INSERT INTO users (id, username, first_name, last_name, data_registro) VALUES (?, ?, ?, ?, ?)",
-                       (user.id, user.username, user.first_name, user.last_name, data_registro))
+                        (user.id, user.username, user.first_name, user.last_name, data_registro))
         conn.commit()
     conn.close()
 
@@ -84,7 +87,7 @@ def webhook_mercado_pago():
                 payer_name = f"{payer_info.get('first_name', '')} {payer_info.get('last_name', '')}".strip()
                 payer_email = payer_info.get('email')
                 conn.execute('UPDATE vendas SET status = ?, payment_id = ?, payer_name = ?, payer_email = ? WHERE id = ?', 
-                             ('aprovado', payment_id, payer_name, payer_email, venda_id))
+                                ('aprovado', payment_id, payer_name, payer_email, venda_id))
                 conn.commit()
                 produto = conn.execute('SELECT * FROM produtos WHERE id = ?', (venda['produto_id'],)).fetchone()
                 conn.close()
@@ -120,7 +123,7 @@ def logout():
 
 @app.route('/')
 def index():
-    if not session.get('logged_in'): return redirect(url_for('index'))
+    if not session.get('logged_in'): return redirect(url_for('login'))
     conn = get_db_connection()
     total_usuarios = conn.execute('SELECT COUNT(id) FROM users').fetchone()[0]
     total_produtos = conn.execute('SELECT COUNT(id) FROM produtos').fetchone()[0]
@@ -276,7 +279,7 @@ def gerar_cobranca(call: types.CallbackQuery, produto_id: int):
     data_venda = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     cursor = conn.cursor()
     cursor.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (?, ?, ?, ?, ?)",
-                   (user_id, produto_id, produto['preco'], 'pendente', data_venda))
+                    (user_id, produto_id, produto['preco'], 'pendente', data_venda))
     conn.commit()
     venda_id = cursor.lastrowid 
     pagamento = pagamentos.criar_pagamento_pix(produto=produto, user=call.from_user, venda_id=venda_id)
@@ -305,10 +308,14 @@ def gerar_cobranca(call: types.CallbackQuery, produto_id: int):
 if __name__ != '__main__':
     # Esta parte só é executada quando rodando na Render (produção)
     try:
+        # Chame a inicialização do SDK do Mercado Pago aqui
+        # Isso garante que MERCADOPAGO_ACCESS_TOKEN já foi carregado
+        pagamentos.init_mercadopago_sdk() # <--- Adicionando esta linha aqui
+
         if API_TOKEN and BASE_URL:
             bot.set_webhook(url=f"{BASE_URL}/{API_TOKEN}")
             print("Webhook do Telegram configurado com sucesso!")
         else:
             print("ERRO: Variáveis de ambiente API_TOKEN ou BASE_URL não definidas.")
     except Exception as e:
-        print(f"Erro ao configurar o webhook do Telegram: {e}")
+        print(f"Erro ao configurar o webhook do Telegram ou inicializar Mercado Pago: {e}")
