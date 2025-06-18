@@ -55,42 +55,51 @@ def get_db_connection():
 
 def init_db():
     conn = None
-    cur = None # Inicializar cursor também
+    cur = None
     try:
         conn = get_db_connection()
         with conn.cursor() as cur: # <--- Usar 'with' para o cursor
+            print("DEBUG DB INIT: Iniciando criação/verificação de tabelas...")
 
             # --- ADICIONE ESTES COMANDOS PARA FORÇAR A RECRIAÇÃO (TEMPORÁRIO) ---
             # ATENÇÃO: ISSO APAGARÁ TODOS OS DADOS A CADA DEPLOY! REMOVER DEPOIS DE RESOLVER O PROBLEMA.
             # A ordem de DROP é importante: tabelas com FKs devem ser dropadas primeiro
+            print("DEBUG DB INIT: Dropando tabelas existentes (se houver)...")
             cur.execute('DROP TABLE IF EXISTS vendas CASCADE;') 
             cur.execute('DROP TABLE IF EXISTS produtos CASCADE;')
             cur.execute('DROP TABLE IF EXISTS admin CASCADE;')
             cur.execute('DROP TABLE IF EXISTS config CASCADE;')
-            cur.execute('DROP TABLE IF EXISTS users CASCADE;') # Users por último se outras tabelas referenciarem
-
+            cur.execute('DROP TABLE IF EXISTS users CASCADE;') 
+            print("DEBUG DB INIT: Tabelas dropadas.")
             # --- FIM DOS COMANDOS TEMPORÁRIOS ---
 
             # Criação das tabelas
+            print("DEBUG DB INIT: Criando tabela 'users'...")
             cur.execute('''
-                CREATE TABLE IF NOT EXISTS users (
-                    id BIGINT PRIMARY KEY, -- PRIMARY KEY implica UNIQUE e NOT NULL
+                CREATE TABLE users ( -- Remover IF NOT EXISTS para forçar criação após drop
+                    id BIGINT PRIMARY KEY,
                     username TEXT,
                     first_name TEXT,
                     last_name TEXT,
                     data_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             ''')
+            print("DEBUG DB INIT: Tabela 'users' criada.")
+
+            print("DEBUG DB INIT: Criando tabela 'produtos'...")
             cur.execute('''
-                CREATE TABLE IF NOT EXISTS produtos (
+                CREATE TABLE produtos ( -- Remover IF NOT EXISTS
                     id SERIAL PRIMARY KEY,
                     nome TEXT NOT NULL,
                     preco NUMERIC(10, 2) NOT NULL,
                     link TEXT NOT NULL
                 );
             ''')
+            print("DEBUG DB INIT: Tabela 'produtos' criada.")
+
+            print("DEBUG DB INIT: Criando tabela 'vendas'...")
             cur.execute('''
-                CREATE TABLE IF NOT EXISTS vendas (
+                CREATE TABLE vendas ( -- Remover IF NOT EXISTS
                     id SERIAL PRIMARY KEY,
                     user_id BIGINT NOT NULL,
                     produto_id INTEGER NOT NULL,
@@ -104,24 +113,35 @@ def init_db():
                     FOREIGN KEY (produto_id) REFERENCES produtos (id)
                 );
             ''')
+            print("DEBUG DB INIT: Tabela 'vendas' criada.")
+
+            print("DEBUG DB INIT: Criando tabela 'admin'...")
             cur.execute('''
-                CREATE TABLE IF NOT EXISTS admin (
+                CREATE TABLE admin ( -- Remover IF NOT EXISTS
                     id SERIAL PRIMARY KEY,
                     username TEXT UNIQUE NOT NULL,
                     password_hash TEXT NOT NULL
                 );
             ''')
+            print("DEBUG DB INIT: Tabela 'admin' criada.")
+
+            print("DEBUG DB INIT: Criando tabela 'config'...")
             cur.execute('''
-                CREATE TABLE IF NOT EXISTS config (
+                CREATE TABLE config ( -- Remover IF NOT EXISTS
                     key TEXT PRIMARY KEY,
                     value TEXT
                 );
             ''')
+            print("DEBUG DB INIT: Tabela 'config' criada.")
 
+
+            # Inserir valor padrão para mensagem de boas-vindas
+            print("DEBUG DB INIT: Inserindo/verificando mensagem de boas-vindas padrão...")
             cur.execute('''
                 INSERT INTO config (key, value) VALUES (%s, %s)
                 ON CONFLICT (key) DO NOTHING;
             ''', ('welcome_message_bot', 'Olá, {first_name}! Bem-vindo(a) ao bot!'))
+            print("DEBUG DB INIT: Mensagem de boas-vindas padrão processada.")
 
             conn.commit() # Comita todas as criações e inserções
             print("DEBUG DB: Tabelas do banco de dados verificadas/criadas (PostgreSQL/SQLite).")
@@ -132,6 +152,7 @@ def init_db():
         raise # Re-levanta o erro para que o deploy falhe se o DB principal falhar
     finally:
         if conn: conn.close() # Fechar a conexão no finally
+
 
 def get_or_register_user(user: types.User):
     conn = None
@@ -144,7 +165,7 @@ def get_or_register_user(user: types.User):
             if db_user is None:
                 data_registro = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 cur.execute("INSERT INTO users (id, username, first_name, last_name, data_registro) VALUES (%s, %s, %s, %s, %s)",
-                                 (user.id, user.username, user.first_name, user.last_name, data_registro))
+                             (user.id, user.username, user.first_name, user.last_name, data_registro))
                 conn.commit()
     except Exception as e:
         print(f"ERRO DB: get_or_register_user falhou: {e}")
@@ -302,14 +323,18 @@ def index():
         conn = get_db_connection()
         with conn.cursor() as cur: # <--- Usar 'with' para o cursor
             total_usuarios_row = cur.execute('SELECT COUNT(id) FROM users').fetchone()
-            total_usuarios = total_usuarios_row[0] if total_usuarios_row and total_usuarios_row[0] is not None else 0
+            total_usuarios = total_usuarios_row['count'] if total_usuarios_row and 'count' in total_usuarios_row and total_usuarios_row['count'] is not None else 0
+            print(f"DEBUG INDEX: total_usuarios calculado: {total_usuarios}")
+
 
             total_produtos_row = cur.execute('SELECT COUNT(id) FROM produtos').fetchone()
-            total_produtos = total_produtos_row[0] if total_produtos_row and total_produtos_row[0] is not None else 0
+            total_produtos = total_produtos_row['count'] if total_produtos_row and 'count' in total_produtos_row and total_produtos_row['count'] is not None else 0
+            print(f"DEBUG INDEX: total_produtos calculado: {total_produtos}")
 
-            vendas_data_row = cur.execute("SELECT COUNT(id), SUM(preco) FROM vendas WHERE status = %s", ('aprovado',)).fetchone()
-            total_vendas_aprovadas = vendas_data_row[0] or 0
-            receita_total = vendas_data_row[1] or 0.0
+            vendas_data_row = cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s", ('aprovado',)).fetchone() # Aliases para COUNT e SUM
+            total_vendas_aprovadas = vendas_data_row['count'] if vendas_data_row and 'count' in vendas_data_row and vendas_data_row['count'] is not None else 0
+            receita_total = vendas_data_row['sum'] if vendas_data_row and 'sum' in vendas_data_row and vendas_data_row['sum'] is not None else 0.0
+            print(f"DEBUG INDEX: total_vendas_aprovadas: {total_vendas_aprovadas}, receita_total: {receita_total}")
 
             vendas_recentes = cur.execute("SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, CASE WHEN v.status = 'aprovado' THEN 'aprovado' WHEN v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() - v.data_venda)) > 3600 THEN 'expirado' ELSE v.status END AS status FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id ORDER BY v.id DESC LIMIT 5").fetchall()
             
@@ -319,10 +344,9 @@ def index():
                 day = today - timedelta(days=i)
                 start_of_day, end_of_day = datetime.combine(day.date(), time.min), datetime.combine(day.date(), time.max)
                 chart_labels.append(day.strftime('%d/%m'))
-                daily_revenue_row = cur.execute("SELECT SUM(preco) FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s", ('aprovado', start_of_day, end_of_day)).fetchone()
-                daily_revenue = daily_revenue_row[0] if daily_revenue_row and daily_revenue_row[0] is not None else 0
+                daily_revenue_row = cur.execute("SELECT SUM(preco) AS sum FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s", ('aprovado', start_of_day, end_of_day)).fetchone() # Alias para SUM
+                daily_revenue = daily_revenue_row['sum'] if daily_revenue_row and 'sum' in daily_revenue_row and daily_revenue_row['sum'] is not None else 0
                 chart_data.append(daily_revenue)
-            
             print("DEBUG INDEX: Renderizando index.html.")
             return render_template('index.html', total_vendas=total_vendas_aprovadas, total_usuarios=total_usuarios, total_produtos=total_produtos, receita_total=receita_total, vendas_recentes=vendas_recentes, chart_labels=json.dumps(chart_labels), chart_data=json.dumps(chart_data))
     except Exception as e:
@@ -639,4 +663,4 @@ if __name__ != '__main__':
         else:
             print("ERRO: Variáveis de ambiente API_TOKEN ou BASE_URL não definidas.")
     except Exception as e:
-        print(f"Erro ao configurar o webhook do Telegram ou inicializar Mercado Pago/DB: {e}")
+        print(f"Erro ao configurar o webhook do Telegram: {e}")
