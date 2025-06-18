@@ -1,5 +1,5 @@
 import os
-import sqlite3
+# import sqlite3 # Podemos remover este import quando tiver certeza que não usa mais SQLite
 import json
 import requests
 import telebot
@@ -10,13 +10,21 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from werkzeug.security import check_password_hash
 from datetime import datetime, timedelta, time
 
+# NOVO IMPORT para PostgreSQL
+import psycopg2 
+from psycopg2.extras import RealDictCursor # Para retornar linhas como dicionários (similar ao sqlite3.Row)
+
+
 # --- 1. CONFIGURAÇÃO INICIAL (Leitura de Variáveis de Ambiente) ---
 API_TOKEN = os.getenv('API_TOKEN')
 BASE_URL = os.getenv('BASE_URL') # A URL base do seu serviço Render
+DATABASE_URL = os.getenv('DATABASE_URL') # URL do PostgreSQL do Render
 
 # Adicione essas linhas para depuração (mantenha durante o troubleshoot)
 print(f"DEBUG: API_TOKEN lido: {API_TOKEN}")
 print(f"DEBUG: BASE_URL lida: {BASE_URL}")
+print(f"DEBUG: DATABASE_URL lida: {DATABASE_URL}")
+
 
 # --- 2. INICIALIZAÇÃO DO FLASK E DO BOT ---
 # O 'app' (Flask) e 'bot' (Telebot) devem ser inicializados APÓS
@@ -26,54 +34,113 @@ app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'uma_chave_padrao_muito_segura_e_longa_para_dev_local_1234567890')
 bot = telebot.TeleBot(API_TOKEN, threaded=False) # Agora API_TOKEN já deve ter valor
 
-DB_NAME = 'dashboard.db'
+# DB_NAME = 'dashboard.db' # Não será mais o nome do arquivo SQLite, mas podemos mantê-lo se for para fallback local
 
-# --- 3. FUNÇÕES AUXILIARES DE BANCO DE DADOS ---
+# --- 3. FUNÇÕES AUXILIARES DE BANCO DE DADOS (AGORA PARA POSTGRESQL) ---
+
 def get_db_connection():
-    # Caminho do banco de dados para Render e local
-    db_path = os.path.join('/var/data/sqlite', DB_NAME) if os.path.exists('/var/data/sqlite') else DB_NAME
-    conn = sqlite3.connect(db_path, check_same_thread=False)
-    conn.row_factory = sqlite3.Row 
-    return conn
+    # Se DATABASE_URL não estiver definida (ex: para testar localmente sem PostgreSQL configurado)
+    # ou se for uma string vazia, podemos usar SQLite para desenvolvimento local.
+    if not DATABASE_URL:
+        print("AVISO: DATABASE_URL não definida, usando SQLite localmente (dashboard_local.db).")
+        import sqlite3 # Importa sqlite3 apenas se for usar o fallback
+        db_path = os.path.join(os.getcwd(), 'dashboard_local.db') # Nome do arquivo para evitar conflito
+        conn = sqlite3.connect(db_path, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        return conn
+    else:
+        # Conexão PostgreSQL
+        try:
+            # psycopg2.connect aceita a DATABASE_URL diretamente
+            # cursor_factory=RealDictCursor fará com que as linhas retornem como dicionários
+            # sslmode='require' é crucial para Render
+            conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor, sslmode='require')
+            print("DEBUG DB: Conectado ao PostgreSQL.")
+            return conn
+        except Exception as e:
+            print(f"ERRO DB: Falha ao conectar ao PostgreSQL: {e}")
+            # Se a conexão falhar, levanta o erro para parar a aplicação
+            raise
 
 def init_db():
-    conn = get_db_connection()
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS config (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        )
-    ''')
-    conn.execute('''
-        INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)
-    ''', ('welcome_message_bot', 'Olá, {first_name}! Bem-vindo(a) ao bot!'))
-    conn.commit()
-    conn.close()
-    print("Tabelas do banco de dados verificadas/criadas.")
-
-
-def get_or_register_user(user: types.User):
-    conn = get_db_connection()
-    db_user = conn.execute("SELECT * FROM users WHERE id = ?", (user.id,)).fetchone()
-    if db_user is None:
-        data_registro = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        conn.execute("INSERT INTO users (id, username, first_name, last_name, data_registro) VALUES (?, ?, ?, ?, ?)",
-                         (user.id, user.username, user.first_name, user.last_name, data_registro))
-        conn.commit()
-    conn.close()
-
-def enviar_produto_telegram(user_id, nome_produto, link_produto):
-    url = f"https://api.telegram.org/bot{API_TOKEN}/sendMessage"
-    texto = (f"🎉 Pagamento Aprovado!\n\nObrigado por comprar *{nome_produto}*.\n\nAqui está o seu link de acesso:\n{link_produto}")
-    payload = { 'chat_id': user_id, 'text': texto, 'parse_mode': 'Markdown' }
+    conn = None # Inicializa conn para garantir que esteja definido
     try:
-        requests.post(url, json=payload)
-    except requests.exceptions.RequestException as e:
-        print(f"Erro ao enviar mensagem de entrega: {e}")
+        conn = get_db_connection() # Tenta conectar ao DB (PostgreSQL ou SQLite)
+        cur = conn.cursor()
+
+        # SQL para PostgreSQL: Criar tabelas se não existirem
+        # Assegura a ordem de criação por causa das FOREIGN KEYS
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id BIGINT PRIMARY KEY,
+                username TEXT,
+                first_name TEXT,
+                last_name TEXT,
+                data_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        ''')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS produtos (
+                id SERIAL PRIMARY KEY,
+                nome TEXT NOT NULL,
+                preco NUMERIC(10, 2) NOT NULL,
+                link TEXT NOT NULL
+            );
+        ''')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS vendas (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                produto_id INTEGER NOT NULL,
+                preco NUMERIC(10, 2) NOT NULL,
+                status TEXT NOT NULL,
+                data_venda TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                payment_id TEXT,
+                payer_name TEXT,
+                payer_email TEXT,
+                FOREIGN KEY (user_id) REFERENCES users (id),
+                FOREIGN KEY (produto_id) REFERENCES produtos (id)
+            );
+        ''')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS admin (
+                id SERIAL PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL
+            );
+        ''')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS config (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
+        ''')
+
+        # Inserir um valor padrão para a mensagem de boas-vindas do bot se não existir (para PostgreSQL)
+        # INSERT ... ON CONFLICT DO NOTHING é o equivalente a INSERT OR IGNORE no SQLite
+        cur.execute('''
+            INSERT INTO config (key, value) VALUES (%s, %s)
+            ON CONFLICT (key) DO NOTHING;
+        ''', ('welcome_message_bot', 'Olá, {first_name}! Bem-vindo(a) ao bot!'))
+
+        conn.commit()
+        print("DEBUG DB: Tabelas do banco de dados verificadas/criadas (PostgreSQL/SQLite).")
+    except Exception as e:
+        print(f"ERRO DB: Falha ao inicializar o banco de dados: {e}")
+        if conn:
+            conn.rollback() # Reverte a transação em caso de erro
+        raise # Re-levanta o erro para que o deploy falhe se o DB principal falhar
+    finally:
+        if conn:
+            cur.close()
+            conn.close()
+
+# --- Restante das funções auxiliares (manter como estão) ---
+# ... get_or_register_user() ...
+# ... enviar_produto_telegram() ...
 
 # --- 4. ROTAS DO PAINEL WEB (FLASK) ---
-# Todas as rotas do Flask devem vir antes dos comandos do bot
-# para garantir que o 'app' as registre corretamente.
+# O webhook do Telegram deve ser uma das primeiras rotas a serem definidas para garantir o registro.
 
 @app.route(f"/{API_TOKEN}", methods=['POST'])
 def telegram_webhook():
@@ -85,14 +152,16 @@ def telegram_webhook():
     else:
         return "Unsupported Media Type", 415
 
-@app.route('/webhook/mercado-pago', methods=['GET', 'POST'])
+@app.route('/webhook/mercado-pago', methods=['GET', 'POST']) # <--- AJUSTADO PARA GET E POST
 def webhook_mercado_pago():
     print(f"DEBUG WEBHOOK MP: Recebida requisição para /webhook/mercado-pago. Method: {request.method}")
 
+    # Se for GET (geralmente teste do Mercado Pago)
     if request.method == 'GET':
         print("DEBUG WEBHOOK MP: Requisição GET de teste do Mercado Pago recebida. Respondendo 200 OK.")
         return jsonify({'status': 'ok_test_webhook'}), 200
     
+    # Se for POST (notificação real do Mercado Pago)
     notification = request.json
     print(f"DEBUG WEBHOOK MP: Corpo da notificação POST: {notification}")
 
@@ -151,10 +220,11 @@ def webhook_mercado_pago():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # Adicione esses prints para depuração de sessão/redirecionamento
     print(f"DEBUG LOGIN: Requisição para /login. Method: {request.method}")
     print(f"DEBUG LOGIN: session.get('logged_in'): {session.get('logged_in')}")
 
-    if session.get('logged_in'):
+    if session.get('logged_in'): # Se já estiver logado, redireciona para o dashboard
         print("DEBUG LOGIN: Usuário já logado. Redirecionando para index.")
         return redirect(url_for('index'))
     
@@ -185,6 +255,7 @@ def logout():
 
 @app.route('/')
 def index():
+    # Adicione esses prints para depuração de sessão/redirecionamento
     print(f"DEBUG INDEX: Requisição para /. session.get('logged_in'): {session.get('logged_in')}")
 
     if not session.get('logged_in'):
