@@ -38,14 +38,12 @@ def get_db_connection():
 
 def init_db():
     conn = get_db_connection()
-    # Criar a tabela 'config' se não existir
     conn.execute('''
         CREATE TABLE IF NOT EXISTS config (
             key TEXT PRIMARY KEY,
             value TEXT
         )
     ''')
-    # Inserir um valor padrão para a mensagem de boas-vindas do bot se não existir
     conn.execute('''
         INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)
     ''', ('welcome_message_bot', 'Olá, {first_name}! Bem-vindo(a) ao bot!'))
@@ -86,23 +84,43 @@ def telegram_webhook():
     else:
         return "Unsupported Media Type", 415
 
-@app.route('/webhook/mercado-pago', methods=['POST'])
+@app.route('/webhook/mercado-pago', methods=['GET', 'POST']) # <--- ALTERADO: AGORA ACEITA GET E POST
 def webhook_mercado_pago():
+    print(f"DEBUG WEBHOOK MP: Recebida requisição para /webhook/mercado-pago. Method: {request.method}")
+
+    # Se for GET (geralmente teste do Mercado Pago)
+    if request.method == 'GET':
+        print("DEBUG WEBHOOK MP: Requisição GET de teste do Mercado Pago recebida. Respondendo 200 OK.")
+        # O Mercado Pago testa com GET, precisamos responder 200 para ele considerar o webhook configurado
+        return jsonify({'status': 'ok_test_webhook'}), 200
+    
+    # Se for POST (notificação real do Mercado Pago)
     notification = request.json
+    print(f"DEBUG WEBHOOK MP: Corpo da notificação POST: {notification}")
+
     if notification and notification.get('type') == 'payment':
+        print(f"DEBUG WEBHOOK MP: Notificação de pagamento detectada. ID: {notification.get('data', {}).get('id')}")
         payment_id = notification['data']['id']
         payment_info = pagamentos.verificar_status_pagamento(payment_id)
+        
+        print(f"DEBUG WEBHOOK MP: Status do pagamento verificado: {payment_info.get('status') if payment_info else 'N/A'}")
+
         if payment_info and payment_info['status'] == 'approved':
             venda_id = payment_info.get('external_reference')
-            if not venda_id: return jsonify({'status': 'ignored'}), 200
+            print(f"DEBUG WEBHOOK MP: Pagamento aprovado. Venda ID (external_reference): {venda_id}")
+
+            if not venda_id:
+                print("DEBUG WEBHOOK MP: external_reference não encontrado na notificação. Ignorando.")
+                return jsonify({'status': 'ignored_no_external_ref'}), 200
             
             conn = get_db_connection()
             venda = conn.execute('SELECT * FROM vendas WHERE id = ? AND status = ?', (venda_id, 'pendente')).fetchone()
 
             if venda:
+                print(f"DEBUG WEBHOOK MP: Venda {venda_id} encontrada no DB com status 'pendente'.")
                 data_venda_dt = datetime.strptime(venda['data_venda'], '%Y-%m-%d %H:%M:%S')
                 if datetime.now() > data_venda_dt + timedelta(hours=1):
-                    print(f"Pagamento recebido para venda expirada (ID: {venda_id}). Ignorando entrega.")
+                    print(f"DEBUG WEBHOOK MP: Pagamento recebido para venda expirada (ID: {venda_id}). Ignorando entrega.")
                     conn.execute('UPDATE vendas SET status = ? WHERE id = ?', ('expirado', venda_id))
                     conn.commit()
                     conn.close()
@@ -117,12 +135,20 @@ def webhook_mercado_pago():
                 produto = conn.execute('SELECT * FROM produtos WHERE id = ?', (venda['produto_id'],)).fetchone()
                 conn.close()
                 if produto:
+                    print(f"DEBUG WEBHOOK MP: Enviando produto {produto['nome']} para user {venda['user_id']}.")
                     enviar_produto_telegram(venda['user_id'], produto['nome'], produto['link'])
+                print(f"DEBUG WEBHOOK MP: Venda {venda_id} aprovada e entregue com sucesso.")
                 return jsonify({'status': 'success'}), 200
             else:
                 conn.close()
-                return jsonify({'status': 'already_processed'}), 200
-    return jsonify({'status': 'ignored'}), 200
+                print(f"DEBUG WEBHOOK MP: Venda {venda_id} já processada ou não encontrada no DB como 'pendente'.")
+                return jsonify({'status': 'already_processed_or_not_pending'}), 200
+        else:
+            print(f"DEBUG WEBHOOK MP: Pagamento {payment_id} não aprovado ou info inválida. Status: {payment_info.get('status') if payment_info else 'N/A'}")
+            return jsonify({'status': 'payment_not_approved'}), 200 # Retorna 200 para o MP
+    
+    print("DEBUG WEBHOOK MP: Notificação ignorada (não é tipo 'payment' ou JSON inválido).")
+    return jsonify({'status': 'ignored_general'}), 200
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -241,165 +267,4 @@ def vendas():
     if data_fim_str: conditions.append("DATE(T.data_venda) <= ?"); params.append(data_fim_str)
     if pesquisa_str: conditions.append("(T.username LIKE ? OR T.nome LIKE ? OR T.first_name LIKE ?)"); params.extend([f'%{pesquisa_str}%'] * 3)
     if produto_id_str: conditions.append("T.produto_id = ?"); params.append(produto_id_str)
-    if status_str: conditions.append("T.status = ?"); params.append(status_str)
-    if conditions: query_base += " WHERE " + " AND ".join(conditions)
-    query_base += " ORDER BY T.id DESC"
-    lista_vendas = conn.execute(query_base, tuple(params)).fetchall()
-    conn.close()
-    return render_template('vendas.html', vendas=lista_vendas, produtos_disponiveis=produtos_disponiveis)
-
-@app.route('/venda_detalhes/<int:id>')
-def venda_detalhes(id):
-    if not session.get('logged_in'): return jsonify({'error': 'Unauthorized'}), 401
-    conn = get_db_connection()
-    venda = conn.execute('SELECT * FROM vendas WHERE id = ?', (id,)).fetchone()
-    conn.close()
-    if venda: return jsonify(dict(venda))
-    return jsonify({'error': 'Not Found'}), 404
-
-@app.route('/usuarios')
-def usuarios():
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    conn = get_db_connection()
-    lista_usuarios = conn.execute('SELECT * FROM users ORDER BY id DESC').fetchall()
-    conn.close()
-    return render_template('usuarios.html', usuarios=lista_usuarios)
-
-@app.route('/remove_user/<int:id>')
-def remove_user(id):
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    conn = get_db_connection()
-    conn.execute('DELETE FROM users WHERE id = ?', (id,))
-    conn.commit()
-    conn.close()
-    flash('Usuário removido com sucesso!', 'danger')
-    return redirect(url_for('usuarios'))
-
-@app.route('/pagamento/<status>')
-def pagamento_retorno(status):
-    mensagem = "Status do Pagamento: "
-    if status == 'sucesso': mensagem += "Aprovado com sucesso!"
-    elif status == 'falha': mensagem += "Pagamento falhou."
-    elif status == 'pendente': mensagem += "Pagamento pendente."
-    return f"<div style='font-family: sans-serif; text-align: center; padding-top: 50px;'><h1>{mensagem}</h1><p>Você pode fechar esta janela e voltar para o Telegram.</p></div>"
-
-# --- ROTA PARA MENSAGENS DE BOAS-VINDAS (NOVA) ---
-@app.route('/config_messages', methods=['GET', 'POST'])
-def config_messages():
-    if not session.get('logged_in'):
-        return redirect(url_for('login'))
-
-    conn = get_db_connection()
-    # Obter a mensagem atual de boas-vindas do bot
-    current_welcome_message_bot = conn.execute("SELECT value FROM config WHERE key = ?", ('welcome_message_bot',)).fetchone()
-    current_welcome_message_bot = current_welcome_message_bot[0] if current_welcome_message_bot else ''
-
-    if request.method == 'POST':
-        new_message = request.form['welcome_message_bot']
-        # Atualizar a mensagem no banco de dados
-        conn.execute("UPDATE config SET value = ? WHERE key = ?", (new_message, 'welcome_message_bot'))
-        conn.commit()
-        flash('Mensagem de boas-vindas do bot atualizada com sucesso!', 'success')
-        conn.close()
-        return redirect(url_for('config_messages'))
-
-    conn.close()
-    return render_template('config_messages.html', welcome_message_bot=current_welcome_message_bot)
-
-# --- COMANDOS DO BOT ---
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    get_or_register_user(message.from_user)
-    
-    conn = get_db_connection()
-    # Obter a mensagem de boas-vindas do banco de dados
-    welcome_message = conn.execute("SELECT value FROM config WHERE key = ?", ('welcome_message_bot',)).fetchone()
-    conn.close()
-
-    # Usar a mensagem do DB ou um padrão
-    # Substituir {first_name} pelo nome real do usuário
-    final_message = "Olá! Bem-vindo(a)." # Mensagem padrão de fallback
-    if welcome_message:
-        final_message = welcome_message[0].replace('{first_name}', message.from_user.first_name or 'usuário')
-    else:
-        final_message = f"Olá, {message.from_user.first_name or 'usuário'}! Bem-vindo(a)." # Fallback se não encontrar no DB
-
-    markup = types.InlineKeyboardMarkup()
-    btn_produtos = types.InlineKeyboardButton("🛍️ Ver Produtos", callback_data='ver_produtos')
-    markup.add(btn_produtos)
-    # Usar final_message aqui
-    bot.reply_to(message, final_message, reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: True)
-def callback_query(call):
-    get_or_register_user(call.from_user)
-    if call.data == 'ver_produtos':
-        mostrar_produtos(call.message.chat.id)
-    elif call.data.startswith('comprar_'):
-        produto_id = int(call.data.split('_')[1])
-        gerar_cobranca(call, produto_id)
-
-def mostrar_produtos(chat_id):
-    conn = get_db_connection()
-    produtos = conn.execute('SELECT * FROM produtos').fetchall()
-    conn.close()
-    if not produtos:
-        bot.send_message(chat_id, "Nenhum produto disponível.")
-        return
-    for produto in produtos:
-        markup = types.InlineKeyboardMarkup()
-        btn_comprar = types.InlineKeyboardButton(f"Comprar por R${produto['preco']:.2f}", callback_data=f"comprar_{produto['id']}")
-        markup.add(btn_comprar)
-        bot.send_message(chat_id, f"💎 *{produto['nome']}*\n\nPreço: R${produto['preco']:.2f}", parse_mode='Markdown', reply_markup=markup)
-
-def gerar_cobranca(call: types.CallbackQuery, produto_id: int):
-    user_id, chat_id = call.from_user.id, call.message.chat.id
-    conn = get_db_connection()
-    produto = conn.execute('SELECT * FROM produtos WHERE id = ?', (produto_id,)).fetchone()
-    if not produto:
-        bot.send_message(chat_id, "Produto não encontrado.")
-        conn.close()
-        return
-    data_venda = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (?, ?, ?, ?, ?)",
-                     (user_id, produto_id, produto['preco'], 'pendente', data_venda))
-    conn.commit()
-    venda_id = cursor.lastrowid 
-    pagamento = pagamentos.criar_pagamento_pix(produto=produto, user=call.from_user, venda_id=venda_id)
-    conn.close()
-    if pagamento and 'point_of_interaction' in pagamento:
-        qr_code_base64 = pagamento['point_of_interaction']['transaction_data']['qr_code_base64']
-        qr_code_data = pagamento['point_of_interaction']['transaction_data']['qr_code']
-        qr_code_image = base64.b64decode(qr_code_base64)
-        
-        # --- LÓGICA DE MENSAGEM ATUALIZADA ---
-        caption_text = (
-            f"✅ PIX gerado para *{produto['nome']}*!\n\n"
-            "Escaneie o QR Code acima ou copie o código completo na próxima mensagem."
-        )
-        bot.send_photo(chat_id, qr_code_image, caption=caption_text, parse_mode='Markdown')
-        
-        bot.send_message(chat_id, qr_code_data)
-        
-        bot.send_message(chat_id, "Você receberá o produto aqui assim que o pagamento for confirmado.")
-    else:
-        bot.send_message(chat_id, "Ocorreu um erro ao gerar o PIX. Tente novamente.")
-        print(f"[ERRO] Falha ao gerar PIX. Resposta do MP: {pagamento}")
-
-# --- INICIALIZAÇÃO FINAL ---
-if __name__ != '__main__':
-    # Esta parte só é executada quando rodando na Render (produção)
-    try:
-        # Inicializar o banco de dados ANTES de qualquer operação que o use
-        init_db() # <--- CHAMAR A NOVA FUNÇÃO AQUI
-
-        pagamentos.init_mercadopago_sdk() # Inicializa o SDK do Mercado Pago
-
-        if API_TOKEN and BASE_URL:
-            bot.set_webhook(url=f"{BASE_URL}/{API_TOKEN}")
-            print("Webhook do Telegram configurado com sucesso!")
-        else:
-            print("ERRO: Variáveis de ambiente API_TOKEN ou BASE_URL não definidas.")
-    except Exception as e:
-        print(f"Erro ao configurar o webhook do Telegram: {e}")
+    if status_str: conditions.append("T.status = ?
