@@ -1,5 +1,5 @@
 import os
-# import sqlite3 # Podemos remover este import quando tiver certeza que não usa mais SQLite
+import sqlite3 # Manter por enquanto, pode ser removido depois se não usar SQLite em mais nada
 import json
 import requests
 import telebot
@@ -34,7 +34,7 @@ app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'uma_chave_padrao_muito_segura_e_longa_para_dev_local_1234567890')
 bot = telebot.TeleBot(API_TOKEN, threaded=False) # Agora API_TOKEN já deve ter valor
 
-# DB_NAME = 'dashboard.db' # Não será mais o nome do arquivo SQLite, mas podemos mantê-lo se for para fallback local
+# DB_NAME = 'dashboard.db' # Manter para a lógica do caminho, mas não será o nome do arquivo SQLite
 
 # --- 3. FUNÇÕES AUXILIARES DE BANCO DE DADOS (AGORA PARA POSTGRESQL) ---
 
@@ -66,7 +66,7 @@ def init_db():
     conn = None # Inicializa conn para garantir que esteja definido
     try:
         conn = get_db_connection() # Tenta conectar ao DB (PostgreSQL ou SQLite)
-        cur = conn.cursor()
+        cur = conn.cursor() # <--- AQUI: CRIAR CURSOR PARA init_db
 
         # SQL para PostgreSQL: Criar tabelas se não existirem
         # Assegura a ordem de criação por causa das FOREIGN KEYS
@@ -132,15 +132,14 @@ def init_db():
         raise # Re-levanta o erro para que o deploy falhe se o DB principal falhar
     finally:
         if conn:
-            cur.close()
+            cur.close() # Fechar o cursor
             conn.close()
 
-# --- Restante das funções auxiliares (manter como estão) ---
+# --- Restante das funções auxiliares ---
 # ... get_or_register_user() ...
 # ... enviar_produto_telegram() ...
 
 # --- 4. ROTAS DO PAINEL WEB (FLASK) ---
-# O webhook do Telegram deve ser uma das primeiras rotas a serem definidas para garantir o registro.
 
 @app.route(f"/{API_TOKEN}", methods=['POST'])
 def telegram_webhook():
@@ -152,22 +151,21 @@ def telegram_webhook():
     else:
         return "Unsupported Media Type", 415
 
-@app.route('/webhook/mercado-pago', methods=['GET', 'POST']) # <--- AJUSTADO PARA GET E POST
+@app.route('/webhook/mercado-pago', methods=['GET', 'POST'])
 def webhook_mercado_pago():
     print(f"DEBUG WEBHOOK MP: Recebida requisição para /webhook/mercado-pago. Method: {request.method}")
 
-    # Se for GET (geralmente teste do Mercado Pago)
     if request.method == 'GET':
         print("DEBUG WEBHOOK MP: Requisição GET de teste do Mercado Pago recebida. Respondendo 200 OK.")
         return jsonify({'status': 'ok_test_webhook'}), 200
     
-    # Se for POST (notificação real do Mercado Pago)
     notification = request.json
     print(f"DEBUG WEBHOOK MP: Corpo da notificação POST: {notification}")
 
     if notification and notification.get('type') == 'payment':
         print(f"DEBUG WEBHOOK MP: Notificação de pagamento detectada. ID: {notification.get('data', {}).get('id')}")
         payment_id = notification['data']['id']
+        # Usar o SDK do MP para verificar o status
         payment_info = pagamentos.verificar_status_pagamento(payment_id)
         
         print(f"DEBUG WEBHOOK MP: Status do pagamento verificado: {payment_info.get('status') if payment_info else 'N/A'}")
@@ -181,25 +179,28 @@ def webhook_mercado_pago():
                 return jsonify({'status': 'ignored_no_external_ref'}), 200
             
             conn = get_db_connection()
-            venda = conn.execute('SELECT * FROM vendas WHERE id = ? AND status = ?', (venda_id, 'pendente')).fetchone()
+            cur = conn.cursor() # <--- AQUI: CRIAR CURSOR
+            venda = cur.execute('SELECT * FROM vendas WHERE id = %s AND status = %s', (venda_id, 'pendente')).fetchone() # <--- USAR CURSOR E %s PARA PLACEHOLDER
 
             if venda:
                 print(f"DEBUG WEBHOOK MP: Venda {venda_id} encontrada no DB com status 'pendente'.")
                 data_venda_dt = datetime.strptime(venda['data_venda'], '%Y-%m-%d %H:%M:%S')
                 if datetime.now() > data_venda_dt + timedelta(hours=1):
                     print(f"DEBUG WEBHOOK MP: Pagamento recebido para venda expirada (ID: {venda_id}). Ignorando entrega.")
-                    conn.execute('UPDATE vendas SET status = ? WHERE id = ?', ('expirado', venda_id))
+                    cur.execute('UPDATE vendas SET status = %s WHERE id = %s', ('expirado', venda_id)) # <--- USAR CURSOR E %s
                     conn.commit()
+                    cur.close()
                     conn.close()
                     return jsonify({'status': 'expired_and_ignored'}), 200
 
                 payer_info = payment_info.get('payer', {})
                 payer_name = f"{payer_info.get('first_name', '')} {payer_info.get('last_name', '')}".strip()
                 payer_email = payer_info.get('email')
-                conn.execute('UPDATE vendas SET status = ?, payment_id = ?, payer_name = ?, payer_email = ? WHERE id = ?', 
-                                 ('aprovado', payment_id, payer_name, payer_email, venda_id))
+                cur.execute('UPDATE vendas SET status = %s, payment_id = %s, payer_name = %s, payer_email = %s WHERE id = %s', 
+                                 ('aprovado', payment_id, payer_name, payer_email, venda_id)) # <--- USAR CURSOR E %s
                 conn.commit()
-                produto = conn.execute('SELECT * FROM produtos WHERE id = ?', (venda['produto_id'],)).fetchone()
+                produto = cur.execute('SELECT * FROM produtos WHERE id = %s', (venda['produto_id'],)).fetchone() # <--- USAR CURSOR E %s
+                cur.close()
                 conn.close()
                 if produto:
                     print(f"DEBUG WEBHOOK MP: Enviando produto {produto['nome']} para user {venda['user_id']}.")
@@ -220,11 +221,10 @@ def webhook_mercado_pago():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    # Adicione esses prints para depuração de sessão/redirecionamento
     print(f"DEBUG LOGIN: Requisição para /login. Method: {request.method}")
     print(f"DEBUG LOGIN: session.get('logged_in'): {session.get('logged_in')}")
 
-    if session.get('logged_in'): # Se já estiver logado, redireciona para o dashboard
+    if session.get('logged_in'):
         print("DEBUG LOGIN: Usuário já logado. Redirecionando para index.")
         return redirect(url_for('index'))
     
@@ -232,7 +232,9 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         conn = get_db_connection()
-        admin_user = conn.execute('SELECT * FROM admin WHERE username = ?', (username,)).fetchone()
+        cur = conn.cursor() # <--- AQUI: CRIAR CURSOR
+        admin_user = cur.execute('SELECT * FROM admin WHERE username = %s', (username,)).fetchone() # <--- USAR CURSOR E %s
+        cur.close() # Fechar cursor antes de fechar a conexão
         conn.close()
         if admin_user and check_password_hash(admin_user['password_hash'], password):
             session['logged_in'] = True
@@ -255,7 +257,6 @@ def logout():
 
 @app.route('/')
 def index():
-    # Adicione esses prints para depuração de sessão/redirecionamento
     print(f"DEBUG INDEX: Requisição para /. session.get('logged_in'): {session.get('logged_in')}")
 
     if not session.get('logged_in'):
@@ -263,20 +264,22 @@ def index():
         return redirect(url_for('login'))
     
     conn = get_db_connection()
-    total_usuarios = conn.execute('SELECT COUNT(id) FROM users').fetchone()[0]
-    total_produtos = conn.execute('SELECT COUNT(id) FROM produtos').fetchone()[0]
-    vendas_data = conn.execute("SELECT COUNT(id), SUM(preco) FROM vendas WHERE status = ?", ('aprovado',)).fetchone()
+    cur = conn.cursor() # <--- AQUI: CRIAR CURSOR
+    total_usuarios = cur.execute('SELECT COUNT(id) FROM users').fetchone()[0] # <--- USAR CURSOR
+    total_produtos = cur.execute('SELECT COUNT(id) FROM produtos').fetchone()[0] # <--- USAR CURSOR
+    vendas_data = cur.execute("SELECT COUNT(id), SUM(preco) FROM vendas WHERE status = %s", ('aprovado',)).fetchone() # <--- USAR CURSOR E %s
     total_vendas_aprovadas = vendas_data[0] or 0
     receita_total = vendas_data[1] or 0.0
-    vendas_recentes = conn.execute("SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, CASE WHEN v.status = 'aprovado' THEN 'aprovado' WHEN v.status = 'pendente' AND DATETIME('now', 'localtime', '-1 hour') > DATETIME(v.data_venda) THEN 'expirado' ELSE v.status END AS status FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id ORDER BY v.id DESC LIMIT 5").fetchall()
+    vendas_recentes = cur.execute("SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, CASE WHEN v.status = 'aprovado' THEN 'aprovado' WHEN v.status = 'pendente' AND DATETIME('now', 'localtime', '-1 hour') > DATETIME(v.data_venda) THEN 'expirado' ELSE v.status END AS status FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id ORDER BY v.id DESC LIMIT 5").fetchall() # <--- USAR CURSOR
     chart_labels, chart_data = [], []
     today = datetime.now()
     for i in range(6, -1, -1):
         day = today - timedelta(days=i)
         start_of_day, end_of_day = datetime.combine(day.date(), time.min), datetime.combine(day.date(), time.max)
         chart_labels.append(day.strftime('%d/%m'))
-        daily_revenue = conn.execute("SELECT SUM(preco) FROM vendas WHERE status = 'aprovado' AND data_venda BETWEEN ? AND ?", (start_of_day, end_of_day)).fetchone()[0]
+        daily_revenue = cur.execute("SELECT SUM(preco) FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s", ('aprovado', start_of_day, end_of_day)).fetchone()[0] # <--- USAR CURSOR E %s
         chart_data.append(daily_revenue or 0)
+    cur.close() # Fechar o cursor
     conn.close()
     print("DEBUG INDEX: Renderizando index.html.")
     return render_template('index.html', total_vendas=total_vendas_aprovadas, total_usuarios=total_usuarios, total_produtos=total_produtos, receita_total=receita_total, vendas_recentes=vendas_recentes, chart_labels=json.dumps(chart_labels), chart_data=json.dumps(chart_data))
@@ -287,13 +290,17 @@ def produtos():
     if request.method == 'POST':
         nome, preco, link = request.form['nome'], request.form['preco'], request.form['link']
         conn = get_db_connection()
-        conn.execute('INSERT INTO produtos (nome, preco, link) VALUES (?, ?, ?)', (nome, preco, link))
+        cur = conn.cursor() # <--- AQUI: CRIAR CURSOR
+        cur.execute('INSERT INTO produtos (nome, preco, link) VALUES (%s, %s, %s)', (nome, preco, link)) # <--- USAR CURSOR E %s
         conn.commit()
+        cur.close() # Fechar o cursor
         conn.close()
         flash('Produto adicionado com sucesso!', 'success')
         return redirect(url_for('produtos'))
     conn = get_db_connection()
-    lista_produtos = conn.execute('SELECT * FROM produtos ORDER BY id DESC').fetchall()
+    cur = conn.cursor() # <--- AQUI: CRIAR CURSOR
+    lista_produtos = cur.execute('SELECT * FROM produtos ORDER BY id DESC').fetchall() # <--- USAR CURSOR
+    cur.close() # Fechar o cursor
     conn.close()
     return render_template('produtos.html', produtos=lista_produtos)
 
@@ -301,14 +308,17 @@ def produtos():
 def edit_product(id):
     if not session.get('logged_in'): return redirect(url_for('login'))
     conn = get_db_connection()
-    produto = conn.execute('SELECT * FROM produtos WHERE id = ?', (id,)).fetchone()
+    cur = conn.cursor() # <--- AQUI: CRIAR CURSOR
+    produto = cur.execute('SELECT * FROM produtos WHERE id = %s', (id,)).fetchone() # <--- USAR CURSOR E %s
     if request.method == 'POST':
         nome, preco, link = request.form['nome'], request.form['preco'], request.form['link']
-        conn.execute('UPDATE produtos SET nome = ?, preco = ?, link = ? WHERE id = ?', (nome, preco, link, id))
+        cur.execute('UPDATE produtos SET nome = %s, preco = %s, link = %s WHERE id = %s', (nome, preco, link, id)) # <--- USAR CURSOR E %s
         conn.commit()
+        cur.close() # Fechar o cursor
         conn.close()
         flash('Produto atualizado com sucesso!', 'success')
         return redirect(url_for('produtos'))
+    cur.close() # Fechar o cursor
     conn.close()
     return render_template('edit_product.html', produto=produto)
 
@@ -316,8 +326,10 @@ def edit_product(id):
 def remove_product(id):
     if not session.get('logged_in'): return redirect(url_for('login'))
     conn = get_db_connection()
-    conn.execute('DELETE FROM produtos WHERE id = ?', (id,))
+    cur = conn.cursor() # <--- AQUI: CRIAR CURSOR
+    cur.execute('DELETE FROM produtos WHERE id = %s', (id,)) # <--- USAR CURSOR E %s
     conn.commit()
+    cur.close() # Fechar o cursor
     conn.close()
     flash('Produto removido com sucesso!', 'danger')
     return redirect(url_for('produtos'))
@@ -326,18 +338,25 @@ def remove_product(id):
 def vendas():
     if not session.get('logged_in'): return redirect(url_for('login'))
     conn = get_db_connection()
-    produtos_disponiveis = conn.execute('SELECT id, nome FROM produtos ORDER BY nome').fetchall()
-    query_base = "SELECT T.* FROM (SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, p.id as produto_id, CASE WHEN v.status = 'aprovado' THEN 'aprovado' WHEN v.status = 'pendente' AND DATETIME('now', 'localtime', '-1 hour') > DATETIME(v.data_venda) THEN 'expirado' ELSE v.status END AS status FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id) AS T"
+    cur = conn.cursor() # <--- AQUI: CRIAR CURSOR
+    produtos_disponiveis = cur.execute('SELECT id, nome FROM produtos ORDER BY nome').fetchall() # <--- USAR CURSOR
+    
+    query_base = "SELECT T.* FROM (SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, p.id as produto_id, CASE WHEN v.status = 'aprovado' THEN 'aprovado' WHEN v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() - v.data_venda)) > 3600 THEN 'expirado' ELSE v.status END AS status FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id) AS T" # <--- ALTERADO DATETIME('now', ...) para PostgreSQL
+    # EXTRACT(EPOCH FROM (NOW() - v.data_venda)) > 3600 para verificar 1 hora em PostgreSQL
     conditions, params = [], []
     data_inicio_str, data_fim_str, pesquisa_str, produto_id_str, status_str = (request.args.get('data_inicio'), request.args.get('data_fim'), request.args.get('pesquisa'), request.args.get('produto_id'), request.args.get('status'))
-    if data_inicio_str: conditions.append("DATE(T.data_venda) >= ?"); params.append(data_inicio_str)
-    if data_fim_str: conditions.append("DATE(T.data_venda) <= ?"); params.append(data_fim_str)
-    if pesquisa_str: conditions.append("(T.username LIKE ? OR T.nome LIKE ? OR T.first_name LIKE ?)"); params.extend([f'%{pesquisa_str}%'] * 3)
-    if produto_id_str: conditions.append("T.produto_id = ?"); params.append(produto_id_str)
-    if status_str: conditions.append("T.status = ?"); params.append(status_str)
+    
+    if data_inicio_str: conditions.append("DATE(T.data_venda) >= %s"); params.append(data_inicio_str) # <--- USAR %s
+    if data_fim_str: conditions.append("DATE(T.data_venda) <= %s"); params.append(data_fim_str) # <--- USAR %s
+    if pesquisa_str: conditions.append("(T.username ILIKE %s OR T.nome ILIKE %s OR T.first_name ILIKE %s)"); params.extend([f'%{pesquisa_str}%'] * 3) # <--- USAR ILIKE para case-insensitive no PostgreSQL
+    if produto_id_str: conditions.append("T.produto_id = %s"); params.append(produto_id_str) # <--- USAR %s
+    if status_str: conditions.append("T.status = %s"); params.append(status_str) # <--- USAR %s
+    
     if conditions: query_base += " WHERE " + " AND ".join(conditions)
     query_base += " ORDER BY T.id DESC"
-    lista_vendas = conn.execute(query_base, tuple(params)).fetchall()
+    
+    lista_vendas = cur.execute(query_base, tuple(params)).fetchall() # <--- USAR CURSOR E %s
+    cur.close() # Fechar o cursor
     conn.close()
     return render_template('vendas.html', vendas=lista_vendas, produtos_disponiveis=produtos_disponiveis)
 
@@ -345,7 +364,9 @@ def vendas():
 def venda_detalhes(id):
     if not session.get('logged_in'): return jsonify({'error': 'Unauthorized'}), 401
     conn = get_db_connection()
-    venda = conn.execute('SELECT * FROM vendas WHERE id = ?', (id,)).fetchone()
+    cur = conn.cursor() # <--- AQUI: CRIAR CURSOR
+    venda = cur.execute('SELECT * FROM vendas WHERE id = %s', (id,)).fetchone() # <--- USAR CURSOR E %s
+    cur.close() # Fechar o cursor
     conn.close()
     if venda: return jsonify(dict(venda))
     return jsonify({'error': 'Not Found'}), 404
@@ -354,7 +375,9 @@ def venda_detalhes(id):
 def usuarios():
     if not session.get('logged_in'): return redirect(url_for('login'))
     conn = get_db_connection()
-    lista_usuarios = conn.execute('SELECT * FROM users ORDER BY id DESC').fetchall()
+    cur = conn.cursor() # <--- AQUI: CRIAR CURSOR
+    lista_usuarios = cur.execute('SELECT * FROM users ORDER BY id DESC').fetchall() # <--- USAR CURSOR
+    cur.close() # Fechar o cursor
     conn.close()
     return render_template('usuarios.html', usuarios=lista_usuarios)
 
@@ -362,8 +385,10 @@ def usuarios():
 def remove_user(id):
     if not session.get('logged_in'): return redirect(url_for('login'))
     conn = get_db_connection()
-    conn.execute('DELETE FROM users WHERE id = ?', (id,))
+    cur = conn.cursor() # <--- AQUI: CRIAR CURSOR
+    cur.execute('DELETE FROM users WHERE id = %s', (id,)) # <--- USAR CURSOR E %s
     conn.commit()
+    cur.close() # Fechar o cursor
     conn.close()
     flash('Usuário removido com sucesso!', 'danger')
     return redirect(url_for('usuarios'))
@@ -383,49 +408,51 @@ def config_messages():
         return redirect(url_for('login'))
 
     conn = get_db_connection()
+    cur = conn.cursor() # <--- AQUI: CRIAR CURSOR
     # Obter a mensagem atual de boas-vindas do bot
-    current_welcome_message_bot = conn.execute("SELECT value FROM config WHERE key = ?", ('welcome_message_bot',)).fetchone()
-    current_welcome_message_bot = current_welcome_message_bot[0] if current_welcome_message_bot else ''
+    current_welcome_message_bot = cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_bot',)).fetchone() # <--- USAR CURSOR E %s
+    current_welcome_message_bot = current_welcome_message_bot['value'] if current_welcome_message_bot else '' # <--- ACESSAR POR CHAVE NO REALDICTCURSOR
 
     if request.method == 'POST':
         new_message = request.form['welcome_message_bot']
         # Atualizar a mensagem no banco de dados
-        conn.execute("UPDATE config SET value = ? WHERE key = ?", (new_message, 'welcome_message_bot'))
+        cur.execute("UPDATE config SET value = %s WHERE key = %s", (new_message, 'welcome_message_bot')) # <--- USAR CURSOR E %s
         conn.commit()
-        flash('Mensagem de boas-vindas do bot atualizada com sucesso!', 'success')
+        cur.close() # Fechar o cursor
         conn.close()
+        flash('Mensagem de boas-vindas do bot atualizada com sucesso!', 'success')
         return redirect(url_for('config_messages'))
 
+    cur.close() # Fechar o cursor
     conn.close()
     return render_template('config_messages.html', welcome_message_bot=current_welcome_message_bot)
 
 # --- COMANDOS DO BOT ---
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    get_or_register_user(message.from_user)
-    
+    get_or_register_user(message.from_user) # Esta função já usa DB
+
+    # Lógica para obter a mensagem de boas-vindas do DB (agora do PostgreSQL)
     conn = get_db_connection()
-    # Obter a mensagem de boas-vindas do banco de dados
-    welcome_message = conn.execute("SELECT value FROM config WHERE key = ?", ('welcome_message_bot',)).fetchone()
+    cur = conn.cursor() # <--- AQUI: CRIAR CURSOR
+    welcome_message = cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_bot',)).fetchone() # <--- USAR CURSOR E %s
+    cur.close() # Fechar o cursor
     conn.close()
 
-    # Usar a mensagem do DB ou um padrão
-    # Substituir {first_name} pelo nome real do usuário
     final_message = "Olá! Bem-vindo(a)." # Mensagem padrão de fallback
     if welcome_message:
-        final_message = welcome_message[0].replace('{first_name}', message.from_user.first_name or 'usuário')
+        final_message = welcome_message['value'].replace('{first_name}', message.from_user.first_name or 'usuário') # <--- ACESSAR POR CHAVE NO REALDICTCURSOR
     else:
-        final_message = f"Olá, {message.from_user.first_name or 'usuário'}! Bem-vindo(a)." # Fallback se não encontrar no DB
+        final_message = f"Olá, {message.from_user.first_name or 'usuário'}! Bem-vindo(a)."
 
     markup = types.InlineKeyboardMarkup()
     btn_produtos = types.InlineKeyboardButton("🛍️ Ver Produtos", callback_data='ver_produtos')
     markup.add(btn_produtos)
-    # Usar final_message aqui
     bot.reply_to(message, final_message, reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
-    get_or_register_user(call.from_user)
+    get_or_register_user(call.from_user) # Esta função já usa DB
     if call.data == 'ver_produtos':
         mostrar_produtos(call.message.chat.id)
     elif call.data.startswith('comprar_'):
@@ -434,7 +461,9 @@ def callback_query(call):
 
 def mostrar_produtos(chat_id):
     conn = get_db_connection()
-    produtos = conn.execute('SELECT * FROM produtos').fetchall()
+    cur = conn.cursor() # <--- AQUI: CRIAR CURSOR
+    produtos = cur.execute('SELECT * FROM produtos').fetchall() # <--- USAR CURSOR
+    cur.close() # Fechar o cursor
     conn.close()
     if not produtos:
         bot.send_message(chat_id, "Nenhum produto disponível.")
@@ -448,19 +477,26 @@ def mostrar_produtos(chat_id):
 def gerar_cobranca(call: types.CallbackQuery, produto_id: int):
     user_id, chat_id = call.from_user.id, call.message.chat.id
     conn = get_db_connection()
-    produto = conn.execute('SELECT * FROM produtos WHERE id = ?', (produto_id,)).fetchone()
+    cur = conn.cursor() # <--- AQUI: CRIAR CURSOR
+    produto = cur.execute('SELECT * FROM produtos WHERE id = %s', (produto_id,)).fetchone() # <--- USAR CURSOR E %s
+    
     if not produto:
         bot.send_message(chat_id, "Produto não encontrado.")
+        cur.close() # Fechar o cursor
         conn.close()
         return
+    
     data_venda = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (?, ?, ?, ?, ?)",
-                     (user_id, produto_id, produto['preco'], 'pendente', data_venda))
+    cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+                     (user_id, produto['id'], produto['preco'], 'pendente', data_venda)) # <--- USAR CURSOR, %s e RETURNING id
+    venda_id = cur.fetchone()[0] # Obter o ID da venda recém-criada
     conn.commit()
-    venda_id = cursor.lastrowid 
-    pagamento = pagamentos.criar_pagamento_pix(produto=produto, user=call.from_user, venda_id=venda_id)
+    cur.close() # Fechar o cursor
     conn.close()
+    
+    pagamento = pagamentos.criar_pagamento_pix(produto=produto, user=call.from_user, venda_id=venda_id)
+    # conn.close() # Já está fechado acima
+
     if pagamento and 'point_of_interaction' in pagamento:
         qr_code_base64 = pagamento['point_of_interaction']['transaction_data']['qr_code_base64']
         qr_code_data = pagamento['point_of_interaction']['transaction_data']['qr_code']
@@ -495,4 +531,4 @@ if __name__ != '__main__':
         else:
             print("ERRO: Variáveis de ambiente API_TOKEN ou BASE_URL não definidas.")
     except Exception as e:
-        print(f"Erro ao configurar o webhook do Telegram: {e}")
+        print(f"Erro ao configurar o webhook do Telegram ou inicializar Mercado Pago/DB: {e}")
