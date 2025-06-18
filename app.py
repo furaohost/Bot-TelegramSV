@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, time
 API_TOKEN = os.getenv('API_TOKEN')
 BASE_URL = os.getenv('BASE_URL') # A URL base do seu serviço Render
 
-# Adicione essas linhas para depuração (remova depois de resolver o 404)
+# Adicione essas linhas para depuração (mantenha durante o troubleshoot)
 print(f"DEBUG: API_TOKEN lido: {API_TOKEN}")
 print(f"DEBUG: BASE_URL lida: {BASE_URL}")
 
