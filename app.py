@@ -62,7 +62,8 @@ def init_db():
 
         # --- ADICIONE ESTES COMANDOS PARA FORÇAR A RECRIAÇÃO (TEMPORÁRIO) ---
         # ATENÇÃO: ISSO APAGARÁ TODOS OS DADOS A CADA DEPLOY! REMOVER DEPOIS DE RESOLVER O PROBLEMA.
-        cur.execute('DROP TABLE IF EXISTS vendas CASCADE;') # CASCADE apaga FKs que dependem dela
+        # CASCADE apaga chaves estrangeiras que dependem dela
+        cur.execute('DROP TABLE IF EXISTS vendas CASCADE;') 
         cur.execute('DROP TABLE IF EXISTS produtos CASCADE;')
         cur.execute('DROP TABLE IF EXISTS users CASCADE;')
         cur.execute('DROP TABLE IF EXISTS admin CASCADE;')
@@ -138,6 +139,8 @@ def get_or_register_user(user: types.User):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+        # No PostgreSQL, usar o ID do Telegram (BIGINT) como PRIMARY KEY já garante a unicidade.
+        # Apenas verificar se o usuário existe, não tentar inseri-lo se já estiver lá.
         db_user = cur.execute("SELECT * FROM users WHERE id = %s", (user.id,)).fetchone()
         if db_user is None:
             data_registro = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -146,7 +149,7 @@ def get_or_register_user(user: types.User):
             conn.commit()
     except Exception as e:
         print(f"ERRO DB: get_or_register_user falhou: {e}")
-        if conn: conn.rollback()
+        if conn and not conn.closed: conn.rollback()
     finally:
         if cur: cur.close()
         if conn: conn.close()
@@ -235,7 +238,7 @@ def webhook_mercado_pago():
                     return jsonify({'status': 'already_processed_or_not_pending'}), 200
             except Exception as e:
                 print(f"ERRO WEBHOOK MP: Erro no processamento da notificação de pagamento: {e}")
-                if conn and not conn.closed: conn.rollback() # Reverter apenas se a conexão estiver aberta e não fechada
+                if conn and not conn.closed: conn.rollback() # Reverter apenas se a conexão estiver aberta
                 return jsonify({'status': 'error_processing_webhook'}), 500
             finally:
                 if cur: cur.close()
@@ -277,7 +280,7 @@ def login():
         except Exception as e:
             print(f"ERRO LOGIN: Falha no processo de login: {e}")
             flash('Erro no servidor ao tentar login.', 'danger')
-            if conn and not conn.closed: conn.rollback() # Reverter apenas se a conexão estiver aberta
+            if conn and not conn.closed: conn.rollback()
         finally:
             if cur: cur.close()
             if conn: conn.close()
@@ -305,26 +308,33 @@ def index():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        total_usuarios = cur.execute('SELECT COUNT(id) FROM users').fetchone()[0]
-        total_produtos = cur.execute('SELECT COUNT(id) FROM produtos').fetchone()[0]
-        vendas_data = cur.execute("SELECT COUNT(id), SUM(preco) FROM vendas WHERE status = %s", ('aprovado',)).fetchone()
-        total_vendas_aprovadas = vendas_data[0] or 0
-        receita_total = vendas_data[1] or 0.0
+        total_usuarios_row = cur.execute('SELECT COUNT(id) FROM users').fetchone()
+        total_usuarios = total_usuarios_row[0] if total_usuarios_row and total_usuarios_row[0] is not None else 0
+
+        total_produtos_row = cur.execute('SELECT COUNT(id) FROM produtos').fetchone()
+        total_produtos = total_produtos_row[0] if total_produtos_row and total_produtos_row[0] is not None else 0
+
+        vendas_data_row = cur.execute("SELECT COUNT(id), SUM(preco) FROM vendas WHERE status = %s", ('aprovado',)).fetchone()
+        total_vendas_aprovadas = vendas_data_row[0] or 0
+        receita_total = vendas_data_row[1] or 0.0
+
         vendas_recentes = cur.execute("SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, CASE WHEN v.status = 'aprovado' THEN 'aprovado' WHEN v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() - v.data_venda)) > 3600 THEN 'expirado' ELSE v.status END AS status FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id ORDER BY v.id DESC LIMIT 5").fetchall()
+        
         chart_labels, chart_data = [], []
         today = datetime.now()
         for i in range(6, -1, -1):
             day = today - timedelta(days=i)
             start_of_day, end_of_day = datetime.combine(day.date(), time.min), datetime.combine(day.date(), time.max)
             chart_labels.append(day.strftime('%d/%m'))
-            daily_revenue = cur.execute("SELECT SUM(preco) FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s", ('aprovado', start_of_day, end_of_day)).fetchone()[0]
-            chart_data.append(daily_revenue or 0)
+            daily_revenue_row = cur.execute("SELECT SUM(preco) FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s", ('aprovado', start_of_day, end_of_day)).fetchone()
+            daily_revenue = daily_revenue_row[0] if daily_revenue_row and daily_revenue_row[0] is not None else 0
+            chart_data.append(daily_revenue)
+        
         print("DEBUG INDEX: Renderizando index.html.")
         return render_template('index.html', total_vendas=total_vendas_aprovadas, total_usuarios=total_usuarios, total_produtos=total_produtos, receita_total=receita_total, vendas_recentes=vendas_recentes, chart_labels=json.dumps(chart_labels), chart_data=json.dumps(chart_data))
     except Exception as e:
         print(f"ERRO INDEX: Falha ao renderizar o dashboard: {e}")
         flash('Erro ao carregar o dashboard.', 'danger')
-        # Tenta redirecionar para o login em caso de erro no dashboard
         return redirect(url_for('login'))
     finally:
         if cur: cur.close()
@@ -560,7 +570,7 @@ def send_welcome(message):
         bot.reply_to(message, final_message, reply_markup=markup)
     except Exception as e:
         print(f"ERRO START: Falha ao enviar mensagem de boas-vindas: {e}")
-        bot.reply_to(message, "Ocorreu um erro ao iniciar o bot. Tente novamente mais tarde.")
+        bot.reply_to(message, "Ocorreu um erro ao iniciar o bot. Tente novamente mais tarde.") # Corrigido para reply_to
     finally:
         if cur: cur.close()
         if conn: conn.close()
