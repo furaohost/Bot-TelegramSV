@@ -22,7 +22,8 @@ print(f"DEBUG: BASE_URL lida: {BASE_URL}")
 # O 'app' (Flask) e 'bot' (Telebot) devem ser inicializados APÓS
 # a leitura das variáveis de ambiente essenciais.
 app = Flask(__name__)
-app.secret_key = os.getenv('FLASK_SECRET_KEY', 'uma_chave_padrao_muito_segura')
+# Garante que FLASK_SECRET_KEY é lida e tem um fallback seguro para local
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'uma_chave_padrao_muito_segura_e_longa_para_dev_local_1234567890')
 bot = telebot.TeleBot(API_TOKEN, threaded=False) # Agora API_TOKEN já deve ter valor
 
 DB_NAME = 'dashboard.db'
@@ -37,12 +38,14 @@ def get_db_connection():
 
 def init_db():
     conn = get_db_connection()
+    # Criar a tabela 'config' se não existir
     conn.execute('''
         CREATE TABLE IF NOT EXISTS config (
             key TEXT PRIMARY KEY,
             value TEXT
         )
     ''')
+    # Inserir um valor padrão para a mensagem de boas-vindas do bot se não existir
     conn.execute('''
         INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)
     ''', ('welcome_message_bot', 'Olá, {first_name}! Bem-vindo(a) ao bot!'))
@@ -124,28 +127,48 @@ def webhook_mercado_pago():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if not session.get('logged_in'): return redirect(url_for('index'))
+    # Adicione esses prints para depuração de sessão/redirecionamento
+    print(f"DEBUG LOGIN: Requisição para /login. Method: {request.method}")
+    print(f"DEBUG LOGIN: session.get('logged_in'): {session.get('logged_in')}")
+
+    if session.get('logged_in'): # Se já estiver logado, redireciona para o dashboard
+        print("DEBUG LOGIN: Usuário já logado. Redirecionando para index.")
+        return redirect(url_for('index'))
+    
     if request.method == 'POST':
-        username, password = request.form['username'], request.form['password']
+        username = request.form.get('username')
+        password = request.form.get('password')
         conn = get_db_connection()
         admin_user = conn.execute('SELECT * FROM admin WHERE username = ?', (username,)).fetchone()
         conn.close()
         if admin_user and check_password_hash(admin_user['password_hash'], password):
-            session['logged_in'], session['username'] = True, admin_user['username']
+            session['logged_in'] = True
+            session['username'] = admin_user['username']
+            print(f"DEBUG LOGIN: Login bem-sucedido para {session['username']}. session['logged_in'] = {session.get('logged_in')}")
             return redirect(url_for('index'))
         else:
             flash('Usuário ou senha inválidos.', 'danger')
+            print("DEBUG LOGIN: Login falhou. Credenciais inválidas.")
+    
+    print("DEBUG LOGIN: Renderizando login.html.")
     return render_template('login.html')
 
 @app.route('/logout')
 def logout():
+    print(f"DEBUG LOGOUT: Desconectando usuário {session.get('username')}.")
     session.clear()
     flash('Você foi desconectado.', 'info')
     return redirect(url_for('login'))
 
 @app.route('/')
 def index():
-    if not session.get('logged_in'): return redirect(url_for('login'))
+    # Adicione esses prints para depuração de sessão/redirecionamento
+    print(f"DEBUG INDEX: Requisição para /. session.get('logged_in'): {session.get('logged_in')}")
+
+    if not session.get('logged_in'):
+        print("DEBUG INDEX: Usuário não logado. Redirecionando para login.")
+        return redirect(url_for('login'))
+    
     conn = get_db_connection()
     total_usuarios = conn.execute('SELECT COUNT(id) FROM users').fetchone()[0]
     total_produtos = conn.execute('SELECT COUNT(id) FROM produtos').fetchone()[0]
@@ -162,6 +185,7 @@ def index():
         daily_revenue = conn.execute("SELECT SUM(preco) FROM vendas WHERE status = 'aprovado' AND data_venda BETWEEN ? AND ?", (start_of_day, end_of_day)).fetchone()[0]
         chart_data.append(daily_revenue or 0)
     conn.close()
+    print("DEBUG INDEX: Renderizando index.html.")
     return render_template('index.html', total_vendas=total_vendas_aprovadas, total_usuarios=total_usuarios, total_produtos=total_produtos, receita_total=receita_total, vendas_recentes=vendas_recentes, chart_labels=json.dumps(chart_labels), chart_data=json.dumps(chart_data))
 
 @app.route('/produtos', methods=['GET', 'POST'])
@@ -356,7 +380,6 @@ def gerar_cobranca(call: types.CallbackQuery, produto_id: int):
         )
         bot.send_photo(chat_id, qr_code_image, caption=caption_text, parse_mode='Markdown')
         
-        # Envia o código em uma mensagem separada e sem formatação para garantir a cópia
         bot.send_message(chat_id, qr_code_data)
         
         bot.send_message(chat_id, "Você receberá o produto aqui assim que o pagamento for confirmado.")
@@ -379,4 +402,4 @@ if __name__ != '__main__':
         else:
             print("ERRO: Variáveis de ambiente API_TOKEN ou BASE_URL não definidas.")
     except Exception as e:
-        print(f"Erro ao configurar o webhook do Telegram ou inicializar Mercado Pago: {e}")
+        print(f"Erro ao configurar o webhook do Telegram: {e}")
