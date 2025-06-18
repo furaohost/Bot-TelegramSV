@@ -47,7 +47,7 @@ def get_db_connection():
     else:
         try:
             conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor, sslmode='require')
-            print("DEBUG DB: Conectado ao PostgreSQL.")
+            # Não imprime "DEBUG DB: Conectado ao PostgreSQL." aqui para evitar repetição em cada chamada
             return conn
         except Exception as e:
             print(f"ERRO DB: Falha ao conectar ao PostgreSQL: {e}")
@@ -55,24 +55,26 @@ def get_db_connection():
 
 def init_db():
     conn = None
-    cur = None # Inicializar cursor também
+    cur = None
     try:
-        conn = get_db_connection()
+        conn = get_db_connection() # Obtém a conexão
         cur = conn.cursor()
 
         # --- ADICIONE ESTES COMANDOS PARA FORÇAR A RECRIAÇÃO (TEMPORÁRIO) ---
         # ATENÇÃO: ISSO APAGARÁ TODOS OS DADOS A CADA DEPLOY! REMOVER DEPOIS DE RESOLVER O PROBLEMA.
-        # CASCADE apaga chaves estrangeiras que dependem dela
+        # A ordem de DROP é importante: tabelas com FKs devem ser dropadas primeiro
         cur.execute('DROP TABLE IF EXISTS vendas CASCADE;') 
         cur.execute('DROP TABLE IF EXISTS produtos CASCADE;')
-        cur.execute('DROP TABLE IF EXISTS users CASCADE;')
         cur.execute('DROP TABLE IF EXISTS admin CASCADE;')
         cur.execute('DROP TABLE IF EXISTS config CASCADE;')
+        cur.execute('DROP TABLE IF EXISTS users CASCADE;') # Users por último se outras tabelas referenciarem
+
         # --- FIM DOS COMANDOS TEMPORÁRIOS ---
 
+        # Criação das tabelas
         cur.execute('''
             CREATE TABLE IF NOT EXISTS users (
-                id BIGINT PRIMARY KEY, -- PRIMARY KEY implica UNIQUE e NOT NULL
+                id BIGINT PRIMARY KEY,
                 username TEXT,
                 first_name TEXT,
                 last_name TEXT,
@@ -116,17 +118,18 @@ def init_db():
             );
         ''')
 
+        # Inserir valor padrão para mensagem de boas-vindas
         cur.execute('''
             INSERT INTO config (key, value) VALUES (%s, %s)
             ON CONFLICT (key) DO NOTHING;
         ''', ('welcome_message_bot', 'Olá, {first_name}! Bem-vindo(a) ao bot!'))
 
-        conn.commit()
+        conn.commit() # Comita todas as criações e inserções
         print("DEBUG DB: Tabelas do banco de dados verificadas/criadas (PostgreSQL/SQLite).")
     except Exception as e:
         print(f"ERRO DB: Falha ao inicializar o banco de dados: {e}")
         if conn:
-            conn.rollback()
+            conn.rollback() # Reverte a transação em caso de erro
         raise # Re-levanta o erro para que o deploy falhe se o DB principal falhar
     finally:
         if cur: cur.close()
@@ -139,8 +142,6 @@ def get_or_register_user(user: types.User):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        # No PostgreSQL, usar o ID do Telegram (BIGINT) como PRIMARY KEY já garante a unicidade.
-        # Apenas verificar se o usuário existe, não tentar inseri-lo se já estiver lá.
         db_user = cur.execute("SELECT * FROM users WHERE id = %s", (user.id,)).fetchone()
         if db_user is None:
             data_registro = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -190,24 +191,23 @@ def webhook_mercado_pago():
     if notification and notification.get('type') == 'payment':
         print(f"DEBUG WEBHOOK MP: Notificação de pagamento detectada. ID: {notification.get('data', {}).get('id')}")
         payment_id = notification['data']['id']
-        # Usar o SDK do MP para verificar o status
         payment_info = pagamentos.verificar_status_pagamento(payment_id)
         
         print(f"DEBUG WEBHOOK MP: Status do pagamento verificado: {payment_info.get('status') if payment_info else 'N/A'}")
 
         if payment_info and payment_info['status'] == 'approved':
-            venda_id = payment_info.get('external_reference')
-            print(f"DEBUG WEBHOOK MP: Pagamento aprovado. Venda ID (external_reference): {venda_id}")
-
-            if not venda_id:
-                print("DEBUG WEBHOOK MP: external_reference não encontrado na notificação. Ignorando.")
-                return jsonify({'status': 'ignored_no_external_ref'}), 200
-            
             conn = None
             cur = None
             try:
                 conn = get_db_connection()
                 cur = conn.cursor()
+                venda_id = payment_info.get('external_reference')
+                print(f"DEBUG WEBHOOK MP: Pagamento aprovado. Venda ID (external_reference): {venda_id}")
+
+                if not venda_id:
+                    print("DEBUG WEBHOOK MP: external_reference não encontrado na notificação. Ignorando.")
+                    return jsonify({'status': 'ignored_no_external_ref'}), 200
+                
                 venda = cur.execute('SELECT * FROM vendas WHERE id = %s AND status = %s', (venda_id, 'pendente')).fetchone()
 
                 if venda:
@@ -238,7 +238,7 @@ def webhook_mercado_pago():
                     return jsonify({'status': 'already_processed_or_not_pending'}), 200
             except Exception as e:
                 print(f"ERRO WEBHOOK MP: Erro no processamento da notificação de pagamento: {e}")
-                if conn and not conn.closed: conn.rollback() # Reverter apenas se a conexão estiver aberta
+                if conn and not conn.closed: conn.rollback()
                 return jsonify({'status': 'error_processing_webhook'}), 500
             finally:
                 if cur: cur.close()
@@ -308,6 +308,7 @@ def index():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+        # Garante que fetchone() retorna uma tupla ou dicionário, mesmo se COUNT(id) for 0
         total_usuarios_row = cur.execute('SELECT COUNT(id) FROM users').fetchone()
         total_usuarios = total_usuarios_row[0] if total_usuarios_row and total_usuarios_row[0] is not None else 0
 
