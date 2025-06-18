@@ -1,3 +1,12 @@
+Certo! Por favor, substitua **TODO o conteúdo do seu arquivo `app.py` por este código abaixo.**
+
+Este é o `app.py` completo com a adição dos comandos `DROP TABLE IF EXISTS` na função `init_db()` para forçar a recriação limpa das tabelas no PostgreSQL.
+
+---
+
+**Conteúdo do Arquivo `app.py` (Versão FINAL para Teste de Persistência e Erros de DB)**
+
+```python
 import os
 import sqlite3 # Manter por enquanto para o fallback local
 import json
@@ -12,7 +21,8 @@ from datetime import datetime, timedelta, time
 
 # Imports para PostgreSQL
 import psycopg2 
-from psycopg2.extras import RealDictCursor 
+from psycopg2.extras import RealDictCursor # Para retornar linhas como dicionários (similar ao sqlite3.Row)
+
 
 # --- 1. CONFIGURAÇÃO INICIAL (Leitura de Variáveis de Ambiente) ---
 API_TOKEN = os.getenv('API_TOKEN')
@@ -59,9 +69,18 @@ def init_db():
         conn = get_db_connection()
         cur = conn.cursor()
 
+        # --- ADICIONE ESTES COMANDOS PARA FORÇAR A RECRIAÇÃO (TEMPORÁRIO) ---
+        # ATENÇÃO: ISSO APAGARÁ TODOS OS DADOS A CADA DEPLOY! REMOVER DEPOIS DE RESOLVER O PROBLEMA.
+        cur.execute('DROP TABLE IF EXISTS vendas CASCADE;') # CASCADE apaga FKs que dependem dela
+        cur.execute('DROP TABLE IF EXISTS produtos CASCADE;')
+        cur.execute('DROP TABLE IF EXISTS users CASCADE;')
+        cur.execute('DROP TABLE IF EXISTS admin CASCADE;')
+        cur.execute('DROP TABLE IF EXISTS config CASCADE;')
+        # --- FIM DOS COMANDOS TEMPORÁRIOS ---
+
         cur.execute('''
             CREATE TABLE IF NOT EXISTS users (
-                id BIGINT PRIMARY KEY,
+                id BIGINT PRIMARY KEY, -- PRIMARY KEY implica UNIQUE e NOT NULL
                 username TEXT,
                 first_name TEXT,
                 last_name TEXT,
@@ -116,9 +135,9 @@ def init_db():
         print(f"ERRO DB: Falha ao inicializar o banco de dados: {e}")
         if conn:
             conn.rollback()
-        raise
+        raise # Re-levanta o erro para que o deploy falhe se o DB principal falhar
     finally:
-        if cur: cur.close() # Fechar cursor antes da conexão
+        if cur: cur.close()
         if conn: conn.close()
 
 
@@ -177,6 +196,7 @@ def webhook_mercado_pago():
     if notification and notification.get('type') == 'payment':
         print(f"DEBUG WEBHOOK MP: Notificação de pagamento detectada. ID: {notification.get('data', {}).get('id')}")
         payment_id = notification['data']['id']
+        # Usar o SDK do MP para verificar o status
         payment_info = pagamentos.verificar_status_pagamento(payment_id)
         
         print(f"DEBUG WEBHOOK MP: Status do pagamento verificado: {payment_info.get('status') if payment_info else 'N/A'}")
@@ -198,7 +218,9 @@ def webhook_mercado_pago():
 
                 if venda:
                     print(f"DEBUG WEBHOOK MP: Venda {venda_id} encontrada no DB com status 'pendente'.")
-                    data_venda_dt = datetime.strptime(str(venda['data_venda']), '%Y-%m-%d %H:%M:%S.%f') if isinstance(venda['data_venda'], datetime) else datetime.strptime(venda['data_venda'], '%Y-%m-%d %H:%M:%S') # Handle timestamp with microseconds
+                    # Handle timestamp with microseconds (for PostgreSQL, which can have them)
+                    # Convert to string first for consistent parsing, then to datetime object
+                    data_venda_dt = datetime.strptime(str(venda['data_venda']), '%Y-%m-%d %H:%M:%S.%f') if isinstance(venda['data_venda'], datetime) else datetime.strptime(venda['data_venda'], '%Y-%m-%d %H:%M:%S')
                     if datetime.now() > data_venda_dt + timedelta(hours=1):
                         print(f"DEBUG WEBHOOK MP: Pagamento recebido para venda expirada (ID: {venda_id}). Ignorando entrega.")
                         cur.execute('UPDATE vendas SET status = %s WHERE id = %s', ('expirado', venda_id))
@@ -222,7 +244,7 @@ def webhook_mercado_pago():
                     return jsonify({'status': 'already_processed_or_not_pending'}), 200
             except Exception as e:
                 print(f"ERRO WEBHOOK MP: Erro no processamento da notificação de pagamento: {e}")
-                if conn: conn.rollback()
+                if conn and not conn.closed: conn.rollback() # Reverter apenas se a conexão estiver aberta e não fechada
                 return jsonify({'status': 'error_processing_webhook'}), 500
             finally:
                 if cur: cur.close()
@@ -264,7 +286,7 @@ def login():
         except Exception as e:
             print(f"ERRO LOGIN: Falha no processo de login: {e}")
             flash('Erro no servidor ao tentar login.', 'danger')
-            if conn: conn.rollback()
+            if conn and not conn.closed: conn.rollback() # Reverter apenas se a conexão estiver aberta
         finally:
             if cur: cur.close()
             if conn: conn.close()
@@ -339,8 +361,8 @@ def produtos():
     except Exception as e:
         print(f"ERRO PRODUTOS: Falha ao gerenciar produtos: {e}")
         flash('Erro ao carregar ou adicionar produtos.', 'danger')
-        if conn: conn.rollback()
-        return redirect(url_for('index')) # Redireciona para o dashboard ou login em caso de erro
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('index'))
     finally:
         if cur: cur.close()
         if conn: conn.close()
@@ -366,8 +388,8 @@ def edit_product(id):
     except Exception as e:
         print(f"ERRO EDIT PRODUTO: Falha ao editar produto: {e}")
         flash('Erro ao carregar ou editar produto.', 'danger')
-        if conn: conn.rollback()
-        return redirect(url_for('produtos')) # Redireciona para a lista de produtos
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('produtos'))
     finally:
         if cur: cur.close()
         if conn: conn.close()
@@ -387,7 +409,7 @@ def remove_product(id):
     except Exception as e:
         print(f"ERRO REMOVE PRODUTO: Falha ao remover produto: {e}")
         flash('Erro ao remover produto.', 'danger')
-        if conn: conn.rollback()
+        if conn and not conn.closed: conn.rollback()
         return redirect(url_for('produtos'))
     finally:
         if cur: cur.close()
@@ -421,7 +443,7 @@ def vendas():
     except Exception as e:
         print(f"ERRO VENDAS: Falha ao carregar vendas: {e}")
         flash('Erro ao carregar vendas.', 'danger')
-        if conn: conn.rollback()
+        if conn and not conn.closed: conn.rollback()
         return redirect(url_for('index'))
     finally:
         if cur: cur.close()
@@ -458,7 +480,7 @@ def usuarios():
     except Exception as e:
         print(f"ERRO USUARIOS: Falha ao carregar usuários: {e}")
         flash('Erro ao carregar usuários.', 'danger')
-        if conn: conn.rollback()
+        if conn and not conn.closed: conn.rollback()
         return redirect(url_for('index'))
     finally:
         if cur: cur.close()
@@ -479,7 +501,7 @@ def remove_user(id):
     except Exception as e:
         print(f"ERRO REMOVE USUARIO: Falha ao remover usuário: {e}")
         flash('Erro ao remover usuário.', 'danger')
-        if conn: conn.rollback()
+        if conn and not conn.closed: conn.rollback()
         return redirect(url_for('usuarios'))
     finally:
         if cur: cur.close()
@@ -518,7 +540,7 @@ def config_messages():
     except Exception as e:
         print(f"ERRO CONFIG MENSAGENS: Falha ao configurar mensagens: {e}")
         flash('Erro ao carregar ou atualizar mensagens.', 'danger')
-        if conn: conn.rollback()
+        if conn and not conn.closed: conn.rollback()
         return redirect(url_for('index'))
     finally:
         if cur: cur.close()
@@ -634,6 +656,7 @@ def gerar_cobranca(call: types.CallbackQuery, produto_id: int):
 
 # --- INICIALIZAÇÃO FINAL ---
 if __name__ != '__main__':
+    # Esta parte só é executada quando rodando na Render (produção)
     try:
         init_db() # Inicializar o banco de dados ANTES de qualquer operação que o use
 
@@ -646,3 +669,4 @@ if __name__ != '__main__':
             print("ERRO: Variáveis de ambiente API_TOKEN ou BASE_URL não definidas.")
     except Exception as e:
         print(f"Erro ao configurar o webhook do Telegram ou inicializar Mercado Pago/DB: {e}")
+```
