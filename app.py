@@ -15,15 +15,13 @@ API_TOKEN = os.getenv('API_TOKEN')
 BASE_URL = os.getenv('BASE_URL') # A URL base do seu serviço Render
 
 # --- Inicialização do Bot e App Flask ---
-# bot e app são inicializados aqui, mas os tokens serão usados posteriormente
-# quando as variáveis de ambiente estiverem garantidas
 bot = telebot.TeleBot(API_TOKEN, threaded=False)
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'uma_chave_padrao_muito_segura')
 
 DB_NAME = 'dashboard.db'
 
-# --- FUNÇÕES AUXILIARES ---
+# --- FUNÇÕES AUXILIARES DE BANCO DE DADOS ---
 def get_db_connection():
     # Caminho do banco de dados para Render e local
     db_path = os.path.join('/var/data/sqlite', DB_NAME) if os.path.exists('/var/data/sqlite') else DB_NAME
@@ -31,7 +29,6 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row 
     return conn
 
-# NOVA FUNÇÃO PARA INICIALIZAR O BANCO DE DADOS E TABELAS
 def init_db():
     conn = get_db_connection()
     # Criar a tabela 'config' se não existir
@@ -69,59 +66,11 @@ def enviar_produto_telegram(user_id, nome_produto, link_produto):
     except requests.exceptions.RequestException as e:
         print(f"Erro ao enviar mensagem de entrega: {e}")
 
-# --- WEBHOOKS E PAINEL ---
-@app.route(f"/{API_TOKEN}", methods=['POST'])
-def telegram_webhook():
-    if request.headers.get('content-type') == 'application/json':
-        json_str = request.get_data().decode('utf-8')
-        update = types.Update.de_json(json_str)
-        bot.process_new_updates([update])
-        return '!', 200
-    else:
-        return "Unsupported Media Type", 415
-
-@app.route('/webhook/mercado-pago', methods=['POST'])
-def webhook_mercado_pago():
-    notification = request.json
-    if notification and notification.get('type') == 'payment':
-        payment_id = notification['data']['id']
-        payment_info = pagamentos.verificar_status_pagamento(payment_id)
-        if payment_info and payment_info['status'] == 'approved':
-            venda_id = payment_info.get('external_reference')
-            if not venda_id: return jsonify({'status': 'ignored'}), 200
-            
-            conn = get_db_connection()
-            venda = conn.execute('SELECT * FROM vendas WHERE id = ? AND status = ?', (venda_id, 'pendente')).fetchone()
-
-            if venda:
-                data_venda_dt = datetime.strptime(venda['data_venda'], '%Y-%m-%d %H:%M:%S')
-                if datetime.now() > data_venda_dt + timedelta(hours=1):
-                    print(f"Pagamento recebido para venda expirada (ID: {venda_id}). Ignorando entrega.")
-                    conn.execute('UPDATE vendas SET status = ? WHERE id = ?', ('expirado', venda_id))
-                    conn.commit()
-                    conn.close()
-                    return jsonify({'status': 'expired_and_ignored'}), 200
-
-                payer_info = payment_info.get('payer', {})
-                payer_name = f"{payer_info.get('first_name', '')} {payer_info.get('last_name', '')}".strip()
-                payer_email = payer_info.get('email')
-                conn.execute('UPDATE vendas SET status = ?, payment_id = ?, payer_name = ?, payer_email = ? WHERE id = ?', 
-                                 ('aprovado', payment_id, payer_name, payer_email, venda_id))
-                conn.commit()
-                produto = conn.execute('SELECT * FROM produtos WHERE id = ?', (venda['produto_id'],)).fetchone()
-                conn.close()
-                if produto:
-                    enviar_produto_telegram(venda['user_id'], produto['nome'], produto['link'])
-                return jsonify({'status': 'success'}), 200
-            else:
-                conn.close()
-                return jsonify({'status': 'already_processed'}), 200
-    return jsonify({'status': 'ignored'}), 200
-
+# --- ROTAS DO PAINEL WEB (FLASK) ---
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if not session.get('logged_in'): return redirect(url_for('index'))
+    # A verificação de session.get('logged_in') para index está na rota '/' agora
     if request.method == 'POST':
         username, password = request.form['username'], request.form['password']
         conn = get_db_connection()
@@ -256,14 +205,52 @@ def pagamento_retorno(status):
     elif status == 'pendente': mensagem += "Pagamento pendente."
     return f"<div style='font-family: sans-serif; text-align: center; padding-top: 50px;'><h1>{mensagem}</h1><p>Você pode fechar esta janela e voltar para o Telegram.</p></div>"
 
+# --- ROTA PARA MENSAGENS DE BOAS-VINDAS (NOVA) ---
+@app.route('/config_messages', methods=['GET', 'POST'])
+def config_messages():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    # Obter a mensagem atual de boas-vindas do bot
+    current_welcome_message_bot = conn.execute("SELECT value FROM config WHERE key = ?", ('welcome_message_bot',)).fetchone()
+    current_welcome_message_bot = current_welcome_message_bot[0] if current_welcome_message_bot else ''
+
+    if request.method == 'POST':
+        new_message = request.form['welcome_message_bot']
+        # Atualizar a mensagem no banco de dados
+        conn.execute("UPDATE config SET value = ? WHERE key = ?", (new_message, 'welcome_message_bot'))
+        conn.commit()
+        flash('Mensagem de boas-vindas do bot atualizada com sucesso!', 'success')
+        conn.close()
+        return redirect(url_for('config_messages'))
+
+    conn.close()
+    return render_template('config_messages.html', welcome_message_bot=current_welcome_message_bot)
+
 # --- COMANDOS DO BOT ---
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     get_or_register_user(message.from_user)
+    
+    conn = get_db_connection()
+    # Obter a mensagem de boas-vindas do banco de dados
+    welcome_message = conn.execute("SELECT value FROM config WHERE key = ?", ('welcome_message_bot',)).fetchone()
+    conn.close()
+
+    # Usar a mensagem do DB ou um padrão
+    # Substituir {first_name} pelo nome real do usuário
+    final_message = "Olá! Bem-vindo(a)." # Mensagem padrão de fallback
+    if welcome_message:
+        final_message = welcome_message[0].replace('{first_name}', message.from_user.first_name or 'usuário')
+    else:
+        final_message = f"Olá, {message.from_user.first_name or 'usuário'}! Bem-vindo(a)." # Fallback se não encontrar no DB
+
     markup = types.InlineKeyboardMarkup()
     btn_produtos = types.InlineKeyboardButton("🛍️ Ver Produtos", callback_data='ver_produtos')
     markup.add(btn_produtos)
-    bot.reply_to(message, f"Olá, {message.from_user.first_name}! Bem-vindo(a).", reply_markup=markup)
+    # Usar final_message aqui
+    bot.reply_to(message, final_message, reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
@@ -327,9 +314,10 @@ def gerar_cobranca(call: types.CallbackQuery, produto_id: int):
 if __name__ != '__main__':
     # Esta parte só é executada quando rodando na Render (produção)
     try:
-        # Chame a inicialização do SDK do Mercado Pago aqui
-        # Isso garante que MERCADOPAGO_ACCESS_TOKEN já foi carregado
-        pagamentos.init_mercadopago_sdk() # <--- ADICIONE ESTA LINHA OU VERIFIQUE SE JÁ ESTÁ
+        # Inicializar o banco de dados ANTES de qualquer operação que o use
+        init_db() # <--- CHAMAR A NOVA FUNÇÃO AQUI
+
+        pagamentos.init_mercadopago_sdk() # Inicializa o SDK do Mercado Pago
 
         if API_TOKEN and BASE_URL:
             bot.set_webhook(url=f"{BASE_URL}/{API_TOKEN}")
@@ -337,4 +325,4 @@ if __name__ != '__main__':
         else:
             print("ERRO: Variáveis de ambiente API_TOKEN ou BASE_URL não definidas.")
     except Exception as e:
-        print(f"Erro ao configurar o webhook do Telegram: {e}")
+        print(f"Erro ao configurar o webhook do Telegram ou inicializar Mercado Pago: {e}")
