@@ -121,7 +121,7 @@ def webhook_mercado_pago():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if 'logged_in' in session: return redirect(url_for('index'))
+    if not session.get('logged_in'): return redirect(url_for('index'))
     if request.method == 'POST':
         username, password = request.form['username'], request.form['password']
         conn = get_db_connection()
