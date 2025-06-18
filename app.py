@@ -31,13 +31,32 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row 
     return conn
 
+# NOVA FUNÇÃO PARA INICIALIZAR O BANCO DE DADOS E TABELAS
+def init_db():
+    conn = get_db_connection()
+    # Criar a tabela 'config' se não existir
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS config (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    ''')
+    # Inserir um valor padrão para a mensagem de boas-vindas do bot se não existir
+    conn.execute('''
+        INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)
+    ''', ('welcome_message_bot', 'Olá, {first_name}! Bem-vindo(a) ao bot!')) # {first_name} será substituído
+    conn.commit()
+    conn.close()
+    print("Tabelas do banco de dados verificadas/criadas.") # Mensagem de log para facilitar a depuração
+
+
 def get_or_register_user(user: types.User):
     conn = get_db_connection()
     db_user = conn.execute("SELECT * FROM users WHERE id = ?", (user.id,)).fetchone()
     if db_user is None:
         data_registro = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         conn.execute("INSERT INTO users (id, username, first_name, last_name, data_registro) VALUES (?, ?, ?, ?, ?)",
-                        (user.id, user.username, user.first_name, user.last_name, data_registro))
+                         (user.id, user.username, user.first_name, user.last_name, data_registro))
         conn.commit()
     conn.close()
 
@@ -87,7 +106,7 @@ def webhook_mercado_pago():
                 payer_name = f"{payer_info.get('first_name', '')} {payer_info.get('last_name', '')}".strip()
                 payer_email = payer_info.get('email')
                 conn.execute('UPDATE vendas SET status = ?, payment_id = ?, payer_name = ?, payer_email = ? WHERE id = ?', 
-                                ('aprovado', payment_id, payer_name, payer_email, venda_id))
+                                 ('aprovado', payment_id, payer_name, payer_email, venda_id))
                 conn.commit()
                 produto = conn.execute('SELECT * FROM produtos WHERE id = ?', (venda['produto_id'],)).fetchone()
                 conn.close()
@@ -279,7 +298,7 @@ def gerar_cobranca(call: types.CallbackQuery, produto_id: int):
     data_venda = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     cursor = conn.cursor()
     cursor.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (?, ?, ?, ?, ?)",
-                    (user_id, produto_id, produto['preco'], 'pendente', data_venda))
+                     (user_id, produto_id, produto['preco'], 'pendente', data_venda))
     conn.commit()
     venda_id = cursor.lastrowid 
     pagamento = pagamentos.criar_pagamento_pix(produto=produto, user=call.from_user, venda_id=venda_id)
