@@ -267,4 +267,4 @@ def vendas():
     if data_fim_str: conditions.append("DATE(T.data_venda) <= ?"); params.append(data_fim_str)
     if pesquisa_str: conditions.append("(T.username LIKE ? OR T.nome LIKE ? OR T.first_name LIKE ?)"); params.extend([f'%{pesquisa_str}%'] * 3)
     if produto_id_str: conditions.append("T.produto_id = ?"); params.append(produto_id_str)
-    if status_str: conditions.append("T.status = ?
+    if status_str: conditions.append("T.status = ?"); params.append(status_str)
