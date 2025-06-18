@@ -1,12 +1,3 @@
-Certo! Por favor, substitua **TODO o conteúdo do seu arquivo `app.py` por este código abaixo.**
-
-Este é o `app.py` completo com a adição dos comandos `DROP TABLE IF EXISTS` na função `init_db()` para forçar a recriação limpa das tabelas no PostgreSQL.
-
----
-
-**Conteúdo do Arquivo `app.py` (Versão FINAL para Teste de Persistência e Erros de DB)**
-
-```python
 import os
 import sqlite3 # Manter por enquanto para o fallback local
 import json
@@ -669,4 +660,3 @@ if __name__ != '__main__':
             print("ERRO: Variáveis de ambiente API_TOKEN ou BASE_URL não definidas.")
     except Exception as e:
         print(f"Erro ao configurar o webhook do Telegram ou inicializar Mercado Pago/DB: {e}")
-```
