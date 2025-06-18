@@ -55,8 +55,9 @@ def get_db_connection():
 
 def init_db():
     conn = None
+    cur = None # Inicializar cursor também
     try:
-        conn = get_db_connection() # Obtém a conexão
+        conn = get_db_connection()
         with conn.cursor() as cur: # <--- Usar 'with' para o cursor
 
             # --- ADICIONE ESTES COMANDOS PARA FORÇAR A RECRIAÇÃO (TEMPORÁRIO) ---
@@ -137,6 +138,8 @@ def get_or_register_user(user: types.User):
     try:
         conn = get_db_connection()
         with conn.cursor() as cur: # <--- Usar 'with' para o cursor
+            # No PostgreSQL, usar o ID do Telegram (BIGINT) como PRIMARY KEY já garante a unicidade.
+            # Apenas verificar se o usuário existe, não tentar inseri-lo se já estiver lá.
             db_user = cur.execute("SELECT * FROM users WHERE id = %s", (user.id,)).fetchone()
             if db_user is None:
                 data_registro = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -145,7 +148,7 @@ def get_or_register_user(user: types.User):
                 conn.commit()
     except Exception as e:
         print(f"ERRO DB: get_or_register_user falhou: {e}")
-        if conn: conn.rollback()
+        if conn and not conn.closed: conn.rollback()
     finally:
         if conn: conn.close()
 
