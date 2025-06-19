@@ -1,40 +1,36 @@
 import os
-import sqlite3 # Manter por enquanto para o fallback local
+import sqlite3 
 import json
 import requests
 import telebot
 from telebot import types
 import base64
-import pagamentos # Importar o módulo pagamentos
+import pagamentos 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.security import check_password_hash
 from datetime import datetime, timedelta, time
 
 # Imports para PostgreSQL
 import psycopg2 
-from psycopg2.extras import RealDictCursor # Para retornar linhas como dicionários (similar ao sqlite3.Row)
+from psycopg2.extras import RealDictCursor 
 
 
 # --- 1. CONFIGURAÇÃO INICIAL (Leitura de Variáveis de Ambiente) ---
 API_TOKEN = os.getenv('API_TOKEN')
-BASE_URL = os.getenv('BASE_URL') # A URL base do seu serviço Render
-DATABASE_URL = os.getenv('DATABASE_URL') # URL do PostgreSQL do Render
+BASE_URL = os.getenv('BASE_URL') 
+DATABASE_URL = os.getenv('DATABASE_URL') 
 
-# Adicione essas linhas para depuração (mantenha durante o troubleshoot)
 print(f"DEBUG: API_TOKEN lido: {API_TOKEN}")
 print(f"DEBUG: BASE_URL lida: {BASE_URL}")
 print(f"DEBUG: DATABASE_URL lida: {DATABASE_URL}")
 
 
 # --- 2. INICIALIZAÇÃO DO FLASK E DO BOT ---
-# O 'app' (Flask) e 'bot' (Telebot) devem ser inicializados APÓS
-# a leitura das variáveis de ambiente essenciais.
 app = Flask(__name__)
-# Garante que FLASK_SECRET_KEY é lida e tem um fallback seguro para local
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'uma_chave_padrao_muito_segura_e_longa_para_dev_local_1234567890')
-bot = telebot.TeleBot(API_TOKEN, threaded=False) # Agora API_TOKEN já deve ter valor
+bot = telebot.TeleBot(API_TOKEN, threaded=False) 
 
-# --- 3. FUNÇÕES AUXILIARES DE BANCO DE DADOS (AGORA PARA POSTGRESQL) ---
+# --- 3. FUNÇÕES AUXILIARES DE BANCO DE DADOS ---
 
 def get_db_connection():
     if not DATABASE_URL:
@@ -51,19 +47,18 @@ def get_db_connection():
             return conn
         except Exception as e:
             print(f"ERRO DB: Falha ao conectar ao PostgreSQL: {e}")
-            raise # Levanta o erro para que a aplicação falhe de vez se não conseguir conectar ao DB
+            raise 
 
 def init_db():
     conn = None
     cur = None
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur: # <--- Usar 'with' para o cursor
+        with conn.cursor() as cur: 
             print("DEBUG DB INIT: Iniciando criação/verificação de tabelas...")
 
             # --- ADICIONE ESTES COMANDOS PARA FORÇAR A RECRIAÇÃO (TEMPORÁRIO) ---
             # ATENÇÃO: ISSO APAGARÁ TODOS OS DADOS A CADA DEPLOY! REMOVER DEPOIS DE RESOLVER O PROBLEMA.
-            # A ordem de DROP é importante: tabelas com FKs devem ser dropadas primeiro
             print("DEBUG DB INIT: Dropando tabelas existentes (se houver)...")
             cur.execute('DROP TABLE IF EXISTS vendas CASCADE;') 
             cur.execute('DROP TABLE IF EXISTS produtos CASCADE;')
@@ -76,8 +71,8 @@ def init_db():
             # Criação das tabelas
             print("DEBUG DB INIT: Criando tabela 'users'...")
             cur.execute('''
-                CREATE TABLE users ( -- Remover IF NOT EXISTS para forçar criação após drop
-                    id BIGINT PRIMARY KEY,
+                CREATE TABLE users ( 
+                    id BIGINT PRIMARY KEY, 
                     username TEXT,
                     first_name TEXT,
                     last_name TEXT,
@@ -88,7 +83,7 @@ def init_db():
 
             print("DEBUG DB INIT: Criando tabela 'produtos'...")
             cur.execute('''
-                CREATE TABLE produtos ( -- Remover IF NOT EXISTS
+                CREATE TABLE produtos ( 
                     id SERIAL PRIMARY KEY,
                     nome TEXT NOT NULL,
                     preco NUMERIC(10, 2) NOT NULL,
@@ -99,7 +94,7 @@ def init_db():
 
             print("DEBUG DB INIT: Criando tabela 'vendas'...")
             cur.execute('''
-                CREATE TABLE vendas ( -- Remover IF NOT EXISTS
+                CREATE TABLE vendas ( 
                     id SERIAL PRIMARY KEY,
                     user_id BIGINT NOT NULL,
                     produto_id INTEGER NOT NULL,
@@ -117,7 +112,7 @@ def init_db():
 
             print("DEBUG DB INIT: Criando tabela 'admin'...")
             cur.execute('''
-                CREATE TABLE admin ( -- Remover IF NOT EXISTS
+                CREATE TABLE admin ( 
                     id SERIAL PRIMARY KEY,
                     username TEXT UNIQUE NOT NULL,
                     password_hash TEXT NOT NULL
@@ -127,15 +122,13 @@ def init_db():
 
             print("DEBUG DB INIT: Criando tabela 'config'...")
             cur.execute('''
-                CREATE TABLE config ( -- Remover IF NOT EXISTS
+                CREATE TABLE config ( 
                     key TEXT PRIMARY KEY,
                     value TEXT
                 );
             ''')
             print("DEBUG DB INIT: Tabela 'config' criada.")
 
-
-            # Inserir valor padrão para mensagem de boas-vindas
             print("DEBUG DB INIT: Inserindo/verificando mensagem de boas-vindas padrão...")
             cur.execute('''
                 INSERT INTO config (key, value) VALUES (%s, %s)
@@ -143,24 +136,26 @@ def init_db():
             ''', ('welcome_message_bot', 'Olá, {first_name}! Bem-vindo(a) ao bot!'))
             print("DEBUG DB INIT: Mensagem de boas-vindas padrão processada.")
 
-            conn.commit() # Comita todas as criações e inserções
+            conn.commit() 
             print("DEBUG DB: Tabelas do banco de dados verificadas/criadas (PostgreSQL/SQLite).")
     except Exception as e:
         print(f"ERRO DB: Falha ao inicializar o banco de dados: {e}")
         if conn:
-            conn.rollback() # Reverte a transação em caso de erro
-        raise # Re-levanta o erro para que o deploy falhe se o DB principal falhar
+            conn.rollback() 
+        raise 
     finally:
-        if conn: conn.close() # Fechar a conexão no finally
+        if conn: conn.close() 
 
 
 def get_or_register_user(user: types.User):
     conn = None
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur: # <--- Usar 'with' para o cursor
-            # No PostgreSQL, usar o ID do Telegram (BIGINT) como PRIMARY KEY já garante a unicidade.
-            # Apenas verificar se o usuário existe, não tentar inseri-lo se já estiver lá.
+        with conn.cursor() as cur: 
+            print("DEBUG DB: get_or_register_user - Testando conexão antes da query.")
+            cur.execute('SELECT 1') # Teste de conexão
+            print("DEBUG DB: get_or_register_user - Conexão OK.")
+
             db_user = cur.execute("SELECT * FROM users WHERE id = %s", (user.id,)).fetchone()
             if db_user is None:
                 data_registro = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -209,7 +204,6 @@ def webhook_mercado_pago():
     if notification and notification.get('type') == 'payment':
         print(f"DEBUG WEBHOOK MP: Notificação de pagamento detectada. ID: {notification.get('data', {}).get('id')}")
         payment_id = notification['data']['id']
-        # Usar o SDK do MP para verificar o status
         payment_info = pagamentos.verificar_status_pagamento(payment_id)
         
         print(f"DEBUG WEBHOOK MP: Status do pagamento verificado: {payment_info.get('status') if payment_info else 'N/A'}")
@@ -283,7 +277,7 @@ def login():
         conn = None
         try:
             conn = get_db_connection()
-            with conn.cursor() as cur: # <--- Usar 'with' para o cursor
+            with conn.cursor() as cur: 
                 admin_user = cur.execute('SELECT * FROM admin WHERE username = %s', (username,)).fetchone()
                 if admin_user and check_password_hash(admin_user['password_hash'], password):
                     session['logged_in'] = True
@@ -321,17 +315,20 @@ def index():
     conn = None
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur: # <--- Usar 'with' para o cursor
-            total_usuarios_row = cur.execute('SELECT COUNT(id) FROM users').fetchone()
+        with conn.cursor() as cur: 
+            # --- Adicionado debug para COUNT(id) ---
+            cur.execute('SELECT COUNT(id) FROM users')
+            total_usuarios_row = cur.fetchone()
+            print(f"DEBUG INDEX: Resultado fetchone COUNT(users): {total_usuarios_row}") # Novo debug
             total_usuarios = total_usuarios_row['count'] if total_usuarios_row and 'count' in total_usuarios_row and total_usuarios_row['count'] is not None else 0
-            print(f"DEBUG INDEX: total_usuarios calculado: {total_usuarios}")
 
-
-            total_produtos_row = cur.execute('SELECT COUNT(id) FROM produtos').fetchone()
+            cur.execute('SELECT COUNT(id) FROM produtos')
+            total_produtos_row = cur.fetchone()
+            print(f"DEBUG INDEX: Resultado fetchone COUNT(produtos): {total_produtos_row}") # Novo debug
             total_produtos = total_produtos_row['count'] if total_produtos_row and 'count' in total_produtos_row and total_produtos_row['count'] is not None else 0
-            print(f"DEBUG INDEX: total_produtos calculado: {total_produtos}")
 
-            vendas_data_row = cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s", ('aprovado',)).fetchone() # Aliases para COUNT e SUM
+            vendas_data_row = cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s", ('aprovado',)).fetchone() 
+            print(f"DEBUG INDEX: Resultado fetchone COUNT/SUM(vendas): {vendas_data_row}") # Novo debug
             total_vendas_aprovadas = vendas_data_row['count'] if vendas_data_row and 'count' in vendas_data_row and vendas_data_row['count'] is not None else 0
             receita_total = vendas_data_row['sum'] if vendas_data_row and 'sum' in vendas_data_row and vendas_data_row['sum'] is not None else 0.0
             print(f"DEBUG INDEX: total_vendas_aprovadas: {total_vendas_aprovadas}, receita_total: {receita_total}")
@@ -344,9 +341,10 @@ def index():
                 day = today - timedelta(days=i)
                 start_of_day, end_of_day = datetime.combine(day.date(), time.min), datetime.combine(day.date(), time.max)
                 chart_labels.append(day.strftime('%d/%m'))
-                daily_revenue_row = cur.execute("SELECT SUM(preco) AS sum FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s", ('aprovado', start_of_day, end_of_day)).fetchone() # Alias para SUM
+                daily_revenue_row = cur.execute("SELECT SUM(preco) AS sum FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s", ('aprovado', start_of_day, end_of_day)).fetchone() 
                 daily_revenue = daily_revenue_row['sum'] if daily_revenue_row and 'sum' in daily_revenue_row and daily_revenue_row['sum'] is not None else 0
                 chart_data.append(daily_revenue)
+            
             print("DEBUG INDEX: Renderizando index.html.")
             return render_template('index.html', total_vendas=total_vendas_aprovadas, total_usuarios=total_usuarios, total_produtos=total_produtos, receita_total=receita_total, vendas_recentes=vendas_recentes, chart_labels=json.dumps(chart_labels), chart_data=json.dumps(chart_data))
     except Exception as e:
@@ -617,7 +615,7 @@ def gerar_cobranca(call: types.CallbackQuery, produto_id: int):
             
             data_venda = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                             (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
+                         (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
             venda_id = cur.fetchone()[0] # Obter o ID da venda recém-criada
             conn.commit()
             
