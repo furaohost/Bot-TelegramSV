@@ -4,3 +4,4 @@ mercadopago
 pyTelegramBotAPI
 gunicorn
 psycopg2-binary
+python-dotenv
