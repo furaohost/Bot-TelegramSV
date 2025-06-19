@@ -1,24 +1,24 @@
 import os
-import sqlite3 
+import sqlite3
 import json
 import requests
 import telebot
 from telebot import types
 import base64
-import pagamentos 
+import pagamentos
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash # Importe generate_password_hash
 from datetime import datetime, timedelta, time
 
 # Imports para PostgreSQL
-import psycopg2 
-from psycopg2.extras import RealDictCursor 
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 
 # --- 1. CONFIGURAÇÃO INICIAL (Leitura de Variáveis de Ambiente) ---
 API_TOKEN = os.getenv('API_TOKEN')
-BASE_URL = os.getenv('BASE_URL') 
-DATABASE_URL = os.getenv('DATABASE_URL') 
+BASE_URL = os.getenv('BASE_URL')
+DATABASE_URL = os.getenv('DATABASE_URL')
 
 print(f"DEBUG: API_TOKEN lido: {API_TOKEN}")
 print(f"DEBUG: BASE_URL lida: {BASE_URL}")
@@ -28,7 +28,7 @@ print(f"DEBUG: DATABASE_URL lida: {DATABASE_URL}")
 # --- 2. INICIALIZAÇÃO DO FLASK E DO BOT ---
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'uma_chave_padrao_muito_segura_e_longa_para_dev_local_1234567890')
-bot = telebot.TeleBot(API_TOKEN, threaded=False) 
+bot = telebot.TeleBot(API_TOKEN, threaded=False)
 
 # --- 3. FUNÇÕES AUXILIARES DE BANCO DE DADOS ---
 
@@ -47,32 +47,31 @@ def get_db_connection():
             return conn
         except Exception as e:
             print(f"ERRO DB: Falha ao conectar ao PostgreSQL: {e}")
-            raise 
+            raise
 
 def init_db():
     conn = None
     cur = None
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur: 
+        with conn.cursor() as cur:
             print("DEBUG DB INIT: Iniciando criação/verificação de tabelas...")
 
-            # --- ADICIONE ESTES COMANDOS PARA FORÇAR A RECRIAÇÃO (TEMPORÁRIO) ---
-            # ATENÇÃO: ISSO APAGARÁ TODOS OS DADOS A CADA DEPLOY! REMOVER DEPOIS DE RESOLVER O PROBLEMA.
-            print("DEBUG DB INIT: Dropando tabelas existentes (se houver)...")
-            cur.execute('DROP TABLE IF EXISTS vendas CASCADE;') 
-            cur.execute('DROP TABLE IF EXISTS produtos CASCADE;')
-            cur.execute('DROP TABLE IF EXISTS admin CASCADE;')
-            cur.execute('DROP TABLE IF EXISTS config CASCADE;')
-            cur.execute('DROP TABLE IF EXISTS users CASCADE;') 
-            print("DEBUG DB INIT: Tabelas dropadas.")
-            # --- FIM DOS COMANDOS TEMPORÁRIOS ---
+            # --- LINHAS REMOVIDAS: Não vamos mais dropar as tabelas em produção ---
+            # print("DEBUG DB INIT: Dropando tabelas existentes (se houver)...")
+            # cur.execute('DROP TABLE IF EXISTS vendas CASCADE;')
+            # cur.execute('DROP TABLE IF EXISTS produtos CASCADE;')
+            # cur.execute('DROP TABLE IF EXISTS admin CASCADE;')
+            # cur.execute('DROP TABLE IF EXISTS config CASCADE;')
+            # cur.execute('DROP TABLE IF EXISTS users CASCADE;')
+            # print("DEBUG DB INIT: Tabelas dropadas.")
+            # --- FIM DAS LINHAS REMOVIDAS ---
 
-            # Criação das tabelas
+            # Criação das tabelas (com IF NOT EXISTS)
             print("DEBUG DB INIT: Criando tabela 'users'...")
             cur.execute('''
-                CREATE TABLE users ( 
-                    id BIGINT PRIMARY KEY, 
+                CREATE TABLE IF NOT EXISTS users (
+                    id BIGINT PRIMARY KEY,
                     username TEXT,
                     first_name TEXT,
                     last_name TEXT,
@@ -83,7 +82,7 @@ def init_db():
 
             print("DEBUG DB INIT: Criando tabela 'produtos'...")
             cur.execute('''
-                CREATE TABLE produtos ( 
+                CREATE TABLE IF NOT EXISTS produtos (
                     id SERIAL PRIMARY KEY,
                     nome TEXT NOT NULL,
                     preco NUMERIC(10, 2) NOT NULL,
@@ -94,7 +93,7 @@ def init_db():
 
             print("DEBUG DB INIT: Criando tabela 'vendas'...")
             cur.execute('''
-                CREATE TABLE vendas ( 
+                CREATE TABLE IF NOT EXISTS vendas (
                     id SERIAL PRIMARY KEY,
                     user_id BIGINT NOT NULL,
                     produto_id INTEGER NOT NULL,
@@ -112,7 +111,7 @@ def init_db():
 
             print("DEBUG DB INIT: Criando tabela 'admin'...")
             cur.execute('''
-                CREATE TABLE admin ( 
+                CREATE TABLE IF NOT EXISTS admin (
                     id SERIAL PRIMARY KEY,
                     username TEXT UNIQUE NOT NULL,
                     password_hash TEXT NOT NULL
@@ -122,12 +121,27 @@ def init_db():
 
             print("DEBUG DB INIT: Criando tabela 'config'...")
             cur.execute('''
-                CREATE TABLE config ( 
+                CREATE TABLE IF NOT EXISTS config (
                     key TEXT PRIMARY KEY,
                     value TEXT
                 );
             ''')
             print("DEBUG DB INIT: Tabela 'config' criada.")
+
+            # --- Lógica para inserir/verificar o usuário admin padrão ---
+            print("DEBUG DB INIT: Verificando/inserindo usuário admin padrão...")
+            cur.execute("SELECT id FROM admin WHERE username = %s", ('admin',))
+            existing_admin = cur.fetchone()
+
+            if not existing_admin:
+                print("DEBUG DB INIT: Usuário 'admin' não encontrado. Inserindo...")
+                # Hash da senha 'admin123' usando werkzeug.security
+                hashed_password = generate_password_hash('admin123')
+                cur.execute("INSERT INTO admin (username, password_hash) VALUES (%s, %s)", ('admin', hashed_password))
+                print("DEBUG DB INIT: Usuário 'admin' padrão inserido com sucesso!")
+            else:
+                print("DEBUG DB INIT: Usuário 'admin' já existe.")
+            # --- Fim da lógica do usuário admin ---
 
             print("DEBUG DB INIT: Inserindo/verificando mensagem de boas-vindas padrão...")
             cur.execute('''
@@ -136,27 +150,29 @@ def init_db():
             ''', ('welcome_message_bot', 'Olá, {first_name}! Bem-vindo(a) ao bot!'))
             print("DEBUG DB INIT: Mensagem de boas-vindas padrão processada.")
 
-            conn.commit() 
+            conn.commit()
             print("DEBUG DB: Tabelas do banco de dados verificadas/criadas (PostgreSQL/SQLite).")
     except Exception as e:
         print(f"ERRO DB: Falha ao inicializar o banco de dados: {e}")
         if conn:
-            conn.rollback() 
-        raise 
+            conn.rollback()
+        raise
     finally:
-        if conn: conn.close() 
+        if conn: conn.close()
 
 
 def get_or_register_user(user: types.User):
     conn = None
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur: 
+        with conn.cursor() as cur:
             print("DEBUG DB: get_or_register_user - Testando conexão antes da query.")
             cur.execute('SELECT 1') # Teste de conexão
             print("DEBUG DB: get_or_register_user - Conexão OK.")
 
-            db_user = cur.execute("SELECT * FROM users WHERE id = %s", (user.id,)).fetchone()
+            # Usando fetchone() diretamente após execute, pois o cursor é redefinido pelo 'with'
+            cur.execute("SELECT * FROM users WHERE id = %s", (user.id,))
+            db_user = cur.fetchone()
             if db_user is None:
                 data_registro = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 cur.execute("INSERT INTO users (id, username, first_name, last_name, data_registro) VALUES (%s, %s, %s, %s, %s)",
@@ -197,7 +213,7 @@ def webhook_mercado_pago():
     if request.method == 'GET':
         print("DEBUG WEBHOOK MP: Requisição GET de teste do Mercado Pago recebida. Respondendo 200 OK.")
         return jsonify({'status': 'ok_test_webhook'}), 200
-    
+
     notification = request.json
     print(f"DEBUG WEBHOOK MP: Corpo da notificação POST: {notification}")
 
@@ -205,22 +221,23 @@ def webhook_mercado_pago():
         print(f"DEBUG WEBHOOK MP: Notificação de pagamento detectada. ID: {notification.get('data', {}).get('id')}")
         payment_id = notification['data']['id']
         payment_info = pagamentos.verificar_status_pagamento(payment_id)
-        
+
         print(f"DEBUG WEBHOOK MP: Status do pagamento verificado: {payment_info.get('status') if payment_info else 'N/A'}")
 
         if payment_info and payment_info['status'] == 'approved':
             conn = None
             try:
                 conn = get_db_connection()
-                with conn.cursor() as cur: # <--- Usar 'with' para o cursor
+                with conn.cursor() as cur:
                     venda_id = payment_info.get('external_reference')
                     print(f"DEBUG WEBHOOK MP: Pagamento aprovado. Venda ID (external_reference): {venda_id}")
 
                     if not venda_id:
                         print("DEBUG WEBHOOK MP: external_reference não encontrado na notificação. Ignorando.")
                         return jsonify({'status': 'ignored_no_external_ref'}), 200
-                    
-                    venda = cur.execute('SELECT * FROM vendas WHERE id = %s AND status = %s', (venda_id, 'pendente')).fetchone()
+
+                    cur.execute('SELECT * FROM vendas WHERE id = %s AND status = %s', (venda_id, 'pendente'))
+                    venda = cur.fetchone()
 
                     if venda:
                         print(f"DEBUG WEBHOOK MP: Venda {venda_id} encontrada no DB com status 'pendente'.")
@@ -236,10 +253,11 @@ def webhook_mercado_pago():
                         payer_info = payment_info.get('payer', {})
                         payer_name = f"{payer_info.get('first_name', '')} {payer_info.get('last_name', '')}".strip()
                         payer_email = payer_info.get('email')
-                        cur.execute('UPDATE vendas SET status = %s, payment_id = %s, payer_name = %s, payer_email = %s WHERE id = %s', 
-                                         ('aprovado', payment_id, payer_name, payer_email, venda_id))
+                        cur.execute('UPDATE vendas SET status = %s, payment_id = %s, payer_name = %s, payer_email = %s WHERE id = %s',
+                                     ('aprovado', payment_id, payer_name, payer_email, venda_id))
                         conn.commit()
-                        produto = cur.execute('SELECT * FROM produtos WHERE id = %s', (venda['produto_id'],)).fetchone()
+                        cur.execute('SELECT * FROM produtos WHERE id = %s', (venda['produto_id'],))
+                        produto = cur.fetchone()
                         if produto:
                             print(f"DEBUG WEBHOOK MP: Enviando produto {produto['nome']} para user {venda['user_id']}.")
                             enviar_produto_telegram(venda['user_id'], produto['nome'], produto['link'])
@@ -257,7 +275,7 @@ def webhook_mercado_pago():
         else:
             print(f"DEBUG WEBHOOK MP: Pagamento {payment_id} não aprovado ou info inválida. Status: {payment_info.get('status') if payment_info else 'N/A'}")
             return jsonify({'status': 'payment_not_approved'}), 200
-    
+
     print("DEBUG WEBHOOK MP: Notificação ignorada (não é tipo 'payment' ou JSON inválido).")
     return jsonify({'status': 'ignored_general'}), 200
 
@@ -270,15 +288,16 @@ def login():
     if session.get('logged_in'):
         print("DEBUG LOGIN: Usuário já logado. Redirecionando para index.")
         return redirect(url_for('index'))
-    
+
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
         conn = None
         try:
             conn = get_db_connection()
-            with conn.cursor() as cur: 
-                admin_user = cur.execute('SELECT * FROM admin WHERE username = %s', (username,)).fetchone()
+            with conn.cursor() as cur:
+                cur.execute('SELECT * FROM admin WHERE username = %s', (username,))
+                admin_user = cur.fetchone()
                 if admin_user and check_password_hash(admin_user['password_hash'], password):
                     session['logged_in'] = True
                     session['username'] = admin_user['username']
@@ -293,7 +312,7 @@ def login():
             if conn and not conn.closed: conn.rollback()
         finally:
             if conn: conn.close()
-    
+
     print("DEBUG LOGIN: Renderizando login.html.")
     return render_template('login.html')
 
@@ -311,11 +330,11 @@ def index():
     if not session.get('logged_in'):
         print("DEBUG INDEX: Usuário não logado. Redirecionando para login.")
         return redirect(url_for('login'))
-    
+
     conn = None
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur: 
+        with conn.cursor() as cur:
             # --- Adicionado debug para COUNT(id) ---
             cur.execute('SELECT COUNT(id) FROM users')
             total_usuarios_row = cur.fetchone()
@@ -327,24 +346,27 @@ def index():
             print(f"DEBUG INDEX: Resultado fetchone COUNT(produtos): {total_produtos_row}") # Novo debug
             total_produtos = total_produtos_row['count'] if total_produtos_row and 'count' in total_produtos_row and total_produtos_row['count'] is not None else 0
 
-            vendas_data_row = cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s", ('aprovado',)).fetchone() 
+            cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s", ('aprovado',))
+            vendas_data_row = cur.fetchone()
             print(f"DEBUG INDEX: Resultado fetchone COUNT/SUM(vendas): {vendas_data_row}") # Novo debug
             total_vendas_aprovadas = vendas_data_row['count'] if vendas_data_row and 'count' in vendas_data_row and vendas_data_row['count'] is not None else 0
             receita_total = vendas_data_row['sum'] if vendas_data_row and 'sum' in vendas_data_row and vendas_data_row['sum'] is not None else 0.0
             print(f"DEBUG INDEX: total_vendas_aprovadas: {total_vendas_aprovadas}, receita_total: {receita_total}")
 
-            vendas_recentes = cur.execute("SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, CASE WHEN v.status = 'aprovado' THEN 'aprovado' WHEN v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() - v.data_venda)) > 3600 THEN 'expirado' ELSE v.status END AS status FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id ORDER BY v.id DESC LIMIT 5").fetchall()
-            
+            cur.execute("SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, CASE WHEN v.status = 'aprovado' THEN 'aprovado' WHEN v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() - v.data_venda)) > 3600 THEN 'expirado' ELSE v.status END AS status FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id ORDER BY v.id DESC LIMIT 5")
+            vendas_recentes = cur.fetchall()
+
             chart_labels, chart_data = [], []
             today = datetime.now()
             for i in range(6, -1, -1):
                 day = today - timedelta(days=i)
                 start_of_day, end_of_day = datetime.combine(day.date(), time.min), datetime.combine(day.date(), time.max)
                 chart_labels.append(day.strftime('%d/%m'))
-                daily_revenue_row = cur.execute("SELECT SUM(preco) AS sum FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s", ('aprovado', start_of_day, end_of_day)).fetchone() 
+                cur.execute("SELECT SUM(preco) AS sum FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s", ('aprovado', start_of_day, end_of_day))
+                daily_revenue_row = cur.fetchone()
                 daily_revenue = daily_revenue_row['sum'] if daily_revenue_row and 'sum' in daily_revenue_row and daily_revenue_row['sum'] is not None else 0
                 chart_data.append(daily_revenue)
-            
+
             print("DEBUG INDEX: Renderizando index.html.")
             return render_template('index.html', total_vendas=total_vendas_aprovadas, total_usuarios=total_usuarios, total_produtos=total_produtos, receita_total=receita_total, vendas_recentes=vendas_recentes, chart_labels=json.dumps(chart_labels), chart_data=json.dumps(chart_data))
     except Exception as e:
@@ -360,7 +382,7 @@ def produtos():
     conn = None
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur: # <--- Usar 'with' para o cursor
+        with conn.cursor() as cur:
             if request.method == 'POST':
                 nome = request.form.get('nome')
                 preco = request.form.get('preco')
@@ -369,8 +391,9 @@ def produtos():
                 conn.commit()
                 flash('Produto adicionado com sucesso!', 'success')
                 return redirect(url_for('produtos'))
-            
-            lista_produtos = cur.execute('SELECT * FROM produtos ORDER BY id DESC').fetchall()
+
+            cur.execute('SELECT * FROM produtos ORDER BY id DESC')
+            lista_produtos = cur.fetchall()
             return render_template('produtos.html', produtos=lista_produtos)
     except Exception as e:
         print(f"ERRO PRODUTOS: Falha ao gerenciar produtos: {e}")
@@ -386,8 +409,9 @@ def edit_product(id):
     conn = None
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur: # <--- Usar 'with' para o cursor
-            produto = cur.execute('SELECT * FROM produtos WHERE id = %s', (id,)).fetchone()
+        with conn.cursor() as cur:
+            cur.execute('SELECT * FROM produtos WHERE id = %s', (id,))
+            produto = cur.fetchone()
             if request.method == 'POST':
                 nome = request.form.get('nome')
                 preco = request.form.get('preco')
@@ -411,7 +435,7 @@ def remove_product(id):
     conn = None
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur: # <--- Usar 'with' para o cursor
+        with conn.cursor() as cur:
             cur.execute('DELETE FROM produtos WHERE id = %s', (id,))
             conn.commit()
             flash('Produto removido com sucesso!', 'danger')
@@ -430,23 +454,25 @@ def vendas():
     conn = None
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur: # <--- Usar 'with' para o cursor
-            produtos_disponiveis = cur.execute('SELECT id, nome FROM produtos ORDER BY nome').fetchall()
-            
+        with conn.cursor() as cur:
+            cur.execute('SELECT id, nome FROM produtos ORDER BY nome')
+            produtos_disponiveis = cur.fetchall()
+
             query_base = "SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, p.id as produto_id, CASE WHEN v.status = 'aprovado' THEN 'aprovado' WHEN v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() - v.data_venda)) > 3600 THEN 'expirado' ELSE v.status END AS status FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id"
             conditions, params = [], []
             data_inicio_str, data_fim_str, pesquisa_str, produto_id_str, status_str = (request.args.get('data_inicio'), request.args.get('data_fim'), request.args.get('pesquisa'), request.args.get('produto_id'), request.args.get('status'))
-            
+
             if data_inicio_str: conditions.append("DATE(v.data_venda) >= %s"); params.append(data_inicio_str)
             if data_fim_str: conditions.append("DATE(v.data_venda) <= %s"); params.append(data_fim_str)
             if pesquisa_str: conditions.append("(u.username ILIKE %s OR p.nome ILIKE %s OR u.first_name ILIKE %s)"); params.extend([f'%{pesquisa_str}%'] * 3)
-            if produto_id_str: conditions.append("p.id = %s"); params.append(produto_id_str) # Usar p.id em vez de T.produto_id aqui
+            if produto_id_str: conditions.append("p.id = %s"); params.append(produto_id_str)
             if status_str: conditions.append("v.status = %s"); params.append(status_str)
-            
+
             if conditions: query_base += " WHERE " + " AND ".join(conditions)
             query_base += " ORDER BY v.id DESC"
-            
-            lista_vendas = cur.execute(query_base, tuple(params)).fetchall()
+
+            cur.execute(query_base, tuple(params))
+            lista_vendas = cur.fetchall()
             return render_template('vendas.html', vendas=lista_vendas, produtos_disponiveis=produtos_disponiveis)
     except Exception as e:
         print(f"ERRO VENDAS: Falha ao carregar vendas: {e}")
@@ -462,8 +488,9 @@ def venda_detalhes(id):
     conn = None
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur: # <--- Usar 'with' para o cursor
-            venda = cur.execute('SELECT * FROM vendas WHERE id = %s', (id,)).fetchone()
+        with conn.cursor() as cur:
+            cur.execute('SELECT * FROM vendas WHERE id = %s', (id,))
+            venda = cur.fetchone()
             if venda: return jsonify(dict(venda))
             return jsonify({'error': 'Not Found'}), 404
     except Exception as e:
@@ -478,8 +505,9 @@ def usuarios():
     conn = None
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur: # <--- Usar 'with' para o cursor
-            lista_usuarios = cur.execute('SELECT * FROM users ORDER BY id DESC').fetchall()
+        with conn.cursor() as cur:
+            cur.execute('SELECT * FROM users ORDER BY id DESC')
+            lista_usuarios = cur.fetchall()
             return render_template('usuarios.html', usuarios=lista_usuarios)
     except Exception as e:
         print(f"ERRO USUARIOS: Falha ao carregar usuários: {e}")
@@ -495,7 +523,7 @@ def remove_user(id):
     conn = None
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur: # <--- Usar 'with' para o cursor
+        with conn.cursor() as cur:
             cur.execute('DELETE FROM users WHERE id = %s', (id,))
             conn.commit()
             flash('Usuário removido com sucesso!', 'danger')
@@ -521,12 +549,13 @@ def pagamento_retorno(status):
 def config_messages():
     if not session.get('logged_in'):
         return redirect(url_for('login'))
-    
+
     conn = None
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur: # <--- Usar 'with' para o cursor
-            current_welcome_message_bot = cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_bot',)).fetchone()
+        with conn.cursor() as cur:
+            cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_bot',))
+            current_welcome_message_bot = cur.fetchone()
             current_welcome_message_bot = current_welcome_message_bot['value'] if current_welcome_message_bot else ''
 
             if request.method == 'POST':
@@ -553,8 +582,9 @@ def send_welcome(message):
     conn = None
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur: # <--- Usar 'with' para o cursor
-            welcome_message = cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_bot',)).fetchone()
+        with conn.cursor() as cur:
+            cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_bot',))
+            welcome_message = cur.fetchone()
             final_message = "Olá! Bem-vindo(a)." # Mensagem padrão de fallback
             if welcome_message:
                 final_message = welcome_message['value'].replace('{first_name}', message.from_user.first_name or 'usuário')
@@ -584,8 +614,9 @@ def mostrar_produtos(chat_id):
     conn = None
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur: # <--- Usar 'with' para o cursor
-            produtos = cur.execute('SELECT * FROM produtos').fetchall()
+        with conn.cursor() as cur:
+            cur.execute('SELECT * FROM produtos')
+            produtos = cur.fetchall()
             if not produtos:
                 bot.send_message(chat_id, "Nenhum produto disponível.")
                 return
@@ -606,19 +637,20 @@ def gerar_cobranca(call: types.CallbackQuery, produto_id: int):
     venda_id = None # Para garantir que venda_id esteja sempre definido
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur: # <--- Usar 'with' para o cursor
-            produto = cur.execute('SELECT * FROM produtos WHERE id = %s', (produto_id,)).fetchone()
-            
+        with conn.cursor() as cur:
+            cur.execute('SELECT * FROM produtos WHERE id = %s', (produto_id,))
+            produto = cur.fetchone()
+
             if not produto:
                 bot.send_message(chat_id, "Produto não encontrado.")
                 return # Sai da função cedo
-            
+
             data_venda = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (%s, %s, %s, %s, %s) RETURNING id",
                          (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
             venda_id = cur.fetchone()[0] # Obter o ID da venda recém-criada
             conn.commit()
-            
+
             # Chamar a criação do pagamento PIX
             pagamento = pagamentos.criar_pagamento_pix(produto=produto, user=call.from_user, venda_id=venda_id)
 
@@ -626,16 +658,16 @@ def gerar_cobranca(call: types.CallbackQuery, produto_id: int):
                 qr_code_base64 = pagamento['point_of_interaction']['transaction_data']['qr_code_base64']
                 qr_code_data = pagamento['point_of_interaction']['transaction_data']['qr_code']
                 qr_code_image = base64.b64decode(qr_code_base64)
-                
+
                 # --- LÓGICA DE MENSAGEM ATUALIZADA ---
                 caption_text = (
                     f"✅ PIX gerado para *{produto['nome']}*!\n\n"
                     "Escaneie o QR Code acima ou copie o código completo na próxima mensagem."
                 )
                 bot.send_photo(chat_id, qr_code_image, caption=caption_text, parse_mode='Markdown')
-                
+
                 bot.send_message(chat_id, qr_code_data)
-                
+
                 bot.send_message(chat_id, "Você receberá o produto aqui assim que o pagamento for confirmado.")
             else:
                 bot.send_message(chat_id, "Ocorreu um erro ao gerar o PIX. Tente novamente.")
