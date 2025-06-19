@@ -31,7 +31,7 @@ def init_mercadopago_sdk():
     try:
         sdk = mercadopago.SDK(access_token)
         BASE_URL_FOR_MP_WEBHOOK = base_url_env
-        print("SDK do Mercado Pago inicializado com sucesso.")
+        print("DEBUG MP: SDK do Mercado Pago inicializado com sucesso.") # Mensagem de debug
     except Exception as e:
         print(f"[ERRO FATAL MP] Erro ao inicializar SDK do Mercado Pago: {e}")
         raise
@@ -45,15 +45,18 @@ def criar_pagamento_pix(produto, user, venda_id):
 
     # Garante que o SDK foi inicializado antes de tentar usá-lo
     if sdk is None or BASE_URL_FOR_MP_WEBHOOK is None:
-        print("[AVISO] SDK do Mercado Pago não inicializado ou BASE_URL_FOR_MP_WEBHOOK não definida. Tentando inicializar...")
+        print("[AVISO MP] SDK do Mercado Pago não inicializado ou BASE_URL_FOR_MP_WEBHOOK não definida. Tentando inicializar...")
         try:
             init_mercadopago_sdk()
         except ValueError as e:
-            print(f"[ERRO] Falha na inicialização do SDK antes de criar pagamento: {e}")
+            print(f"[ERRO MP] Falha na inicialização do SDK antes de criar pagamento: {e}")
             return None # Retorna None se a inicialização falhar
 
     notification_url = f"{BASE_URL_FOR_MP_WEBHOOK}/webhook/mercado-pago"
-    
+
+    # Log do payload de pagamento antes do envio
+    print(f"DEBUG MP: Montando payload de pagamento para o produto '{produto['nome']}' (ID: {produto['id']}).")
+
     payment_data = {
         'transaction_amount': float(produto['preco']),
         'payment_method_id': 'pix',
@@ -95,17 +98,21 @@ def criar_pagamento_pix(produto, user, venda_id):
 
     try:
         # A chamada real para a API do Mercado Pago para criar o pagamento
+        print(f"DEBUG MP: Enviando requisição de pagamento para o Mercado Pago...")
         payment_response = sdk.payment().create(payment_data)
         payment = payment_response["response"]
+        print(f"DEBUG MP: Resposta do Mercado Pago recebida: {payment}") # Log da resposta completa
         return payment
     except mercadopago.exceptions.MPApiException as e: # Captura exceções específicas do MP
-        print(f"[ERRO MP] Falha ao criar pagamento PIX (API Error): {e}")
-        if e.status and e.response: # Detalhes da resposta da API
-            print(f"Status HTTP: {e.status}")
-            print(f"Erro Mercado Pago: {e.response}")
+        print(f"[ERRO MP] Falha ao criar pagamento PIX (API Error). Status HTTP: {e.status}")
+        # ** IMPORTANTE: Loga o corpo da resposta de erro da API do Mercado Pago **
+        if e.response:
+            print(f"Detalhes do Erro Mercado Pago: {e.response}")
+        else:
+            print(f"Nenhum detalhe de erro da API do Mercado Pago disponível no objeto de exceção.")
         return None
     except Exception as e: # Captura outras exceções genéricas
-        print(f"[ERRO GERAL] Falha ao criar pagamento PIX: {e}")
+        print(f"[ERRO GERAL MP] Falha ao criar pagamento PIX: {e}")
         return None
 
 
@@ -115,20 +122,23 @@ def verificar_status_pagamento(payment_id):
     """
     global sdk # Garante que estamos usando a variável global
     if sdk is None:
-        print("[AVISO] SDK do Mercado Pago não inicializado. Tentando inicializar...")
+        print("[AVISO MP] SDK do Mercado Pago não inicializado. Tentando inicializar...")
         try:
             init_mercadopago_sdk()
         except ValueError as e:
-            print(f"[ERRO] Falha na inicialização do SDK antes de verificar pagamento: {e}")
+            print(f"[ERRO MP] Falha na inicialização do SDK antes de verificar pagamento: {e}")
             return None
     try:
+        print(f"DEBUG MP: Verificando status do pagamento ID: {payment_id}")
         payment_info = sdk.payment().get(payment_id)
+        print(f"DEBUG MP: Status do pagamento {payment_id} recebido: {payment_info['response'].get('status')}")
         return payment_info["response"]
     except mercadopago.exceptions.MPApiException as e:
-        print(f"[ERRO MP] Falha ao verificar status do pagamento (API Error): {e}")
-        if e.status and e.response:
-            print(f"Status HTTP: {e.status}")
-            print(f"Erro Mercado Pago: {e.response}")
+        print(f"[ERRO MP] Falha ao verificar status do pagamento (API Error). Status HTTP: {e.status}")
+        if e.response:
+            print(f"Detalhes do Erro Mercado Pago: {e.response}")
+        else:
+            print(f"Nenhum detalhe de erro da API do Mercado Pago disponível no objeto de exceção.")
         return None
     except Exception as e:
         print(f"Erro geral ao verificar status do pagamento: {e}")
