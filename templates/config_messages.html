@@ -1,34 +1,54 @@
-{% extends "layout.html" %}
+{% extends "base.html" %}
 
-{% block title %}Mensagens de Boas-Vindas{% endblock %}
+{% block title %}Configurações de Mensagens - Bot Telegram{% endblock %}
 
 {% block content %}
-<div class="px-4 py-6 sm:px-0">
-    <h2 class="text-2xl font-bold text-gray-900 mb-6">Mensagens de Boas-Vindas</h2>
+<div class="container mx-auto p-4">
+    <h1 class="text-3xl font-bold mb-6 text-gray-800">Configurações de Mensagens</h1>
 
-    <div class="mb-8 flex space-x-4 border-b border-gray-200">
-        <a href="{{ url_for('config_messages') }}" class="py-2 px-4 border-b-2 border-indigo-500 text-indigo-600 font-medium">Boas-vindas ao bot</a>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="mb-4">
+                {% for category, message in messages %}
+                    <div class="p-3 rounded-md {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('config_messages') }}" class="bg-white shadow-md rounded-lg p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-4 text-gray-700">Mensagem de Boas-Vindas ao Bot</h2>
+        <div class="mb-6">
+            <label for="welcome_message_bot" class="block text-gray-700 text-sm font-bold mb-2">
+                Crie uma mensagem personalizada para ser enviada ao seu cliente na primeira interação com o bot (comando /start).
+            </label>
+            <textarea id="welcome_message_bot" name="welcome_message_bot" rows="4" required
+                class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline resize-y"
+                placeholder="Ex: Olá, {first_name}! Bem-vindo(a) ao bot de vendas!">{{ welcome_message_bot }}</textarea>
+            <p class="text-xs text-gray-500 mt-1">Use <code>{first_name}</code> para incluir o primeiro nome do usuário.</p>
         </div>
 
-    <div class="bg-white shadow-sm rounded-lg overflow-hidden">
-        <div class="p-6">
-            <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Configurar mensagem inicial do bot</h3>
-            <p class="text-sm text-gray-500 mb-6">Crie uma mensagem personalizada para ser enviada ao seu cliente na primeira interação com o bot.</p>
-
-            <form method="POST" action="{{ url_for('config_messages') }}">
-                <div class="mb-4">
-                    <label for="welcome_message_bot" class="block text-sm font-medium text-gray-700">Texto da mensagem</label>
-                    <textarea id="welcome_message_bot" name="welcome_message_bot" rows="6" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2" placeholder="Ex: Olá, {first_name}! Bem-vindo ao meu bot de vendas!">{{ welcome_message_bot }}</textarea>
-                    <p class="mt-2 text-sm text-gray-500">Use <code>{first_name}</code> para incluir o primeiro nome do usuário.</p>
-                </div>
-
-                <div class="mt-6">
-                    <button type="submit" class="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
-                        Salvar Mensagem
-                    </button>
-                </div>
-            </form>
+        <h2 class="text-xl font-semibold mb-4 text-gray-700">Mensagem de Boas-Vindas à Comunidade</h2>
+        <div class="mb-6">
+            <label for="welcome_message_community" class="block text-gray-700 text-sm font-bold mb-2">
+                Configure a mensagem que será enviada no grupo da sua comunidade quando um novo membro entrar.
+            </label>
+            <textarea id="welcome_message_community" name="welcome_message_community" rows="4" required
+                class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline resize-y"
+                placeholder="Ex: Bem-vindo(a) à nossa comunidade, {first_name}!">{{ welcome_message_community }}</textarea>
+            <p class="text-xs text-gray-500 mt-1">Use <code>{first_name}</code> para incluir o primeiro nome do novo membro.</p>
         </div>
-    </div>
+
+        <div class="flex items-center justify-between">
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                Salvar Configurações
+            </button>
+            <a href="{{ url_for('index') }}" class="inline-block align-baseline font-bold text-sm text-gray-600 hover:text-gray-800">
+                Voltar ao Dashboard
+            </a>
+        </div>
+    </form>
 </div>
 {% endblock %}
