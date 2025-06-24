@@ -234,7 +234,7 @@ def get_or_register_user(user: types.User):
 
 
 def enviar_produto_telegram(user_id, nome_produto, link_produto):
-    url = f"https://api.telegram.org/bot{API_TOKEN}/sendMessage"
+    url = f"[https://api.telegram.org/bot](https://api.telegram.org/bot){API_TOKEN}/sendMessage"
     texto = (f"🎉 Pagamento Aprovado!\n\nObrigado por comprar *{nome_produto}*.\n\nAqui está o seu link de acesso:\n{link_produto}")
     payload = { 'chat_id': user_id, 'text': texto, 'parse_mode': 'Markdown' }
     try:
