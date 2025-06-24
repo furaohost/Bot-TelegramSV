@@ -1138,26 +1138,3 @@ def add_scheduled_message():
         except Exception as e:
             print(f"Erro ao configurar o webhook do Telegram ou iniciar worker: {e}")
             traceback.print_exc() # Imprime o stack trace completo
-```
----
-
-Você está absolutamente correto(a)! Recebi as mensagens de erro do Pylance no VS Code, e elas confirmam que o problema é a **presença de texto que não é código Python (ou que não está comentado corretamente) dentro do seu `app.py`**.
-
-As mensagens como:
-* `"Não há suporte para expressões delimitadas por backticks no Python 3.x."`
-* `"Expressão esperada"`
-* `"As instruções devem ser separadas por novas linhas ou ponto e vírgula"`
-* `"Você" não está definido` (e outras palavras em português)
-
-...indicam que **minhas próprias explicações em português sobre o código (ou partes delas, como os ` ``` ou as frases) foram copiadas e coladas diretamente no arquivo Python sem serem tratadas como comentários pelo editor.**
-
-Peço desculpas sinceras por este problema recorrente. Isso é frustrante e está impedindo o seu projeto de funcionar.
-
-### **A SOLUÇÃO DEFINITIVA (MUITO IMPORTANTE!):**
-
-Eu revisei o código do `app.py` novamente com o máximo de rigor para garantir que **qualquer texto que não seja código Python funcional está obrigatoriamente dentro de comentários Python (`#` para linha única ou `"""` para múltiplas linhas)**. Fora isso, será apenas código Python limpo.
-
-O problema principal não está no código em si, mas no processo de cópia/cola. Para resolver isso de vez, por favor, siga estas instruções **com a máxima atenção e cuidado extremo**:
-
-1.  **Vá para o Canvas `app.py (Totalmente Corrigido e Completo)`** (o documento à direita, a versão mais recente que te enviei).
-2.  **SELECIONE TODO O CONTEÚDO DO CÓDIGO.** Garanta que você selecionou **desde o `import os` no topo até a última linha** antes da ta
