@@ -217,7 +217,7 @@ def get_or_register_user(user: types.User):
 
 
 def enviar_produto_telegram(user_id, nome_produto, link_produto):
-    url = f"[https://api.telegram.org/bot](https://api.telegram.org/bot){API_TOKEN}/sendMessage" # URL corrigida
+    url = f"https://api.telegram.org/bot{API_TOKEN}/sendMessage"
     texto = (f"🎉 Pagamento Aprovado!\n\nObrigado por comprar *{nome_produto}*.\n\nAqui está o seu link de acesso:\n{link_produto}")
     payload = { 'chat_id': user_id, 'text': texto, 'parse_mode': 'Markdown' }
     try:
@@ -934,13 +934,13 @@ def scheduled_message_worker():
                     print("DEBUG WORKER: Nenhuma mensagem agendada para enviar no momento.")
 
                 for msg in messages_to_send:
-                    print(f"DEBUG WORKER: Processando mensagem agendada ID: {msg.id}")
+                    print(f"DEBUG WORKER: Processando mensagem agendada ID: {msg['id']}") # Corrigido aqui
                     send_successful = False
                     
                     target_chats = []
-                    if msg.target_chat_id: # Enviar para um chat específico
-                        target_chats.append(msg.target_chat_id)
-                        print(f"DEBUG WORKER: Enviando para chat específico: {msg.target_chat_id}")
+                    if msg['target_chat_id']: # Corrigido aqui
+                        target_chats.append(msg['target_chat_id']) # Corrigido aqui
+                        print(f"DEBUG WORKER: Enviando para chat específico: {msg['target_chat_id']}") # Corrigido aqui
                     else: # Enviar para todos os usuários (broadcast)
                         print("DEBUG WORKER: Enviando para todos os usuários registrados.")
                         cur.execute("SELECT id FROM users") # Busca todos os IDs de usuários
@@ -949,48 +949,47 @@ def scheduled_message_worker():
                         
                         if not target_chats:
                             print("DEBUG WORKER: Nenhum usuário registrado para enviar mensagem de broadcast.")
-                            # Marcar como falha se não houver usuários para evitar reprocessamento
-                            cur.execute("UPDATE scheduled_messages SET status = 'failed', sent_at = NOW() WHERE id = %s", (msg.id,))
+                            cur.execute("UPDATE scheduled_messages SET status = 'failed', sent_at = NOW() WHERE id = %s", (msg['id'],)) # Corrigido aqui
                             conn.commit()
                             continue # Pula para a próxima mensagem agendada
 
                     for chat_id in target_chats:
                         try:
                             # Tentar enviar foto/vídeo, se houver URL
-                            if msg.image_url:
-                                print(f"DEBUG WORKER: Tentando enviar foto/vídeo para {chat_id} com URL: {msg.image_url}")
+                            if msg['image_url']: # Corrigido aqui
+                                print(f"DEBUG WORKER: Tentando enviar foto/vídeo para {chat_id} com URL: {msg['image_url']}") # Corrigido aqui
                                 # send_photo pode lidar com URLs de vídeo se o Telegram as aceitar como foto para preview
-                                bot.send_photo(chat_id, msg.image_url, caption=msg.message_text, parse_mode='Markdown')
+                                bot.send_photo(chat_id, msg['image_url'], caption=msg['message_text'], parse_mode='Markdown') # Corrigido aqui
                             else:
                                 print(f"DEBUG WORKER: Enviando texto para {chat_id}")
-                                bot.send_message(chat_id, msg.message_text, parse_mode='Markdown')
+                                bot.send_message(chat_id, msg['message_text'], parse_mode='Markdown') # Corrigido aqui
                             send_successful = True # Se chegou aqui, o envio para pelo menos um chat_id foi bem-sucedido
-                            print(f"DEBUG WORKER: Mensagem agendada ID {msg.id} enviada com sucesso para {chat_id}.")
+                            print(f"DEBUG WORKER: Mensagem agendada ID {msg['id']} enviada com sucesso para {chat_id}.") # Corrigido aqui
                         except telebot.apihelper.ApiTelegramException as e:
-                            print(f"ERRO WORKER: Falha ao enviar mensagem para chat {chat_id} (ID Msg Agendada: {msg.id}): {e}")
+                            print(f"ERRO WORKER: Falha ao enviar mensagem para chat {chat_id} (ID Msg Agendada: {msg['id']}): {e}") # Corrigido aqui
                             traceback.print_exc() # Imprime o stack trace completo do erro do Telegram
                             # Se o erro for "chat not found" ou "bot was blocked", isso é esperado para alguns usuários
                             if "chat not found" in str(e).lower() or "bot was blocked by the user" in str(e).lower() or "user is deactivated" in str(e).lower():
-                                print(f"AVISO WORKER: Chat {chat_id} pode ter bloqueado o bot ou não existe. Mensagem agendada ID {msg.id} continuará pendente para outros alvos se houver.")
+                                print(f"AVISO WORKER: Chat {chat_id} pode ter bloqueado o bot ou não existe. Mensagem agendada ID {msg['id']} continuará pendente para outros alvos se houver.") # Corrigido aqui
                                 # Não marcar como falha total da mensagem agendada se for um erro de usuário individual
                             else:
                                 send_successful = False # Erro mais grave, interrompe o loop para esta mensagem
-                                print(f"ERRO WORKER: Erro crítico para mensagem agendada ID {msg.id}. Interrompendo envio para os demais alvos.")
+                                print(f"ERRO WORKER: Erro crítico para mensagem agendada ID {msg['id']}. Interrompendo envio para os demais alvos.") # Corrigido aqui
                                 break # Interrompe o envio para outros chats se for um erro crítico
 
                         except Exception as e:
-                            print(f"ERRO WORKER: Erro inesperado ao enviar mensagem para chat {chat_id} (ID Msg Agendada: {msg.id}): {e}")
+                            print(f"ERRO WORKER: Erro inesperado ao enviar mensagem para chat {chat_id} (ID Msg Agendada: {msg['id']}): {e}") # Corrigido aqui
                             traceback.print_exc() # Imprime o stack trace completo
                             send_successful = False
                             break # Interrompe o envio para outros chats
 
                     # Atualiza o status no banco de dados com base no resultado dos envios
                     if send_successful:
-                        cur.execute("UPDATE scheduled_messages SET status = 'sent', sent_at = NOW() WHERE id = %s", (msg.id,))
-                        print(f"DEBUG WORKER: Mensagem agendada ID {msg.id} marcada como 'sent'.")
+                        cur.execute("UPDATE scheduled_messages SET status = 'sent', sent_at = NOW() WHERE id = %s", (msg['id'],)) # Corrigido aqui
+                        print(f"DEBUG WORKER: Mensagem agendada ID {msg['id']} marcada como 'sent'.") # Corrigido aqui
                     else:
-                        cur.execute("UPDATE scheduled_messages SET status = 'failed', sent_at = NOW() WHERE id = %s", (msg.id,))
-                        print(f"DEBUG WORKER: Mensagem agendada ID {msg.id} marcada como 'failed'.")
+                        cur.execute("UPDATE scheduled_messages SET status = 'failed', sent_at = NOW() WHERE id = %s", (msg['id'],)) # Corrigido aqui
+                        print(f"DEBUG WORKER: Mensagem agendada ID {msg['id']} marcada como 'failed'.") # Corrigido aqui
                     conn.commit()
 
         except Exception as e:
@@ -1023,7 +1022,7 @@ def send_broadcast():
             with conn.cursor() as cur:
                 cur.execute("SELECT id FROM users") # Pega todos os IDs de usuários registrados
                 all_user_ids_rows = cur.fetchall()
-                target_user_ids = [user['id'] for user in all_user_ids_rows]
+                target_user_ids = [user['id'] for user in all_user_ids_rows] # Já estava correto
 
                 if not target_user_ids:
                     flash('Nenhum usuário registrado para enviar o broadcast.', 'warning')
