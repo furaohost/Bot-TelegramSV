@@ -68,7 +68,7 @@ def init_db():
                     first_name TEXT,
                     last_name TEXT,
                     data_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    is_active BOOLEAN DEFAULT TRUE -- Adicionando is_active
+                    is_active BOOLEAN DEFAULT TRUE
                 );
             ''')
             print("DEBUG DB INIT: Tabela 'users' criada.")
@@ -193,533 +193,533 @@ def init_db():
 
             conn.commit()
             print("DEBUG DB: Tabelas do banco de dados verificadas/criadas (PostgreSQL/SQLite).")
-        except Exception as e:
-            print(f"ERRO DB: Falha ao inicializar o banco de dados: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
-            if conn:
-                conn.rollback()
-            raise
-        finally:
-            if conn: conn.close()
+    except Exception as e:
+        print(f"ERRO DB: Falha ao inicializar o banco de dados: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if conn: conn.close()
 
 
-    def get_or_register_user(user: types.User):
-        conn = None
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                print("DEBUG DB: get_or_register_user - Testando conexão antes da query.")
-                cur.execute('SELECT 1') # Teste de conexão
-                print("DEBUG DB: get_or_register_user - Conexão OK.")
+def get_or_register_user(user: types.User):
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            print("DEBUG DB: get_or_register_user - Testando conexão antes da query.")
+            cur.execute('SELECT 1') # Teste de conexão
+            print("DEBUG DB: get_or_register_user - Conexão OK.")
 
-                # Adicionado para registrar a is_active
-                cur.execute("SELECT * FROM users WHERE id = %s", (user.id,))
-                db_user = cur.fetchone()
-                if db_user is None:
-                    data_registro = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    cur.execute("INSERT INTO users (id, username, first_name, last_name, data_registro, is_active) VALUES (%s, %s, %s, %s, %s, %s)",
-                                 (user.id, user.username, user.first_name, user.last_name, data_registro, True)) # Novo: is_active=True
+            # Adicionado para registrar a is_active
+            cur.execute("SELECT * FROM users WHERE id = %s", (user.id,))
+            db_user = cur.fetchone()
+            if db_user is None:
+                data_registro = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                cur.execute("INSERT INTO users (id, username, first_name, last_name, data_registro, is_active) VALUES (%s, %s, %s, %s, %s, %s)",
+                             (user.id, user.username, user.first_name, user.last_name, data_registro, True)) # Novo: is_active=True
+                conn.commit()
+            else: # Se o usuário já existe, garantir que está ativo (se reativou o bot)
+                if not db_user['is_active']:
+                    cur.execute("UPDATE users SET is_active = TRUE WHERE id = %s", (user.id,))
                     conn.commit()
-                else: # Se o usuário já existe, garantir que está ativo (se reativou o bot)
-                    if not db_user['is_active']:
-                        cur.execute("UPDATE users SET is_active = TRUE WHERE id = %s", (user.id,))
-                        conn.commit()
-                        print(f"DEBUG DB: Usuário {user.id} reativado.")
-        except Exception as e:
-            print(f"ERRO DB: get_or_register_user falhou: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
-            if conn and not conn.closed: conn.rollback()
-        finally:
-            if conn: conn.close()
+                    print(f"DEBUG DB: Usuário {user.id} reativado.")
+    except Exception as e:
+        print(f"ERRO DB: get_or_register_user falhou: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
+        if conn and not conn.closed: conn.rollback()
+    finally:
+        if conn: conn.close()
 
 
-    def enviar_produto_telegram(user_id, nome_produto, link_produto):
-        url = f"https://api.telegram.org/bot{API_TOKEN}/sendMessage"
-        texto = (f"🎉 Pagamento Aprovado!\n\nObrigado por comprar *{nome_produto}*.\n\nAqui está o seu link de acesso:\n{link_produto}")
-        payload = { 'chat_id': user_id, 'text': texto, 'parse_mode': 'Markdown' }
-        try:
-            requests.post(url, json=payload)
-        except requests.exceptions.RequestException as e:
-            print(f"Erro ao enviar mensagem de entrega: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
+def enviar_produto_telegram(user_id, nome_produto, link_produto):
+    url = f"https://api.telegram.org/bot{API_TOKEN}/sendMessage"
+    texto = (f"🎉 Pagamento Aprovado!\n\nObrigado por comprar *{nome_produto}*.\n\nAqui está o seu link de acesso:\n{link_produto}")
+    payload = { 'chat_id': user_id, 'text': texto, 'parse_mode': 'Markdown' }
+    try:
+        requests.post(url, json=payload)
+    except requests.exceptions.RequestException as e:
+        print(f"Erro ao enviar mensagem de entrega: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
 
-    # --- 4. ROTAS DO PAINEL WEB (FLASK) ---
+# --- 4. ROTAS DO PAINEL WEB (FLASK) ---
 
-    @app.route(f"/{API_TOKEN}", methods=['POST'])
-    def telegram_webhook():
-        if request.headers.get('content-type') == 'application/json':
-            json_str = request.get_data().decode('utf-8')
-            update = types.Update.de_json(json_str)
-            bot.process_new_updates([update])
-            return '!', 200
-        else:
-            return "Unsupported Media Type", 415
+@app.route(f"/{API_TOKEN}", methods=['POST'])
+def telegram_webhook():
+    if request.headers.get('content-type') == 'application/json':
+        json_str = request.get_data().decode('utf-8')
+        update = types.Update.de_json(json_str)
+        bot.process_new_updates([update])
+        return '!', 200
+    else:
+        return "Unsupported Media Type", 415
 
-    @app.route('/webhook/mercado-pago', methods=['GET', 'POST'])
-    def webhook_mercado_pago():
-        print(f"DEBUG WEBHOOK MP: Recebida requisição para /webhook/mercado-pago. Method: {request.method}")
+@app.route('/webhook/mercado-pago', methods=['GET', 'POST'])
+def webhook_mercado_pago():
+    print(f"DEBUG WEBHOOK MP: Recebida requisição para /webhook/mercado-pago. Method: {request.method}")
 
-        if request.method == 'GET':
-            print("DEBUG WEBHOOK MP: Requisição GET de teste do Mercado Pago recebida. Respondendo 200 OK.")
-            return jsonify({'status': 'ok_test_webhook'}), 200
+    if request.method == 'GET':
+        print("DEBUG WEBHOOK MP: Requisição GET de teste do Mercado Pago recebida. Respondendo 200 OK.")
+        return jsonify({'status': 'ok_test_webhook'}), 200
 
-        notification = request.json
-        print(f"DEBUG WEBHOOK MP: Corpo da notificação POST: {notification}")
+    notification = request.json
+    print(f"DEBUG WEBHOOK MP: Corpo da notificação POST: {notification}")
 
-        if notification and notification.get('type') == 'payment':
-            print(f"DEBUG WEBHOOK MP: Notificação de pagamento detectada. ID: {notification.get('data', {}).get('id')}")
-            payment_id = notification['data']['id']
-            payment_info = pagamentos.verificar_status_pagamento(payment_id)
+    if notification and notification.get('type') == 'payment':
+        print(f"DEBUG WEBHOOK MP: Notificação de pagamento detectada. ID: {notification.get('data', {}).get('id')}")
+        payment_id = notification['data']['id']
+        payment_info = pagamentos.verificar_status_pagamento(payment_id)
 
-            print(f"DEBUG WEBHOOK MP: Status do pagamento verificado: {payment_info.get('status') if payment_info else 'N/A'}")
+        print(f"DEBUG WEBHOOK MP: Status do pagamento verificado: {payment_info.get('status') if payment_info else 'N/A'}")
 
-            if payment_info and payment_info['status'] == 'approved':
-                conn = None
-                try:
-                    conn = get_db_connection()
-                    with conn.cursor() as cur:
-                        venda_id = payment_info.get('external_reference')
-                        print(f"DEBUG WEBHOOK MP: Pagamento aprovado. Venda ID (external_reference): {venda_id}")
-
-                        if not venda_id:
-                            print("DEBUG WEBHOOK MP: external_reference não encontrado na notificação. Ignorando.")
-                            return jsonify({'status': 'ignored_no_external_ref'}), 200
-
-                        cur.execute('SELECT * FROM vendas WHERE id = %s AND status = %s', (venda_id, 'pendente'))
-                        venda = cur.fetchone()
-
-                        if venda:
-                            print(f"DEBUG WEBHOOK MP: Venda {venda_id} encontrada no DB com status 'pendente'.")
-                            data_venda_dt = datetime.strptime(str(venda['data_venda']), '%Y-%m-%d %H:%M:%S.%f') if isinstance(venda['data_venda'], datetime) else datetime.strptime(venda['data_venda'], '%Y-%m-%d %H:%M:%S')
-                            if datetime.now() > data_venda_dt + timedelta(hours=1):
-                                print(f"DEBUG WEBHOOK MP: Pagamento recebido para venda expirada (ID: {venda_id}). Ignorando entrega.")
-                                cur.execute('UPDATE vendas SET status = %s WHERE id = %s', ('expirado', venda_id))
-                                conn.commit()
-                                return jsonify({'status': 'expired_and_ignored'}), 200
-
-                            payer_info = payment_info.get('payer', {})
-                            payer_name = f"{payer_info.get('first_name', '')} {payer_info.get('last_name', '')}".strip()
-                            payer_email = payer_info.get('email')
-                            cur.execute('UPDATE vendas SET status = %s, payment_id = %s, payer_name = %s, payer_email = %s WHERE id = %s',
-                                         ('aprovado', payment_id, payer_name, payer_email, venda_id))
-                            conn.commit()
-                            cur.execute('SELECT * FROM produtos WHERE id = %s', (venda['produto_id'],))
-                            produto = cur.fetchone()
-                            if produto:
-                                print(f"DEBUG WEBHOOK MP: Enviando produto {produto['nome']} para user {venda['user_id']}.")
-                                enviar_produto_telegram(venda['user_id'], produto['nome'], produto['link'])
-                            print(f"DEBUG WEBHOOK MP: Venda {venda_id} aprovada e entregue com sucesso.")
-                            return jsonify({'status': 'success'}), 200
-                        else:
-                            print(f"DEBUG WEBHOOK MP: Venda {venda_id} já processada ou não encontrada no DB como 'pendente'.")
-                            return jsonify({'status': 'already_processed_or_not_pending'}), 200
-                except Exception as e:
-                    print(f"ERRO WEBHOOK MP: Erro no processamento da notificação de pagamento: {e}")
-                    traceback.print_exc() # Imprime o stack trace completo
-                    if conn and not conn.closed: conn.rollback()
-                    return jsonify({'status': 'error_processing_webhook'}), 500
-                finally:
-                    if conn: conn.close()
-            else:
-                print(f"DEBUG WEBHOOK MP: Pagamento {payment_id} não aprovado ou info inválida. Status: {payment_info.get('status') if payment_info else 'N/A'}")
-                return jsonify({'status': 'payment_not_approved'}), 200
-
-        print("DEBUG WEBHOOK MP: Notificação ignorada (não é tipo 'payment' ou JSON inválido).")
-        return jsonify({'status': 'ignored_general'}), 200
-
-
-    @app.route('/login', methods=['GET', 'POST'])
-    def login():
-        print(f"DEBUG LOGIN: Requisição para /login. Method: {request.method}")
-        print(f"DEBUG LOGIN: session.get('logged_in'): {session.get('logged_in')}")
-
-        if session.get('logged_in'):
-            print("DEBUG LOGIN: Usuário já logado. Redirecionando para index.")
-            return redirect(url_for('index'))
-
-        if request.method == 'POST':
-            username = request.form.get('username')
-            password = request.form.get('password')
+        if payment_info and payment_info['status'] == 'approved':
             conn = None
             try:
                 conn = get_db_connection()
                 with conn.cursor() as cur:
-                    cur.execute('SELECT * FROM admin WHERE username = %s', (username,))
-                    admin_user = cur.fetchone()
-                    if admin_user and check_password_hash(admin_user['password_hash'], password):
-                        session['logged_in'] = True
-                        session['username'] = admin_user['username']
-                        print(f"DEBUG LOGIN: Login bem-sucedido para {session['username']}. session['logged_in'] = {session.get('logged_in')}")
-                        return redirect(url_for('index'))
+                    venda_id = payment_info.get('external_reference')
+                    print(f"DEBUG WEBHOOK MP: Pagamento aprovado. Venda ID (external_reference): {venda_id}")
+
+                    if not venda_id:
+                        print("DEBUG WEBHOOK MP: external_reference não encontrado na notificação. Ignorando.")
+                        return jsonify({'status': 'ignored_no_external_ref'}), 200
+
+                    cur.execute('SELECT * FROM vendas WHERE id = %s AND status = %s', (venda_id, 'pendente'))
+                    venda = cur.fetchone()
+
+                    if venda:
+                        print(f"DEBUG WEBHOOK MP: Venda {venda_id} encontrada no DB com status 'pendente'.")
+                        data_venda_dt = datetime.strptime(str(venda['data_venda']), '%Y-%m-%d %H:%M:%S.%f') if isinstance(venda['data_venda'], datetime) else datetime.strptime(venda['data_venda'], '%Y-%m-%d %H:%M:%S')
+                        if datetime.now() > data_venda_dt + timedelta(hours=1):
+                            print(f"DEBUG WEBHOOK MP: Pagamento recebido para venda expirada (ID: {venda_id}). Ignorando entrega.")
+                            cur.execute('UPDATE vendas SET status = %s WHERE id = %s', ('expirado', venda_id))
+                            conn.commit()
+                            return jsonify({'status': 'expired_and_ignored'}), 200
+
+                        payer_info = payment_info.get('payer', {})
+                        payer_name = f"{payer_info.get('first_name', '')} {payer_info.get('last_name', '')}".strip()
+                        payer_email = payer_info.get('email')
+                        cur.execute('UPDATE vendas SET status = %s, payment_id = %s, payer_name = %s, payer_email = %s WHERE id = %s',
+                                     ('aprovado', payment_id, payer_name, payer_email, venda_id))
+                        conn.commit()
+                        cur.execute('SELECT * FROM produtos WHERE id = %s', (venda['produto_id'],))
+                        produto = cur.fetchone()
+                        if produto:
+                            print(f"DEBUG WEBHOOK MP: Enviando produto {produto['nome']} para user {venda['user_id']}.")
+                            enviar_produto_telegram(venda['user_id'], produto['nome'], produto['link'])
+                        print(f"DEBUG WEBHOOK MP: Venda {venda_id} aprovada e entregue com sucesso.")
+                        return jsonify({'status': 'success'}), 200
                     else:
-                        flash('Usuário ou senha inválidos.', 'danger')
-                        print("DEBUG LOGIN: Login falhou. Credenciais inválidas.")
+                        print(f"DEBUG WEBHOOK MP: Venda {venda_id} já processada ou não encontrada no DB como 'pendente'.")
+                        return jsonify({'status': 'already_processed_or_not_pending'}), 200
             except Exception as e:
-                print(f"ERRO LOGIN: Falha no processo de login: {e}")
+                print(f"ERRO WEBHOOK MP: Erro no processamento da notificação de pagamento: {e}")
                 traceback.print_exc() # Imprime o stack trace completo
-                flash('Erro no servidor ao tentar login.', 'danger')
                 if conn and not conn.closed: conn.rollback()
+                return jsonify({'status': 'error_processing_webhook'}), 500
             finally:
                 if conn: conn.close()
+        else:
+            print(f"DEBUG WEBHOOK MP: Pagamento {payment_id} não aprovado ou info inválida. Status: {payment_info.get('status') if payment_info else 'N/A'}")
+            return jsonify({'status': 'payment_not_approved'}), 200
 
-        print("DEBUG LOGIN: Renderizando login.html.")
-        return render_template('login.html')
+    print("DEBUG WEBHOOK MP: Notificação ignorada (não é tipo 'payment' ou JSON inválido).")
+    return jsonify({'status': 'ignored_general'}), 200
 
-    @app.route('/logout')
-    def logout():
-        print(f"DEBUG LOGOUT: Desconectando usuário {session.get('username')}.")
-        session.clear()
-        flash('Você foi desconectado.', 'info')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    print(f"DEBUG LOGIN: Requisição para /login. Method: {request.method}")
+    print(f"DEBUG LOGIN: session.get('logged_in'): {session.get('logged_in')}")
+
+    if session.get('logged_in'):
+        print("DEBUG LOGIN: Usuário já logado. Redirecionando para index.")
+        return redirect(url_for('index'))
+
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        conn = None
+        try:
+            conn = get_db_connection()
+            with conn.cursor() as cur:
+                cur.execute('SELECT * FROM admin WHERE username = %s', (username,))
+                admin_user = cur.fetchone()
+                if admin_user and check_password_hash(admin_user['password_hash'], password):
+                    session['logged_in'] = True
+                    session['username'] = admin_user['username']
+                    print(f"DEBUG LOGIN: Login bem-sucedido para {session['username']}. session['logged_in'] = {session.get('logged_in')}")
+                    return redirect(url_for('index'))
+                else:
+                    flash('Usuário ou senha inválidos.', 'danger')
+                    print("DEBUG LOGIN: Login falhou. Credenciais inválidas.")
+        except Exception as e:
+            print(f"ERRO LOGIN: Falha no processo de login: {e}")
+            traceback.print_exc() # Imprime o stack trace completo
+            flash('Erro no servidor ao tentar login.', 'danger')
+            if conn and not conn.closed: conn.rollback()
+        finally:
+            if conn: conn.close()
+
+    print("DEBUG LOGIN: Renderizando login.html.")
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    print(f"DEBUG LOGOUT: Desconectando usuário {session.get('username')}.")
+    session.clear()
+    flash('Você foi desconectado.', 'info')
+    return redirect(url_for('login'))
+
+@app.route('/')
+def index():
+    print(f"DEBUG INDEX: Requisição para /. session.get('logged_in'): {session.get('logged_in')}")
+
+    if not session.get('logged_in'):
+        print("DEBUG INDEX: Usuário não logado. Redirecionando para login.")
         return redirect(url_for('login'))
 
-    @app.route('/')
-    def index():
-        print(f"DEBUG INDEX: Requisição para /. session.get('logged_in'): {session.get('logged_in')}")
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute('SELECT COUNT(id) FROM users WHERE is_active = TRUE') # Contar apenas usuários ativos
+            total_usuarios_row = cur.fetchone()
+            print(f"DEBUG INDEX: Resultado fetchone COUNT(users): {total_usuarios_row}")
+            total_usuarios = total_usuarios_row['count'] if total_usuarios_row and 'count' in total_usuarios_row and total_usuarios_row['count'] is not None else 0
 
-        if not session.get('logged_in'):
-            print("DEBUG INDEX: Usuário não logado. Redirecionando para login.")
-            return redirect(url_for('login'))
+            cur.execute('SELECT COUNT(id) FROM produtos')
+            total_produtos_row = cur.fetchone()
+            print(f"DEBUG INDEX: Resultado fetchone COUNT(produtos): {total_produtos_row}")
+            total_produtos = total_produtos_row['count'] if total_produtos_row and 'count' in total_produtos_row and total_produtos_row['count'] is not None else 0
 
-        conn = None
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                cur.execute('SELECT COUNT(id) FROM users WHERE is_active = TRUE') # Contar apenas usuários ativos
-                total_usuarios_row = cur.fetchone()
-                print(f"DEBUG INDEX: Resultado fetchone COUNT(users): {total_usuarios_row}")
-                total_usuarios = total_usuarios_row['count'] if total_usuarios_row and 'count' in total_usuarios_row and total_usuarios_row['count'] is not None else 0
+            cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s", ('aprovado',))
+            vendas_data_row = cur.fetchone()
+            print(f"DEBUG INDEX: Resultado fetchone COUNT/SUM(vendas): {vendas_data_row}")
+            total_vendas_aprovadas = vendas_data_row['count'] if vendas_data_row and 'count' in vendas_data_row and vendas_data_row['count'] is not None else 0
+            receita_total = vendas_data_row['sum'] if vendas_data_row and 'sum' in vendas_data_row and vendas_data_row['sum'] is not None else 0.0
+            print(f"DEBUG INDEX: total_vendas_aprovadas: {total_vendas_aprovadas}, receita_total: {receita_total}")
 
-                cur.execute('SELECT COUNT(id) FROM produtos')
-                total_produtos_row = cur.fetchone()
-                print(f"DEBUG INDEX: Resultado fetchone COUNT(produtos): {total_produtos_row}")
-                total_produtos = total_produtos_row['count'] if total_produtos_row and 'count' in total_produtos_row and total_produtos_row['count'] is not None else 0
+            cur.execute("SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, CASE WHEN v.status = 'aprovado' THEN 'aprovado' WHEN v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() - v.data_venda)) > 3600 THEN 'expirado' ELSE v.status END AS status FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id ORDER BY v.id DESC LIMIT 5")
+            vendas_recentes = cur.fetchall()
 
-                cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s", ('aprovado',))
-                vendas_data_row = cur.fetchone()
-                print(f"DEBUG INDEX: Resultado fetchone COUNT/SUM(vendas): {vendas_data_row}")
-                total_vendas_aprovadas = vendas_data_row['count'] if vendas_data_row and 'count' in vendas_data_row and vendas_data_row['count'] is not None else 0
-                receita_total = vendas_data_row['sum'] if vendas_data_row and 'sum' in vendas_data_row and vendas_data_row['sum'] is not None else 0.0
-                print(f"DEBUG INDEX: total_vendas_aprovadas: {total_vendas_aprovadas}, receita_total: {receita_total}")
+            chart_labels, chart_data = [], []
+            today = datetime.now()
+            for i in range(6, -1, -1):
+                day = today - timedelta(days=i)
+                start_of_day, end_of_day = datetime.combine(day.date(), time.min), datetime.combine(day.date(), time.max)
+                chart_labels.append(day.strftime('%d/%m'))
+                cur.execute("SELECT SUM(preco) AS sum FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s", ('aprovado', start_of_day, end_of_day))
+                daily_revenue_row = cur.fetchone()
+                daily_revenue = daily_revenue_row['sum'] if daily_revenue_row and 'sum' in daily_revenue_row and daily_revenue_row['sum'] is not None else 0
+                chart_data.append(daily_revenue)
 
-                cur.execute("SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, CASE WHEN v.status = 'aprovado' THEN 'aprovado' WHEN v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() - v.data_venda)) > 3600 THEN 'expirado' ELSE v.status END AS status FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id ORDER BY v.id DESC LIMIT 5")
-                vendas_recentes = cur.fetchall()
+            print("DEBUG INDEX: Renderizando index.html.")
+            return render_template('index.html', total_vendas=total_vendas_aprovadas, total_usuarios=total_usuarios, total_produtos=total_produtos, receita_total=receita_total, vendas_recentes=vendas_recentes, chart_labels=json.dumps(chart_labels), chart_data=json.dumps(chart_data))
+    except Exception as e:
+        print(f"ERRO INDEX: Falha ao renderizar o dashboard: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
+        flash('Erro ao carregar o dashboard.', 'danger')
+        return redirect(url_for('login'))
+    finally:
+        if conn: conn.close()
 
-                chart_labels, chart_data = [], []
-                today = datetime.now()
-                for i in range(6, -1, -1):
-                    day = today - timedelta(days=i)
-                    start_of_day, end_of_day = datetime.combine(day.date(), time.min), datetime.combine(day.date(), time.max)
-                    chart_labels.append(day.strftime('%d/%m'))
-                    cur.execute("SELECT SUM(preco) AS sum FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s", ('aprovado', start_of_day, end_of_day))
-                    daily_revenue_row = cur.fetchone()
-                    daily_revenue = daily_revenue_row['sum'] if daily_revenue_row and 'sum' in daily_revenue_row and daily_revenue_row['sum'] is not None else 0
-                    chart_data.append(daily_revenue)
-
-                print("DEBUG INDEX: Renderizando index.html.")
-                return render_template('index.html', total_vendas=total_vendas_aprovadas, total_usuarios=total_usuarios, total_produtos=total_produtos, receita_total=receita_total, vendas_recentes=vendas_recentes, chart_labels=json.dumps(chart_labels), chart_data=json.dumps(chart_data))
-        except Exception as e:
-            print(f"ERRO INDEX: Falha ao renderizar o dashboard: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
-            flash('Erro ao carregar o dashboard.', 'danger')
-            return redirect(url_for('login'))
-        finally:
-            if conn: conn.close()
-
-    @app.route('/produtos', methods=['GET', 'POST'])
-    def produtos():
-        if not session.get('logged_in'): return redirect(url_for('login'))
-        conn = None
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                if request.method == 'POST':
-                    nome = request.form.get('nome')
-                    preco = request.form.get('preco')
-                    link = request.form.get('link')
-                    cur.execute('INSERT INTO produtos (nome, preco, link) VALUES (%s, %s, %s)', (nome, preco, link))
-                    conn.commit()
-                    flash('Produto adicionado com sucesso!', 'success')
-                    return redirect(url_for('produtos'))
-
-                cur.execute('SELECT * FROM produtos ORDER BY id DESC')
-                lista_produtos = cur.fetchall()
-                return render_template('produtos.html', produtos=lista_produtos)
-        except Exception as e:
-            print(f"ERRO PRODUTOS: Falha ao gerenciar produtos: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
-            flash('Erro ao carregar ou adicionar produtos.', 'danger')
-            if conn and not conn.closed: conn.rollback()
-            return redirect(url_for('index'))
-        finally:
-            if conn: conn.close()
-
-    @app.route('/edit_product/<int:id>', methods=['GET', 'POST'])
-    def edit_product(id):
-        if not session.get('logged_in'): return redirect(url_for('login'))
-        conn = None
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                cur.execute('SELECT * FROM produtos WHERE id = %s', (id,))
-                produto = cur.fetchone()
-                if request.method == 'POST':
-                    nome = request.form.get('nome')
-                    preco = request.form.get('preco')
-                    link = request.form.get('link')
-                    cur.execute('UPDATE produtos SET nome = %s, preco = %s, link = %s WHERE id = %s', (nome, preco, link, id))
-                    conn.commit()
-                    flash('Produto atualizado com sucesso!', 'success')
-                    return redirect(url_for('produtos'))
-                return render_template('edit_product.html', produto=produto)
-        except Exception as e:
-            print(f"ERRO EDIT PRODUTO: Falha ao editar produto: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
-            flash('Erro ao carregar ou editar produto.', 'danger')
-            if conn and not conn.closed: conn.rollback()
-            return redirect(url_for('produtos'))
-        finally:
-            if conn: conn.close()
-
-    @app.route('/remove_product/<int:id>')
-    def remove_product(id):
-        if not session.get('logged_in'): return redirect(url_for('login'))
-        conn = None
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                cur.execute('DELETE FROM produtos WHERE id = %s', (id,))
+@app.route('/produtos', methods=['GET', 'POST'])
+def produtos():
+    if not session.get('logged_in'): return redirect(url_for('login'))
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            if request.method == 'POST':
+                nome = request.form.get('nome')
+                preco = request.form.get('preco')
+                link = request.form.get('link')
+                cur.execute('INSERT INTO produtos (nome, preco, link) VALUES (%s, %s, %s)', (nome, preco, link))
                 conn.commit()
-                flash('Produto removido com sucesso!', 'danger')
+                flash('Produto adicionado com sucesso!', 'success')
                 return redirect(url_for('produtos'))
-        except Exception as e:
-            print(f"ERRO REMOVE PRODUTO: Falha ao remover produto: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
-            flash('Erro ao remover produto.', 'danger')
-            if conn and not conn.closed: conn.rollback()
-            return redirect(url_for('produtos'))
-        finally:
-            if conn: conn.close()
 
-    @app.route('/vendas')
-    def vendas():
-        if not session.get('logged_in'): return redirect(url_for('login'))
-        conn = None
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                cur.execute('SELECT id, nome FROM produtos ORDER BY nome')
-                produtos_disponiveis = cur.fetchall()
+            cur.execute('SELECT * FROM produtos ORDER BY id DESC')
+            lista_produtos = cur.fetchall()
+            return render_template('produtos.html', produtos=lista_produtos)
+    except Exception as e:
+        print(f"ERRO PRODUTOS: Falha ao gerenciar produtos: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
+        flash('Erro ao carregar ou adicionar produtos.', 'danger')
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('index'))
+    finally:
+        if conn: conn.close()
 
-                query_base = "SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, p.id as produto_id, CASE WHEN v.status = 'aprovado' THEN 'aprovado' WHEN v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() - v.data_venda)) > 3600 THEN 'expirado' ELSE v.status END AS status FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id"
-                conditions, params = [], []
-                data_inicio_str, data_fim_str, pesquisa_str, produto_id_str, status_str = (request.args.get('data_inicio'), request.args.get('data_fim'), request.args.get('pesquisa'), request.args.get('produto_id'), request.args.get('status'))
-
-                if data_inicio_str: conditions.append("DATE(v.data_venda) >= %s"); params.append(data_inicio_str)
-                if data_fim_str: conditions.append("DATE(v.data_venda) <= %s"); params.append(data_fim_str)
-                if pesquisa_str: conditions.append("(u.username ILIKE %s OR p.nome ILIKE %s OR u.first_name ILIKE %s)"); params.extend([f'%{pesquisa_str}%'] * 3)
-                if produto_id_str: conditions.append("p.id = %s"); params.append(produto_id_str)
-                if status_str: conditions.append("v.status = %s"); params.append(status_str)
-
-                if conditions: query_base += " WHERE " + " AND ".join(conditions)
-                query_base += " ORDER BY v.id DESC"
-
-                cur.execute(query_base, tuple(params))
-                lista_vendas = cur.fetchall()
-                return render_template('vendas.html', vendas=lista_vendas, produtos_disponiveis=produtos_disponiveis)
-        except Exception as e:
-            print(f"ERRO VENDAS: Falha ao carregar vendas: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
-            flash('Erro ao carregar vendas.', 'danger')
-            if conn and not conn.closed: conn.rollback()
-            return redirect(url_for('index'))
-        finally:
-            if conn: conn.close()
-
-    @app.route('/venda_detalhes/<int:id>')
-    def venda_detalhes(id):
-        if not session.get('logged_in'): return jsonify({'error': 'Unauthorized'}), 401
-        conn = None
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                cur.execute('SELECT * FROM vendas WHERE id = %s', (id,))
-                venda = cur.fetchone()
-                if venda: return jsonify(dict(venda))
-                return jsonify({'error': 'Not Found'}), 404
-        except Exception as e:
-            print(f"ERRO VENDA DETALHES: Falha ao obter detalhes da venda: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
-            return jsonify({'error': 'Internal Server Error'}), 500
-        finally:
-            if conn: conn.close()
-
-    @app.route('/usuarios')
-    def usuarios():
-        if not session.get('logged_in'): return redirect(url_for('login'))
-        conn = None
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                # Filtrar usuários ativos para o painel de usuários
-                cur.execute('SELECT * FROM users ORDER BY id DESC')
-                lista_usuarios = cur.fetchall()
-                return render_template('usuarios.html', usuarios=lista_usuarios)
-        except Exception as e:
-            print(f"ERRO USUARIOS: Falha ao carregar usuários: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
-            flash('Erro ao carregar usuários.', 'danger')
-            if conn and not conn.closed: conn.rollback()
-            return redirect(url_for('index'))
-        finally:
-            if conn: conn.close()
-
-    @app.route('/remove_user/<int:id>')
-    def remove_user(id):
-        if not session.get('logged_in'): return redirect(url_for('login'))
-        conn = None
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                # Remove usuário e suas vendas relacionadas
-                cur.execute('DELETE FROM vendas WHERE user_id = %s', (id,))
-                cur.execute('DELETE FROM users WHERE id = %s', (id,))
+@app.route('/edit_product/<int:id>', methods=['GET', 'POST'])
+def edit_product(id):
+    if not session.get('logged_in'): return redirect(url_for('login'))
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute('SELECT * FROM produtos WHERE id = %s', (id,))
+            produto = cur.fetchone()
+            if request.method == 'POST':
+                nome = request.form.get('nome')
+                preco = request.form.get('preco')
+                link = request.form.get('link')
+                cur.execute('UPDATE produtos SET nome = %s, preco = %s, link = %s WHERE id = %s', (nome, preco, link, id))
                 conn.commit()
-                flash('Usuário e vendas associadas removidos com sucesso!', 'danger')
-                return redirect(url_for('usuarios'))
-        except Exception as e:
-            print(f"ERRO REMOVE USUARIO: Falha ao remover usuário: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
-            flash('Erro ao remover usuário.', 'danger')
-            if conn and not conn.closed: conn.rollback()
+                flash('Produto atualizado com sucesso!', 'success')
+                return redirect(url_for('produtos'))
+            return render_template('edit_product.html', produto=produto)
+    except Exception as e:
+        print(f"ERRO EDIT PRODUTO: Falha ao editar produto: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
+        flash('Erro ao carregar ou editar produto.', 'danger')
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('produtos'))
+    finally:
+        if conn: conn.close()
+
+@app.route('/remove_product/<int:id>')
+def remove_product(id):
+    if not session.get('logged_in'): return redirect(url_for('login'))
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute('DELETE FROM produtos WHERE id = %s', (id,))
+            conn.commit()
+            flash('Produto removido com sucesso!', 'danger')
+            return redirect(url_for('produtos'))
+    except Exception as e:
+        print(f"ERRO REMOVE PRODUTO: Falha ao remover produto: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
+        flash('Erro ao remover produto.', 'danger')
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('produtos'))
+    finally:
+        if conn: conn.close()
+
+@app.route('/vendas')
+def vendas():
+    if not session.get('logged_in'): return redirect(url_for('login'))
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute('SELECT id, nome FROM produtos ORDER BY nome')
+            produtos_disponiveis = cur.fetchall()
+
+            query_base = "SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, p.id as produto_id, CASE WHEN v.status = 'aprovado' THEN 'aprovado' WHEN v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() - v.data_venda)) > 3600 THEN 'expirado' ELSE v.status END AS status FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id"
+            conditions, params = [], []
+            data_inicio_str, data_fim_str, pesquisa_str, produto_id_str, status_str = (request.args.get('data_inicio'), request.args.get('data_fim'), request.args.get('pesquisa'), request.args.get('produto_id'), request.args.get('status'))
+
+            if data_inicio_str: conditions.append("DATE(v.data_venda) >= %s"); params.append(data_inicio_str)
+            if data_fim_str: conditions.append("DATE(v.data_venda) <= %s"); params.append(data_fim_str)
+            if pesquisa_str: conditions.append("(u.username ILIKE %s OR p.nome ILIKE %s OR u.first_name ILIKE %s)"); params.extend([f'%{pesquisa_str}%'] * 3)
+            if produto_id_str: conditions.append("p.id = %s"); params.append(produto_id_str)
+            if status_str: conditions.append("v.status = %s"); params.append(status_str)
+
+            if conditions: query_base += " WHERE " + " AND ".join(conditions)
+            query_base += " ORDER BY v.id DESC"
+
+            cur.execute(query_base, tuple(params))
+            lista_vendas = cur.fetchall()
+            return render_template('vendas.html', vendas=lista_vendas, produtos_disponiveis=produtos_disponiveis)
+    except Exception as e:
+        print(f"ERRO VENDAS: Falha ao carregar vendas: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
+        flash('Erro ao carregar vendas.', 'danger')
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('index'))
+    finally:
+        if conn: conn.close()
+
+@app.route('/venda_detalhes/<int:id>')
+def venda_detalhes(id):
+    if not session.get('logged_in'): return jsonify({'error': 'Unauthorized'}), 401
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute('SELECT * FROM vendas WHERE id = %s', (id,))
+            venda = cur.fetchone()
+            if venda: return jsonify(dict(venda))
+            return jsonify({'error': 'Not Found'}), 404
+    except Exception as e:
+        print(f"ERRO VENDA DETALHES: Falha ao obter detalhes da venda: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
+        return jsonify({'error': 'Internal Server Error'}), 500
+    finally:
+        if conn: conn.close()
+
+@app.route('/usuarios')
+def usuarios():
+    if not session.get('logged_in'): return redirect(url_for('login'))
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Seleciona apenas usuários ativos para o painel de usuários
+            cur.execute('SELECT * FROM users ORDER BY id DESC')
+            lista_usuarios = cur.fetchall()
+            return render_template('usuarios.html', usuarios=lista_usuarios)
+    except Exception as e:
+        print(f"ERRO USUARIOS: Falha ao carregar usuários: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
+        flash('Erro ao carregar usuários.', 'danger')
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('index'))
+    finally:
+        if conn: conn.close()
+
+@app.route('/remove_user/<int:id>')
+def remove_user(id):
+    if not session.get('logged_in'): return redirect(url_for('login'))
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Remove usuário e suas vendas relacionadas
+            cur.execute('DELETE FROM vendas WHERE user_id = %s', (id,))
+            cur.execute('DELETE FROM users WHERE id = %s', (id,))
+            conn.commit()
+            flash('Usuário e vendas associadas removidos com sucesso!', 'danger')
             return redirect(url_for('usuarios'))
-        finally:
-            if conn: conn.close()
+    except Exception as e:
+        print(f"ERRO REMOVE USUARIO: Falha ao remover usuário: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
+        flash('Erro ao remover usuário.', 'danger')
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('usuarios'))
+    finally:
+        if conn: conn.close()
 
-    @app.route('/pagamento/<status>')
-    def pagamento_retorno(status):
-        mensagem = "Status do Pagamento: "
-        if status == 'sucesso': mensagem += "Aprovado com sucesso!"
-        elif status == 'falha': mensagem += "Pagamento falhou."
-        elif status == 'pendente': mensagem += "Pagamento pendente."
-        return f"<div style='font-family: sans-serif; text-align: center; padding-top: 50px;'><h1>{mensagem}</h1><p>Você pode fechar esta janela e voltar para o Telegram.</p></div>"
+@app.route('/pagamento/<status>')
+def pagamento_retorno(status):
+    mensagem = "Status do Pagamento: "
+    if status == 'sucesso': mensagem += "Aprovado com sucesso!"
+    elif status == 'falha': mensagem += "Pagamento falhou."
+    elif status == 'pendente': mensagem += "Pagamento pendente."
+    return f"<div style='font-family: sans-serif; text-align: center; padding-top: 50px;'><h1>{mensagem}</h1><p>Você pode fechar esta janela e voltar para o Telegram.</p></div>"
 
-    # --- ROTA PARA MENSAGENS DE BOAS-VINDAS (AGORA CONFIGURA BOT E COMUNIDADE) ---
-    @app.route('/config_messages', methods=['GET', 'POST'])
-    def config_messages():
-        if not session.get('logged_in'):
-            return redirect(url_for('login'))
+# --- ROTA PARA MENSAGENS DE BOAS-VINDAS (AGORA CONFIGURA BOT E COMUNIDADE) ---
+@app.route('/config_messages', methods=['GET', 'POST'])
+def config_messages():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
 
-        conn = None
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                # Busca a mensagem de boas-vindas do bot
-                cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_bot',))
-                current_welcome_message_bot_row = cur.fetchone()
-                current_welcome_message_bot = current_welcome_message_bot_row['value'] if current_welcome_message_bot_row else ''
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Busca a mensagem de boas-vindas do bot
+            cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_bot',))
+            current_welcome_message_bot_row = cur.fetchone()
+            current_welcome_message_bot = current_welcome_message_bot_row['value'] if current_welcome_message_bot_row else ''
 
-                # Busca a mensagem de boas-vindas da comunidade
-                cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_community',))
-                current_welcome_message_community_row = cur.fetchone()
-                current_welcome_message_community = current_welcome_message_community_row['value'] if current_welcome_message_community_row else ''
+            # Busca a mensagem de boas-vindas da comunidade
+            cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_community',))
+            current_welcome_message_community_row = cur.fetchone()
+            current_welcome_message_community = current_welcome_message_community_row['value'] if current_welcome_message_community_row else ''
 
-                if request.method == 'POST':
-                    new_message_bot = request.form.get('welcome_message_bot')
-                    new_message_community = request.form.get('welcome_message_community')
+            if request.method == 'POST':
+                new_message_bot = request.form.get('welcome_message_bot')
+                new_message_community = request.form.get('welcome_message_community')
 
-                    # Atualiza a mensagem do bot
-                    cur.execute("UPDATE config SET value = %s WHERE key = %s", (new_message_bot, 'welcome_message_bot'))
+                # Atualiza a mensagem do bot
+                cur.execute("UPDATE config SET value = %s WHERE key = %s", (new_message_bot, 'welcome_message_bot'))
 
-                    # Atualiza a mensagem da comunidade
-                    cur.execute("UPDATE config SET value = %s WHERE key = %s", (new_message_community, 'welcome_message_community'))
+                # Atualiza a mensagem da comunidade
+                cur.execute("UPDATE config SET value = %s WHERE key = %s", (new_message_community, 'welcome_message_community'))
 
-                    conn.commit()
-                    flash('Mensagens de boas-vindas atualizadas com sucesso!', 'success')
-                    return redirect(url_for('config_messages'))
+                conn.commit()
+                flash('Mensagens de boas-vindas atualizadas com sucesso!', 'success')
+                return redirect(url_for('config_messages'))
 
-                return render_template(
-                    'config_messages.html',
-                    welcome_message_bot=current_welcome_message_bot,
-                    welcome_message_community=current_welcome_message_community
+            return render_template(
+                'config_messages.html',
+                welcome_message_bot=current_welcome_message_bot,
+                welcome_message_community=current_welcome_message_community
+            )
+    except Exception as e:
+        print(f"ERRO CONFIG MENSAGENS: Falha ao configurar mensagens: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
+        flash('Erro ao carregar ou atualizar mensagens.', 'danger')
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('index'))
+    finally:
+        if conn: conn.close()
+
+# --- ROTAS PARA MENSAGENS AGENDADAS ---
+@app.route('/scheduled_messages')
+def scheduled_messages():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Seleciona todas as mensagens agendadas, ordenadas pela data de agendamento
+            cur.execute('SELECT * FROM scheduled_messages ORDER BY schedule_time DESC')
+            messages = cur.fetchall()
+            return render_template('scheduled_messages.html', messages=messages)
+    except Exception as e:
+        print(f"ERRO SCHEDULED MESSAGES: Falha ao carregar mensagens agendadas: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
+        flash('Erro ao carregar mensagens agendadas.', 'danger')
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('index'))
+    finally:
+        if conn: conn.close()
+
+@app.route('/add_scheduled_message', methods=['GET', 'POST'])
+def add_scheduled_message():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            if request.method == 'POST':
+                message_text = request.form.get('message_text')
+                target_chat_id = request.form.get('target_chat_id')
+                # Adicionado para capturar a image_url
+                image_url = request.form.get('image_url')
+                schedule_time_str = request.form.get('schedule_time')
+
+                if not message_text or not schedule_time_str:
+                    flash('Texto da mensagem e horário de agendamento são obrigatórios.', 'danger')
+                    return render_template('add_scheduled_message.html')
+
+                try:
+                    schedule_time = datetime.strptime(schedule_time_str, '%Y-%m-%dT%H:%M')
+                except ValueError:
+                    flash('Formato de data/hora inválido. Use AAAA-MM-DDTHH:MM.', 'danger')
+                    return render_template('add_scheduled_message.html')
+
+                final_target_chat_id = int(target_chat_id) if target_chat_id else None
+                final_image_url = image_url if image_url else None # Armazena None se vazio
+
+                cur.execute(
+                    'INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, schedule_time, status) VALUES (%s, %s, %s, %s, %s)',
+                    (message_text, final_target_chat_id, final_image_url, schedule_time, 'pending')
                 )
-        except Exception as e:
-            print(f"ERRO CONFIG MENSAGENS: Falha ao configurar mensagens: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
-            flash('Erro ao carregar ou atualizar mensagens.', 'danger')
-            if conn and not conn.closed: conn.rollback()
-            return redirect(url_for('index'))
-        finally:
-            if conn: conn.close()
+                conn.commit()
+                flash('Mensagem agendada com sucesso!', 'success')
+                return redirect(url_for('scheduled_messages'))
 
-    # --- ROTAS PARA MENSAGENS AGENDADAS ---
-    @app.route('/scheduled_messages')
-    def scheduled_messages():
-        if not session.get('logged_in'):
-            return redirect(url_for('login'))
-
-        conn = None
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                # Seleciona todas as mensagens agendadas, ordenadas pela data de agendamento
-                cur.execute('SELECT * FROM scheduled_messages ORDER BY schedule_time DESC')
-                messages = cur.fetchall()
-                return render_template('scheduled_messages.html', messages=messages)
-        except Exception as e:
-            print(f"ERRO SCHEDULED MESSAGES: Falha ao carregar mensagens agendadas: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
-            flash('Erro ao carregar mensagens agendadas.', 'danger')
-            if conn and not conn.closed: conn.rollback()
-            return redirect(url_for('index'))
-        finally:
-            if conn: conn.close()
-
-    @app.route('/add_scheduled_message', methods=['GET', 'POST'])
-    def add_scheduled_message():
-        if not session.get('logged_in'):
-            return redirect(url_for('login'))
-
-        conn = None
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                if request.method == 'POST':
-                    message_text = request.form.get('message_text')
-                    target_chat_id = request.form.get('target_chat_id')
-                    # Adicionado para capturar a image_url
-                    image_url = request.form.get('image_url')
-                    schedule_time_str = request.form.get('schedule_time')
-
-                    if not message_text or not schedule_time_str:
-                        flash('Texto da mensagem e horário de agendamento são obrigatórios.', 'danger')
-                        return render_template('add_scheduled_message.html')
-
-                    try:
-                        schedule_time = datetime.strptime(schedule_time_str, '%Y-%m-%dT%H:%M')
-                    except ValueError:
-                        flash('Formato de data/hora inválido. Use AAAA-MM-DDTHH:MM.', 'danger')
-                        return render_template('add_scheduled_message.html')
-
-                    final_target_chat_id = int(target_chat_id) if target_chat_id else None
-                    final_image_url = image_url if image_url else None # Armazena None se vazio
-
-                    cur.execute(
-                        'INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, schedule_time, status) VALUES (%s, %s, %s, %s, %s)',
-                        (message_text, final_target_chat_id, final_image_url, schedule_time, 'pending')
-                    )
-                    conn.commit()
-                    flash('Mensagem agendada com sucesso!', 'success')
-                    return redirect(url_for('scheduled_messages'))
-
-                return render_template('add_scheduled_message.html')
-        except Exception as e:
-            print(f"ERRO ADD SCHEDULED MESSAGE: Falha ao adicionar mensagem agendada: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
-            flash('Erro ao adicionar mensagem agendada.', 'danger')
-            if conn and not conn.closed: conn.rollback()
-            return redirect(url_for('scheduled_messages'))
-        finally:
-            if conn: conn.close()
+            return render_template('add_scheduled_message.html')
+    except Exception as e:
+        print(f"ERRO ADD SCHEDULED MESSAGE: Falha ao adicionar mensagem agendada: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
+        flash('Erro ao adicionar mensagem agendada.', 'danger')
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('scheduled_messages'))
+    finally:
+        if conn: conn.close()
 
     @app.route('/edit_scheduled_message/<int:id>', methods=['GET', 'POST'])
     def edit_scheduled_message(id):
@@ -998,7 +998,7 @@ def init_db():
                                         temp_conn = get_db_connection()
                                         with temp_conn.cursor() as temp_cur:
                                             temp_cur.execute("UPDATE users SET is_active = FALSE WHERE id = %s", (chat_id,))
-                                            temp_conn.commit()
+                                            temp_cur.commit()
                                             print(f"DEBUG WORKER: Usuário {chat_id} marcado como inativo.")
                                     except Exception as db_e:
                                         print(f"ERRO WORKER: Falha ao marcar usuário {chat_id} como inativo: {db_e}")
