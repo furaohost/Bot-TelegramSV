@@ -182,14 +182,12 @@ def init_db():
             try:
                 # Usa ALTER TABLE IF NOT EXISTS para compatibilidade
                 cur.execute("ALTER TABLE scheduled_messages ADD COLUMN image_url TEXT;")
-                print("DEBUG DB INIT: Coluna 'image_url' adicionada à tabela 'scheduled_messages'.")
             except psycopg2.errors.DuplicateColumn:
                 print("DEBUG DB INIT: Coluna 'image_url' já existe em 'scheduled_messages'.")
             except Exception as e:
                 print(f"ERRO DB INIT: Falha ao adicionar coluna 'image_url': {e}")
                 traceback.print_exc() # Imprime o stack trace completo
             # --- FIM DA TABELA E ALTERAÇÃO ---
-
 
             conn.commit()
             print("DEBUG DB: Tabelas do banco de dados verificadas/criadas (PostgreSQL/SQLite).")
@@ -290,7 +288,9 @@ def webhook_mercado_pago():
 
                     if venda:
                         print(f"DEBUG WEBHOOK MP: Venda {venda_id} encontrada no DB com status 'pendente'.")
-                        data_venda_dt = datetime.strptime(str(venda['data_venda']), '%Y-%m-%d %H:%M:%S.%f') if isinstance(venda['data_venda'], datetime) else datetime.strptime(venda['data_venda'], '%Y-%m-%d %H:%M:%S')
+                        # Corrigido para lidar com 'data_venda' que já pode ser um objeto datetime
+                        data_venda_dt = venda['data_venda'] if isinstance(venda['data_venda'], datetime) else datetime.strptime(str(venda['data_venda']), '%Y-%m-%d %H:%M:%S.%f')
+                        
                         if datetime.now() > data_venda_dt + timedelta(hours=1):
                             print(f"DEBUG WEBHOOK MP: Pagamento recebido para venda expirada (ID: {venda_id}). Ignorando entrega.")
                             cur.execute('UPDATE vendas SET status = %s WHERE id = %s', ('expirado', venda_id))
@@ -721,420 +721,422 @@ def add_scheduled_message():
     finally:
         if conn: conn.close()
 
-    @app.route('/edit_scheduled_message/<int:id>', methods=['GET', 'POST'])
-    def edit_scheduled_message(id):
-        if not session.get('logged_in'):
-            return redirect(url_for('login'))
+# ROTA MOVIDA PARA O NÍVEL SUPERIOR
+@app.route('/edit_scheduled_message/<int:id>', methods=['GET', 'POST'])
+def edit_scheduled_message(id):
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
 
-        conn = None
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                cur.execute('SELECT * FROM scheduled_messages WHERE id = %s', (id,))
-                message = cur.fetchone()
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute('SELECT * FROM scheduled_messages WHERE id = %s', (id,))
+            message = cur.fetchone()
 
-                if not message:
-                    flash('Mensagem agendada não encontrada.', 'danger')
-                    return redirect(url_for('scheduled_messages'))
-
-                if request.method == 'POST':
-                    message_text = request.form.get('message_text')
-                    target_chat_id = request.form.get('target_chat_id')
-                    # Adicionado para capturar a image_url
-                    image_url = request.form.get('image_url')
-                    schedule_time_str = request.form.get('schedule_time')
-                    status = request.form.get('status')
-
-                    if not message_text or not schedule_time_str or not status:
-                        flash('Texto da mensagem, horário e status são obrigatórios.', 'danger')
-                        return render_template('edit_scheduled_message.html', message=message)
-
-                    try:
-                        schedule_time = datetime.strptime(schedule_time_str, '%Y-%m-%dT%H:%M')
-                    except ValueError:
-                        flash('Formato de data/hora inválido. Use AAAA-MM-DDTHH:MM.', 'danger')
-                        return render_template('edit_scheduled_message.html', message=message)
-
-                    final_target_chat_id = int(target_chat_id) if target_chat_id else None
-                    final_image_url = image_url if image_url else None # Armazena None se vazio
-
-                    cur.execute(
-                        'UPDATE scheduled_messages SET message_text = %s, target_chat_id = %s, image_url = %s, schedule_time = %s, status = %s WHERE id = %s',
-                        (message_text, final_target_chat_id, final_image_url, schedule_time, status, id)
-                    )
-                    conn.commit()
-                    flash('Mensagem agendada atualizada com sucesso!', 'success')
-                    return redirect(url_for('scheduled_messages'))
-
-                message_data = dict(message)
-                if message_data['schedule_time']:
-                    message_data['schedule_time_formatted'] = message_data['schedule_time'].strftime('%Y-%m-%dT%H:%M')
-
-                return render_template('edit_scheduled_message.html', message=message_data)
-        except Exception as e:
-            print(f"ERRO EDIT SCHEDULED MESSAGE: Falha ao editar mensagem agendada: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
-            flash('Erro ao editar mensagem agendada.', 'danger')
-            if conn and not conn.closed: conn.rollback()
-            return redirect(url_for('scheduled_messages'))
-        finally:
-            if conn: conn.close()
-
-    @app.route('/remove_scheduled_message/<int:id>')
-    def remove_scheduled_message(id):
-        if not session.get('logged_in'):
-            return redirect(url_for('login'))
-
-        conn = None
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                cur.execute('DELETE FROM scheduled_messages WHERE id = %s', (id,))
-                conn.commit()
-                flash('Mensagem agendada removida com sucesso!', 'danger')
+            if not message:
+                flash('Mensagem agendada não encontrada.', 'danger')
                 return redirect(url_for('scheduled_messages'))
-        except Exception as e:
-            print(f"ERRO REMOVE SCHEDULED MESSAGE: Falha ao remover mensagem agendada: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
-            flash('Erro ao remover mensagem agendada.', 'danger')
-            if conn and not conn.closed: conn.rollback()
-            return redirect(url_for('scheduled_messages'))
-        finally:
-            if conn: conn.close()
 
-    # --- COMANDOS DO BOT ---
-    @bot.message_handler(commands=['start'])
-    def send_welcome(message):
-        get_or_register_user(message.from_user)
+            if request.method == 'POST':
+                message_text = request.form.get('message_text')
+                target_chat_id = request.form.get('target_chat_id')
+                # Adicionado para capturar a image_url
+                image_url = request.form.get('image_url')
+                schedule_time_str = request.form.get('schedule_time')
+                status = request.form.get('status')
 
-        conn = None
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_bot',))
-                welcome_message = cur.fetchone()
-                final_message = "Olá! Bem-vindo(a)."
-                if welcome_message:
-                    final_message = welcome_message['value'].replace('{first_name}', message.from_user.first_name or 'usuário')
-                else:
-                    final_message = f"Olá, {message.from_user.first_name or 'usuário'}! Bem-vindo(a)."
+                if not message_text or not schedule_time_str or not status:
+                    flash('Texto da mensagem, horário e status são obrigatórios.', 'danger')
+                    return render_template('edit_scheduled_message.html', message=message)
 
-                markup = types.InlineKeyboardMarkup()
-                btn_produtos = types.InlineKeyboardButton("🛍️ Ver Produtos", callback_data='ver_produtos')
-                markup.add(btn_produtos)
-                bot.reply_to(message, final_message, reply_markup=markup)
-        except Exception as e:
-            print(f"ERRO START: Falha ao enviar mensagem de boas-vindas: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
-            bot.reply_to(message, "Ocorreu um erro ao iniciar o bot. Tente novamente mais tarde.")
-        finally:
-            if conn: conn.close()
+                try:
+                    schedule_time = datetime.strptime(schedule_time_str, '%Y-%m-%dT%H:%M')
+                except ValueError:
+                    flash('Formato de data/hora inválido. Use AAAA-MM-DDTHH:MM.', 'danger')
+                    return render_template('edit_scheduled_message.html', message=message)
 
-    # --- NOVO: Handler para novos membros em grupos ---
-    @bot.message_handler(content_types=['new_chat_members'])
-    def handle_new_chat_members(message):
-        conn = None
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_community',))
-                welcome_community_message_row = cur.fetchone()
-                welcome_community_message = welcome_community_message_row['value'] if welcome_community_message_row else 'Bem-vindo(a) à nossa comunidade!'
+                final_target_chat_id = int(target_chat_id) if target_chat_id else None
+                final_image_url = image_url if image_url else None # Armazena None se vazio
 
-                for user in message.new_chat_members:
-                    # O Telegram pode enviar o próprio bot como new_chat_member
-                    if user.id == bot.get_me().id:
-                        continue # Não enviar mensagem de boas-vindas para o próprio bot
-
-                    # Registra o novo membro no seu banco de dados se ainda não estiver lá
-                    get_or_register_user(user)
-
-                    final_message = welcome_community_message.replace('{first_name}', user.first_name or 'novo membro')
-                    bot.send_message(message.chat.id, final_message)
-        except Exception as e:
-            print(f"ERRO NEW MEMBERS: Falha ao enviar mensagem de boas-vindas para novos membros: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
-        finally:
-            if conn: conn.close()
-
-    @bot.callback_query_handler(func=lambda call: True)
-    def callback_query(call):
-        get_or_register_user(call.from_user)
-        if call.data == 'ver_produtos':
-            mostrar_produtos(call.message.chat.id)
-        elif call.data.startswith('comprar_'):
-            produto_id = int(call.data.split('_')[1])
-            gerar_cobranca(call, produto_id)
-
-    def mostrar_produtos(chat_id):
-        conn = None
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                cur.execute('SELECT * FROM produtos')
-                produtos = cur.fetchall()
-                if not produtos:
-                    bot.send_message(chat_id, "Nenhum produto disponível.")
-                    return
-                for produto in produtos:
-                    markup = types.InlineKeyboardMarkup()
-                    btn_comprar = types.InlineKeyboardButton(f"Comprar por R${produto['preco']:.2f}", callback_data=f"comprar_{produto['id']}")
-                    markup.add(btn_comprar)
-                    bot.send_message(chat_id, f"💎 *{produto['nome']}*\n\nPreço: R${produto['preco']:.2f}", parse_mode='Markdown', reply_markup=markup)
-        except Exception as e:
-            print(f"ERRO MOSTRAR PRODUTOS: Falha ao mostrar produtos: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
-            bot.send_message(chat_id, "Ocorreu um erro ao carregar os produtos.")
-        finally:
-            if conn: conn.close()
-
-    def gerar_cobranca(call: types.CallbackQuery, produto_id: int):
-        user_id, chat_id = call.from_user.id, call.message.chat.id
-        conn = None
-        venda_id = None
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                cur.execute('SELECT * FROM produtos WHERE id = %s', (produto_id,))
-                produto = cur.fetchone()
-
-                if not produto:
-                    bot.send_message(chat_id, "Produto não encontrado.")
-                    return
-
-                data_venda = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                             (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
-                venda_id = cur.fetchone()[0]
+                cur.execute(
+                    'UPDATE scheduled_messages SET message_text = %s, target_chat_id = %s, image_url = %s, schedule_time = %s, status = %s WHERE id = %s',
+                    (message_text, final_target_chat_id, final_image_url, schedule_time, status, id)
+                )
                 conn.commit()
+                flash('Mensagem agendada atualizada com sucesso!', 'success')
+                return redirect(url_for('scheduled_messages'))
 
-                pagamento = pagamentos.criar_pagamento_pix(produto=produto, user=call.from_user, venda_id=venda_id)
+            message_data = dict(message)
+            if message_data['schedule_time']:
+                message_data['schedule_time_formatted'] = message_data['schedule_time'].strftime('%Y-%m-%dT%H:%M')
 
-                if pagamento and 'point_of_interaction' in pagamento:
-                    qr_code_base64 = pagamento['point_of_interaction']['transaction_data']['qr_code_base64']
-                    qr_code_data = pagamento['point_of_interaction']['transaction_data']['qr_code']
-                    qr_code_image = base64.b64decode(qr_code_base64)
+            return render_template('edit_scheduled_message.html', message=message_data)
+    except Exception as e:
+        print(f"ERRO EDIT SCHEDULED MESSAGE: Falha ao editar mensagem agendada: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
+        flash('Erro ao editar mensagem agendada.', 'danger')
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('scheduled_messages'))
+    finally:
+        if conn: conn.close()
 
-                    caption_text = (
-                        f"✅ PIX gerado para *{produto['nome']}*!\n\n"
-                        "Escaneie o QR Code acima ou copie o código completo na próxima mensagem."
-                    )
-                    bot.send_photo(chat_id, qr_code_image, caption=caption_text, parse_mode='Markdown')
+# ROTA MOVIDA PARA O NÍVEL SUPERIOR
+@app.route('/remove_scheduled_message/<int:id>')
+def remove_scheduled_message(id):
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
 
-                    bot.send_message(chat_id, qr_code_data)
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute('DELETE FROM scheduled_messages WHERE id = %s', (id,))
+            conn.commit()
+            flash('Mensagem agendada removida com sucesso!', 'danger')
+            return redirect(url_for('scheduled_messages'))
+    except Exception as e:
+        print(f"ERRO REMOVE SCHEDULED MESSAGE: Falha ao remover mensagem agendada: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
+        flash('Erro ao remover mensagem agendada.', 'danger')
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('scheduled_messages'))
+    finally:
+        if conn: conn.close()
 
-                    bot.send_message(chat_id, "Você receberá o produto aqui assim que o pagamento for confirmado.")
-                else:
-                    bot.send_message(chat_id, "Ocorreu um erro ao gerar o PIX. Tente novamente.")
-                    print(f"[ERRO] Falha ao gerar PIX. Resposta do MP: {pagamento}")
-        except Exception as e:
-            print(f"ERRO GERAR COBRANCA: Falha ao gerar cobrança/PIX: {e}")
-            traceback.print_exc() # Imprime o stack trace completo
-            bot.send_message(chat_id, "Ocorreu um erro interno ao gerar sua cobrança. Tente novamente.")
-            if conn and not conn.closed: conn.rollback()
-        finally:
-            if conn: conn.close()
+# --- COMANDOS DO BOT (MOVIDOS PARA O NÍVEL SUPERIOR) ---
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    get_or_register_user(message.from_user)
 
-    # --- WORKER PARA ENVIO DE MENSAGENS AGENDADAS ---
-    # (Esta função é definida aqui para ser acessível antes da inicialização)
-    def scheduled_message_worker():
-        print("DEBUG WORKER: Iniciando worker de mensagens agendadas...")
-        while True:
-            conn = None
-            try:
-                conn = get_db_connection()
-                with conn.cursor() as cur:
-                    # Busca mensagens pendentes cujo horário de agendamento já passou
-                    cur.execute(
-                        "SELECT id, message_text, target_chat_id, image_url FROM scheduled_messages WHERE status = 'pending' AND schedule_time <= NOW() ORDER BY schedule_time ASC"
-                    )
-                    messages_to_send = cur.fetchall()
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_bot',))
+            welcome_message = cur.fetchone()
+            final_message = "Olá! Bem-vindo(a)."
+            if welcome_message:
+                final_message = welcome_message['value'].replace('{first_name}', message.from_user.first_name or 'usuário')
+            else:
+                final_message = f"Olá, {message.from_user.first_name or 'usuário'}! Bem-vindo(a)."
 
-                    if not messages_to_send:
-                        print("DEBUG WORKER: Nenhuma mensagem agendada para enviar no momento.")
+            markup = types.InlineKeyboardMarkup()
+            btn_produtos = types.InlineKeyboardButton("🛍️ Ver Produtos", callback_data='ver_produtos')
+            markup.add(btn_produtos)
+            bot.reply_to(message, final_message, reply_markup=markup)
+    except Exception as e:
+        print(f"ERRO START: Falha ao enviar mensagem de boas-vindas: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
+        bot.reply_to(message, "Ocorreu um erro ao iniciar o bot. Tente novamente mais tarde.")
+    finally:
+        if conn: conn.close()
 
-                    for msg in messages_to_send:
-                        print(f"DEBUG WORKER: Processando mensagem agendada ID: {msg['id']}")
-                        send_successful = False
+# --- NOVO: Handler para novos membros em grupos (MOVIDO PARA O NÍVEL SUPERIOR) ---
+@bot.message_handler(content_types=['new_chat_members'])
+def handle_new_chat_members(message):
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_community',))
+            welcome_community_message_row = cur.fetchone()
+            welcome_community_message = welcome_community_message_row['value'] if welcome_community_message_row else 'Bem-vindo(a) à nossa comunidade!'
+
+            for user in message.new_chat_members:
+                # O Telegram pode enviar o próprio bot como new_chat_member
+                if user.id == bot.get_me().id:
+                    continue # Não enviar mensagem de boas-vindas para o próprio bot
+
+                # Registra o novo membro no seu banco de dados se ainda não estiver lá
+                get_or_register_user(user)
+
+                final_message = welcome_community_message.replace('{first_name}', user.first_name or 'novo membro')
+                bot.send_message(message.chat.id, final_message)
+    except Exception as e:
+        print(f"ERRO NEW MEMBERS: Falha ao enviar mensagem de boas-vindas para novos membros: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
+    finally:
+        if conn: conn.close()
+
+# Handler de Callback Query (MOVIDO PARA O NÍVEL SUPERIOR)
+@bot.callback_query_handler(func=lambda call: True)
+def callback_query(call):
+    get_or_register_user(call.from_user)
+    if call.data == 'ver_produtos':
+        mostrar_produtos(call.message.chat.id)
+    elif call.data.startswith('comprar_'):
+        produto_id = int(call.data.split('_')[1])
+        generar_cobranca(call, produto_id) # Atenção: seu código usa 'gerar_cobranca' (em português), mas aqui estava 'generar_cobranca'
+
+# FUNÇÕES AUXILIARES DO BOT (MOVIDAS PARA O NÍVEL SUPERIOR OU DEFINIDAS ANTES DE SEREM USADAS)
+def mostrar_produtos(chat_id):
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute('SELECT * FROM produtos')
+            produtos = cur.fetchall()
+            if not produtos:
+                bot.send_message(chat_id, "Nenhum produto disponível.")
+                return
+            for produto in produtos:
+                markup = types.InlineKeyboardMarkup()
+                btn_comprar = types.InlineKeyboardButton(f"Comprar por R${produto['preco']:.2f}", callback_data=f"comprar_{produto['id']}")
+                markup.add(btn_comprar)
+                bot.send_message(chat_id, f"� *{produto['nome']}*\n\nPreço: R${produto['preco']:.2f}", parse_mode='Markdown', reply_markup=markup)
+    except Exception as e:
+        print(f"ERRO MOSTRAR PRODUTOS: Falha ao mostrar produtos: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
+        bot.send_message(chat_id, "Ocorreu um erro ao carregar os produtos.")
+    finally:
+        if conn: conn.close()
+
+def generar_cobranca(call: types.CallbackQuery, produto_id: int): # Corrigi o nome da função para 'generar_cobranca' para bater com o call.data
+    user_id, chat_id = call.from_user.id, call.message.chat.id
+    conn = None
+    venda_id = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute('SELECT * FROM produtos WHERE id = %s', (produto_id,))
+            produto = cur.fetchone()
+
+            if not produto:
+                bot.send_message(chat_id, "Produto não encontrado.")
+                return
+
+            data_venda = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+                         (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
+            venda_id = cur.fetchone()[0]
+            conn.commit()
+
+            pagamento = pagamentos.criar_pagamento_pix(produto=produto, user=call.from_user, venda_id=venda_id)
+
+            if pagamento and 'point_of_interaction' in pagamento:
+                qr_code_base64 = pagamento['point_of_interaction']['transaction_data']['qr_code_base64']
+                qr_code_data = pagamento['point_of_interaction']['transaction_data']['qr_code']
+                qr_code_image = base64.b64decode(qr_code_base64)
+
+                caption_text = (
+                    f"✅ PIX gerado para *{produto['nome']}*!\n\n"
+                    "Escaneie o QR Code acima ou copie o código completo na próxima mensagem."
+                )
+                bot.send_photo(chat_id, qr_code_image, caption=caption_text, parse_mode='Markdown')
+
+                bot.send_message(chat_id, qr_code_data)
+
+                bot.send_message(chat_id, "Você receberá o produto aqui assim que o pagamento for confirmado.")
+            else:
+                bot.send_message(chat_id, "Ocorreu um erro ao gerar o PIX. Tente novamente.")
+                print(f"[ERRO] Falha ao gerar PIX. Resposta do MP: {pagamento}")
+    except Exception as e:
+        print(f"ERRO GERAR COBRANCA: Falha ao gerar cobrança/PIX: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
+        bot.send_message(chat_id, "Ocorreu um erro interno ao gerar sua cobrança. Tente novamente.")
+        if conn and not conn.closed: conn.rollback()
+    finally:
+        if conn: conn.close()
+
+# --- WORKER PARA ENVIO DE MENSAGENS AGENDADAS (MOVIDO PARA O NÍVEL SUPERIOR) ---
+# (Esta função é definida aqui para ser acessível antes da inicialização)
+def scheduled_message_worker():
+    print("DEBUG WORKER: Iniciando worker de mensagens agendadas...")
+    while True:
+        conn = None
+        try:
+            conn = get_db_connection()
+            with conn.cursor() as cur:
+                # Busca mensagens pendentes cujo horário de agendamento já passou
+                cur.execute(
+                    "SELECT id, message_text, target_chat_id, image_url FROM scheduled_messages WHERE status = 'pending' AND schedule_time <= NOW() ORDER BY schedule_time ASC"
+                )
+                messages_to_send = cur.fetchall()
+
+                if not messages_to_send:
+                    print("DEBUG WORKER: Nenhuma mensagem agendada para enviar no momento.")
+
+                for msg in messages_to_send:
+                    print(f"DEBUG WORKER: Processando mensagem agendada ID: {msg['id']}")
+                    send_successful = False
+                    
+                    target_chats = []
+                    if msg['target_chat_id']:
+                        target_chats.append(msg['target_chat_id'])
+                        print(f"DEBUG WORKER: Enviando para chat específico: {msg['target_chat_id']}")
+                    else: # Enviar para todos os usuários (broadcast)
+                        print("DEBUG WORKER: Enviando para todos os usuários registrados.")
+                        # Seleciona apenas usuários ATIVOS
+                        cur.execute("SELECT id FROM users WHERE is_active = TRUE")
+                        all_user_ids = cur.fetchall()
+                        target_chats = [user['id'] for user in all_user_ids]
                         
-                        target_chats = []
-                        if msg['target_chat_id']:
-                            target_chats.append(msg['target_chat_id'])
-                            print(f"DEBUG WORKER: Enviando para chat específico: {msg['target_chat_id']}")
-                        else: # Enviar para todos os usuários (broadcast)
-                            print("DEBUG WORKER: Enviando para todos os usuários registrados.")
-                            # Seleciona apenas usuários ATIVOS
-                            cur.execute("SELECT id FROM users WHERE is_active = TRUE")
-                            all_user_ids = cur.fetchall()
-                            target_chats = [user['id'] for user in all_user_ids]
-                            
-                            if not target_chats:
-                                print("DEBUG WORKER: Nenhum usuário ATIVO registrado para enviar mensagem de broadcast.")
-                                cur.execute("UPDATE scheduled_messages SET status = 'failed', sent_at = NOW() WHERE id = %s", (msg['id'],))
-                                conn.commit()
-                                continue # Pula para a próxima mensagem agendada
-
-                        for chat_id in target_chats:
-                            try:
-                                # Tentar enviar foto/vídeo, se houver URL
-                                if msg['image_url']:
-                                    print(f"DEBUG WORKER: Tentando enviar foto/vídeo para {chat_id} com URL: {msg['image_url']}")
-                                    # send_photo pode lidar com URLs de vídeo se o Telegram as aceitar como foto para preview
-                                    bot.send_photo(chat_id, msg['image_url'], caption=msg['message_text'], parse_mode='Markdown')
-                                else:
-                                    print(f"DEBUG WORKER: Enviando texto para {chat_id}")
-                                    bot.send_message(chat_id, msg['message_text'], parse_mode='Markdown')
-                                send_successful = True # Pelo menos um envio bem-sucedido
-                                print(f"DEBUG WORKER: Mensagem agendada ID {msg['id']} enviada com sucesso para {chat_id}.")
-                            except telebot.apihelper.ApiTelegramException as e:
-                                print(f"ERRO WORKER: Falha ao enviar mensagem para chat {chat_id} (ID Msg Agendada: {msg['id']}): {e}")
-                                traceback.print_exc() # Imprime o stack trace completo do erro do Telegram
-                                # Se o erro for "chat not found" ou "bot was blocked", marcar usuário como inativo
-                                if "chat not found" in str(e).lower() or "bot was blocked by the user" in str(e).lower() or "user is deactivated" in str(e).lower():
-                                    print(f"AVISO WORKER: Chat {chat_id} pode ter bloqueado o bot ou não existe. Marcando usuário como inativo.")
-                                    # Marcar usuário como inativo na tabela users
-                                    temp_conn = None
-                                    try:
-                                        temp_conn = get_db_connection()
-                                        with temp_conn.cursor() as temp_cur:
-                                            temp_cur.execute("UPDATE users SET is_active = FALSE WHERE id = %s", (chat_id,))
-                                            temp_cur.commit()
-                                            print(f"DEBUG WORKER: Usuário {chat_id} marcado como inativo.")
-                                    except Exception as db_e:
-                                        print(f"ERRO WORKER: Falha ao marcar usuário {chat_id} como inativo: {db_e}")
-                                        traceback.print_exc()
-                                    finally:
-                                        if temp_conn: temp_conn.close()
-                                else: # Outros erros da API do Telegram
-                                    send_successful = False
-                                    print(f"ERRO WORKER: Erro crítico para mensagem agendada ID {msg['id']}. Interrompendo envio para os demais alvos.")
-                                    break # Interrompe o envio para outros chats se for um erro crítico
-
-                            except Exception as e: # Erros inesperados
-                                print(f"ERRO WORKER: Erro inesperado ao enviar mensagem para chat {chat_id} (ID Msg Agendada: {msg['id']}): {e}")
-                                traceback.print_exc() # Imprime o stack trace completo
-                                send_successful = False
-                                break # Interrompe o envio para outros chats
-
-                        # Atualiza o status no banco de dados com base no resultado dos envios
-                        if send_successful:
-                            cur.execute("UPDATE scheduled_messages SET status = 'sent', sent_at = NOW() WHERE id = %s", (msg['id'],))
-                            print(f"DEBUG WORKER: Mensagem agendada ID {msg['id']} marcada como 'sent'.")
-                        else:
+                        if not target_chats:
+                            print("DEBUG WORKER: Nenhum usuário ATIVO registrado para enviar mensagem de broadcast.")
                             cur.execute("UPDATE scheduled_messages SET status = 'failed', sent_at = NOW() WHERE id = %s", (msg['id'],))
-                            print(f"DEBUG WORKER: Mensagem agendada ID {msg['id']} marcada como 'failed'.")
-                        conn.commit()
+                            conn.commit()
+                            continue # Pula para a próxima mensagem agendada
 
-            except Exception as e:
-                print(f"ERRO WORKER PRINCIPAL: Erro no loop principal do worker de mensagens agendadas: {e}")
-                traceback.print_exc() # Imprime o stack trace completo
-                if conn and not conn.closed: conn.rollback()
-            finally:
-                if conn: conn.close() # Garante que a conexão é fechada
-
-            time_module.sleep(60) # Verifica a cada 60 segundos (pode ajustar)
-    # --- FIM DO WORKER ---
-
-    # --- ROTA PARA ENVIO DE MENSAGENS EM MASSA (BROADCAST) ---
-    @app.route('/send_broadcast', methods=['GET', 'POST'])
-    def send_broadcast():
-        if not session.get('logged_in'):
-            return redirect(url_for('login'))
-
-        if request.method == 'POST':
-            message_text = request.form.get('message_text')
-            image_url = request.form.get('image_url') # URL da imagem/vídeo para broadcast
-
-            if not message_text:
-                flash('O texto da mensagem é obrigatório para o broadcast.', 'danger')
-                return render_template('send_broadcast.html')
-
-            conn = None
-            try:
-                conn = get_db_connection()
-                with conn.cursor() as cur:
-                    # Seleciona apenas usuários ATIVOS para broadcast
-                    cur.execute("SELECT id FROM users WHERE is_active = TRUE")
-                    all_user_ids_rows = cur.fetchall()
-                    target_user_ids = [user['id'] for user in all_user_ids_rows]
-
-                    if not target_user_ids:
-                        flash('Nenhum usuário ativo registrado para enviar o broadcast.', 'warning')
-                        return render_template('send_broadcast.html')
-
-                    successful_sends = 0
-                    failed_sends = 0
-
-                    for user_id in target_user_ids:
+                    for chat_id in target_chats:
                         try:
-                            if image_url:
-                                print(f"DEBUG BROADCAST: Enviando foto/vídeo em broadcast para {user_id} com URL: {image_url}")
-                                bot.send_photo(user_id, image_url, caption=message_text, parse_mode='Markdown')
+                            # Tentar enviar foto/vídeo, se houver URL
+                            if msg['image_url']:
+                                print(f"DEBUG WORKER: Tentando enviar foto/vídeo para {chat_id} com URL: {msg['image_url']}")
+                                # send_photo pode lidar com URLs de vídeo se o Telegram as aceitar como foto para preview
+                                bot.send_photo(chat_id, msg['image_url'], caption=msg['message_text'], parse_mode='Markdown')
                             else:
-                                print(f"DEBUG BROADCAST: Enviando texto em broadcast para {user_id}")
-                                bot.send_message(user_id, message_text, parse_mode='Markdown')
-                            successful_sends += 1
+                                print(f"DEBUG WORKER: Enviando texto para {chat_id}")
+                                bot.send_message(chat_id, msg['message_text'], parse_mode='Markdown')
+                            send_successful = True # Pelo menos um envio bem-sucedido
+                            print(f"DEBUG WORKER: Mensagem agendada ID {msg['id']} enviada com sucesso para {chat_id}.")
                         except telebot.apihelper.ApiTelegramException as e:
-                            print(f"ERRO BROADCAST: Falha ao enviar broadcast para {user_id}: {e}")
-                            traceback.print_exc() # Imprime o stack trace completo
+                            print(f"ERRO WORKER: Falha ao enviar mensagem para chat {chat_id} (ID Msg Agendada: {msg['id']}): {e}")
+                            traceback.print_exc() # Imprime o stack trace completo do erro do Telegram
                             # Se o erro for "chat not found" ou "bot was blocked", marcar usuário como inativo
                             if "chat not found" in str(e).lower() or "bot was blocked by the user" in str(e).lower() or "user is deactivated" in str(e).lower():
-                                print(f"AVISO BROADCAST: Usuário {user_id} pode ter bloqueado o bot ou não existe. Marcando usuário como inativo.")
+                                print(f"AVISO WORKER: Chat {chat_id} pode ter bloqueado o bot ou não existe. Marcando usuário como inativo.")
                                 # Marcar usuário como inativo na tabela users
                                 temp_conn = None
                                 try:
                                     temp_conn = get_db_connection()
                                     with temp_conn.cursor() as temp_cur:
-                                        temp_cur.execute("UPDATE users SET is_active = FALSE WHERE id = %s", (user_id,))
+                                        temp_cur.execute("UPDATE users SET is_active = FALSE WHERE id = %s", (chat_id,))
                                         temp_cur.commit()
-                                        print(f"DEBUG BROADCAST: Usuário {user_id} marcado como inativo.")
+                                        print(f"DEBUG WORKER: Usuário {chat_id} marcado como inativo.")
                                 except Exception as db_e:
-                                    print(f"ERRO BROADCAST: Falha ao marcar usuário {user_id} como inativo: {db_e}")
+                                    print(f"ERRO WORKER: Falha ao marcar usuário {chat_id} como inativo: {db_e}")
                                     traceback.print_exc()
                                 finally:
                                     if temp_conn: temp_conn.close()
                             else: # Outros erros da API do Telegram
-                                failed_sends += 1
-                        except Exception as e:
-                            print(f"ERRO BROADCAST: Erro inesperado ao enviar broadcast para {user_id}: {e}")
+                                send_successful = False
+                                print(f"ERRO WORKER: Erro crítico para mensagem agendada ID {msg['id']}. Interrompendo envio para os demais alvos.")
+                                break # Interrompe o envio para outros chats se for um erro crítico
+
+                        except Exception as e: # Erros inesperados
+                            print(f"ERRO WORKER: Erro inesperado ao enviar mensagem para chat {chat_id} (ID Msg Agendada: {msg['id']}): {e}")
                             traceback.print_exc() # Imprime o stack trace completo
-                            failed_sends += 1
-                    
-                    flash(f'Broadcast enviado! Sucesso: {successful_sends}, Falhas: {failed_sends}.', 'success')
-                    return redirect(url_for('send_broadcast'))
+                            send_successful = False
+                            break # Interrompe o envio para outros chats
 
-            except Exception as e:
-                print(f"ERRO BROADCAST: Falha ao processar envio de broadcast: {e}")
-                traceback.print_exc() # Imprime o stack trace completo
-                flash('Erro ao tentar enviar broadcast.', 'danger')
-                if conn and not conn.closed: conn.rollback()
-                return render_template('send_broadcast.html')
-            finally:
-                if conn: conn.close()
-
-        return render_template('send_broadcast.html')
-
-    # --- FIM DAS ROTAS ---
-
-    # --- INICIALIZAÇÃO FINAL ---
-    if __name__ != '__main__':
-        try:
-            init_db()
-
-            pagamentos.init_mercadopago_sdk()
-
-            if API_TOKEN and BASE_URL:
-                bot.set_webhook(url=f"{BASE_URL}/{API_TOKEN}")
-                print("Webhook do Telegram configurado com sucesso!")
-            else:
-                print("ERRO: Variáveis de ambiente API_TOKEN ou BASE_URL não definidas.")
-            
-            # Inicia o worker de mensagens agendadas em uma thread separada
-            worker_thread = Thread(target=scheduled_message_worker)
-            worker_thread.daemon = True # Permite que a thread seja encerrada quando o programa principal sai
-            worker_thread.start()
-            print("DEBUG: Worker de mensagens agendadas iniciado em segundo plano.")
+                    # Atualiza o status no banco de dados com base no resultado dos envios
+                    if send_successful:
+                        cur.execute("UPDATE scheduled_messages SET status = 'sent', sent_at = NOW() WHERE id = %s", (msg['id'],))
+                        print(f"DEBUG WORKER: Mensagem agendada ID {msg['id']} marcada como 'sent'.")
+                    else:
+                        cur.execute("UPDATE scheduled_messages SET status = 'failed', sent_at = NOW() WHERE id = %s", (msg['id'],))
+                        print(f"DEBUG WORKER: Mensagem agendada ID {msg['id']} marcada como 'failed'.")
+                    conn.commit()
 
         except Exception as e:
-            print(f"Erro ao configurar o webhook do Telegram ou iniciar worker: {e}")
+            print(f"ERRO WORKER PRINCIPAL: Erro no loop principal do worker de mensagens agendadas: {e}")
             traceback.print_exc() # Imprime o stack trace completo
+            if conn and not conn.closed: conn.rollback()
+        finally:
+            if conn: conn.close() # Garante que a conexão é fechada
+
+        time_module.sleep(60) # Verifica a cada 60 segundos (pode ajustar)
+# --- FIM DO WORKER ---
+
+# --- ROTA PARA ENVIO DE MENSAGENS EM MASSA (BROADCAST) (MOVIDA PARA O NÍVEL SUPERIOR) ---
+@app.route('/send_broadcast', methods=['GET', 'POST'])
+def send_broadcast():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        message_text = request.form.get('message_text')
+        image_url = request.form.get('image_url') # URL da imagem/vídeo para broadcast
+
+        if not message_text:
+            flash('O texto da mensagem é obrigatório para o broadcast.', 'danger')
+            return render_template('send_broadcast.html')
+
+        conn = None
+        try:
+            conn = get_db_connection()
+            with conn.cursor() as cur:
+                # Seleciona apenas usuários ATIVOS para broadcast
+                cur.execute("SELECT id FROM users WHERE is_active = TRUE")
+                all_user_ids_rows = cur.fetchall()
+                target_user_ids = [user['id'] for user in all_user_ids_rows]
+
+                if not target_user_ids:
+                    flash('Nenhum usuário ativo registrado para enviar o broadcast.', 'warning')
+                    return render_template('send_broadcast.html')
+
+                successful_sends = 0
+                failed_sends = 0
+
+                for user_id in target_user_ids:
+                    try:
+                        if image_url:
+                            print(f"DEBUG BROADCAST: Enviando foto/vídeo em broadcast para {user_id} com URL: {image_url}")
+                            bot.send_photo(user_id, image_url, caption=message_text, parse_mode='Markdown')
+                        else:
+                            print(f"DEBUG BROADCAST: Enviando texto em broadcast para {user_id}")
+                            bot.send_message(user_id, message_text, parse_mode='Markdown')
+                        successful_sends += 1
+                    except telebot.apihelper.ApiTelegramException as e:
+                        print(f"ERRO BROADCAST: Falha ao enviar broadcast para {user_id}: {e}")
+                        traceback.print_exc() # Imprime o stack trace completo
+                        # Se o erro for "chat not found" ou "bot was blocked", marcar usuário como inativo
+                        if "chat not found" in str(e).lower() or "bot was blocked by the user" in str(e).lower() or "user is deactivated" in str(e).lower():
+                            print(f"AVISO BROADCAST: Usuário {user_id} pode ter bloqueado o bot ou não existe. Marcando usuário como inativo.")
+                            # Marcar usuário como inativo na tabela users
+                            temp_conn = None
+                            try:
+                                temp_conn = get_db_connection()
+                                with temp_conn.cursor() as temp_cur:
+                                    temp_cur.execute("UPDATE users SET is_active = FALSE WHERE id = %s", (user_id,))
+                                    temp_cur.commit()
+                                    print(f"DEBUG BROADCAST: Usuário {user_id} marcado como inativo.")
+                            except Exception as db_e:
+                                print(f"ERRO BROADCAST: Falha ao marcar usuário {user_id} como inativo: {db_e}")
+                                traceback.print_exc()
+                            finally:
+                                if temp_conn: temp_conn.close()
+                        else: # Outros erros da API do Telegram
+                            failed_sends += 1
+                    except Exception as e:
+                        print(f"ERRO BROADCAST: Erro inesperado ao enviar broadcast para {user_id}: {e}")
+                        traceback.print_exc() # Imprime o stack trace completo
+                        failed_sends += 1
+                
+                flash(f'Broadcast enviado! Sucesso: {successful_sends}, Falhas: {failed_sends}.', 'success')
+                return redirect(url_for('send_broadcast'))
+
+        except Exception as e:
+            print(f"ERRO BROADCAST: Falha ao processar envio de broadcast: {e}")
+            traceback.print_exc() # Imprime o stack trace completo
+            flash('Erro ao tentar enviar broadcast.', 'danger')
+            if conn and not conn.closed: conn.rollback()
+            return render_template('send_broadcast.html')
+        finally:
+            if conn: conn.close()
+
+    return render_template('send_broadcast.html')
+
+# --- INICIALIZAÇÃO FINAL (Permanece no final do arquivo e corrige indentação) ---
+if __name__ != '__main__':
+    try:
+        init_db()
+
+        pagamentos.init_mercadopago_sdk()
+
+        if API_TOKEN and BASE_URL:
+            bot.set_webhook(url=f"{BASE_URL}/{API_TOKEN}")
+            print("Webhook do Telegram configurado com sucesso!")
+        else:
+            print("ERRO: Variáveis de ambiente API_TOKEN ou BASE_URL não definidas.")
+        
+        # Inicia o worker de mensagens agendadas em uma thread separada
+        worker_thread = Thread(target=scheduled_message_worker)
+        worker_thread.daemon = True # Permite que a thread seja encerrada quando o programa principal sai
+        worker_thread.start()
+        print("DEBUG: Worker de mensagens agendadas iniciado em segundo plano.")
+
+    except Exception as e:
+        print(f"Erro ao configurar o webhook do Telegram ou iniciar worker: {e}")
+        traceback.print_exc() # Imprime o stack trace completo
