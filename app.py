@@ -344,16 +344,33 @@ def login():
         try:
             conn = get_db_connection()
             with conn.cursor() as cur:
+                # 1. Busca o usuário no banco de dados
                 cur.execute('SELECT * FROM admin WHERE username = %s', (username,))
                 admin_user = cur.fetchone()
-                if admin_user and check_password_hash(admin_user['password_hash'], password):
+
+                # 2. Verifica se o usuário foi encontrado
+                if not admin_user:
+                    print(f"DEBUG LOGIN: Usuário '{username}' NÃO ENCONTRADO no banco de dados.")
+                    flash('Usuário ou senha inválidos.', 'danger')
+                    return render_template('login.html')
+
+                # 3. Se o usuário foi encontrado, agora checa a senha
+                print(f"DEBUG LOGIN: Usuário '{username}' encontrado. Verificando a senha.")
+                print(f"DEBUG LOGIN: Hash no DB: {admin_user['password_hash']}") # Loga o hash do banco
+                
+                is_password_correct = check_password_hash(admin_user['password_hash'], password)
+                
+                if is_password_correct:
+                    # Se a senha está correta, inicia a sessão
                     session['logged_in'] = True
                     session['username'] = admin_user['username']
-                    print(f"DEBUG LOGIN: Login bem-sucedido para {session['username']}. session['logged_in'] = {session.get('logged_in')}")
+                    print(f"DEBUG LOGIN: Login BEM-SUCEDIDO para {session['username']}.")
                     return redirect(url_for('index'))
                 else:
+                    # Se a senha está incorreta
+                    print("DEBUG LOGIN: Senha INCORRETA.")
                     flash('Usuário ou senha inválidos.', 'danger')
-                    print("DEBUG LOGIN: Login falhou. Credenciais inválidas.")
+                    
         except Exception as e:
             print(f"ERRO LOGIN: Falha no processo de login: {e}")
             traceback.print_exc() # Imprime o stack trace completo
@@ -364,6 +381,58 @@ def login():
 
     print("DEBUG LOGIN: Renderizando login.html.")
     return render_template('login.html')
+
+# ==============================================================================
+# !! ROTA TEMPORÁRIA PARA RESET DE SENHA !!
+# !! REMOVA ESTA ROTA APÓS O USO !!
+# ==============================================================================
+@app.route('/reset-admin-password-now/muito-secreto-12345')
+def reset_admin_password_route():
+    # --- CONFIGURAÇÃO ---
+    USERNAME_TO_RESET = 'admin'
+    # IMPORTANTE: Troque 'novaSenhaForte123' pela senha que você deseja.
+    NEW_PASSWORD = 'admin123' 
+    # --------------------
+
+    print(f"DEBUG RESET: Rota de reset de senha acessada para o usuário '{USERNAME_TO_RESET}'.")
+    
+    hashed_password = generate_password_hash(NEW_PASSWORD)
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Primeiro, tenta atualizar a senha de um usuário existente
+            cur.execute("UPDATE admin SET password_hash = %s WHERE username = %s", (hashed_password, USERNAME_TO_RESET))
+            
+            # Se nenhuma linha foi atualizada, significa que o usuário não existia
+            if cur.rowcount == 0:
+                print(f"DEBUG RESET: Usuário '{USERNAME_TO_RESET}' não encontrado para atualizar. Tentando criar...")
+                cur.execute("INSERT INTO admin (username, password_hash) VALUES (%s, %s)", (USERNAME_TO_RESET, hashed_password))
+                conn.commit()
+                message = f"Usuário '{USERNAME_TO_RESET}' não encontrado. Um novo usuário foi criado com a senha definida. Por favor, remova esta rota agora."
+                print(f"[SUCESSO RESET] {message}")
+                return f"<h1>Sucesso</h1><p>{message}</p>", 200
+
+            # Se a atualização deu certo, commita
+            conn.commit()
+            message = f"A senha para o usuário '{USERNAME_TO_RESET}' foi resetada com sucesso. Por favor, remova esta rota de 'app.py' IMEDIATAMENTE."
+            print(f"[SUCESSO RESET] {message}")
+            return f"<h1>Sucesso</h1><p>{message}</p>", 200
+
+    except Exception as e:
+        error_message = f"Ocorreu um erro ao resetar a senha: {e}"
+        print(f"ERRO RESET: {error_message}")
+        traceback.print_exc()
+        if conn:
+            conn.rollback()
+        return f"<h1>Erro</h1><p>{error_message}</p>", 500
+    finally:
+        if conn:
+            conn.close()
+# ==============================================================================
+# !! FIM DA ROTA TEMPORÁRIA !!
+# ==============================================================================
+
 
 @app.route('/logout')
 def logout():
@@ -884,7 +953,7 @@ def mostrar_produtos(chat_id):
                 markup = types.InlineKeyboardMarkup()
                 btn_comprar = types.InlineKeyboardButton(f"Comprar por R${produto['preco']:.2f}", callback_data=f"comprar_{produto['id']}")
                 markup.add(btn_comprar)
-                bot.send_message(chat_id, f"� *{produto['nome']}*\n\nPreço: R${produto['preco']:.2f}", parse_mode='Markdown', reply_markup=markup)
+                bot.send_message(chat_id, f"🛍 *{produto['nome']}*\n\nPreço: R${produto['preco']:.2f}", parse_mode='Markdown', reply_markup=markup)
     except Exception as e:
         print(f"ERRO MOSTRAR PRODUTOS: Falha ao mostrar produtos: {e}")
         traceback.print_exc() # Imprime o stack trace completo
@@ -1139,4 +1208,4 @@ if __name__ != '__main__':
 
     except Exception as e:
         print(f"Erro ao configurar o webhook do Telegram ou iniciar worker: {e}")
-        traceback.print_exc() # Imprime o stack trace completo
+        traceback.print_exc() # Imprime o stack trace compl
