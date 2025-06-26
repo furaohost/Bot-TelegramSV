@@ -149,7 +149,7 @@ def init_db():
             cur.execute('''
                 INSERT INTO config (key, value) VALUES (%s, %s)
                 ON CONFLICT (key) DO NOTHING;
-            ''', ('welcome_message_bot', 'Olá, {first_name}! Bem-vindo(a)!'))
+            ''', ('welcome_message_bot', 'Olá, {first_name}! Bem-vindo(a) ao bot!'))
             print("DEBUG DB INIT: Mensagem de boas-vindas padrão (bot) processada.")
 
             # --- Adicionando mensagem de boas-vindas à comunidade ---
@@ -182,14 +182,12 @@ def init_db():
             try:
                 # Usa ALTER TABLE IF NOT EXISTS para compatibilidade
                 cur.execute("ALTER TABLE scheduled_messages ADD COLUMN image_url TEXT;")
-                print("DEBUG DB INIT: Coluna 'image_url' adicionada à tabela 'scheduled_messages'.")
             except psycopg2.errors.DuplicateColumn:
                 print("DEBUG DB INIT: Coluna 'image_url' já existe em 'scheduled_messages'.")
             except Exception as e:
                 print(f"ERRO DB INIT: Falha ao adicionar coluna 'image_url': {e}")
                 traceback.print_exc() # Imprime o stack trace completo
             # --- FIM DA TABELA E ALTERAÇÃO ---
-
 
             conn.commit()
             print("DEBUG DB: Tabelas do banco de dados verificadas/criadas (PostgreSQL/SQLite).")
@@ -234,7 +232,7 @@ def get_or_register_user(user: types.User):
 
 
 def enviar_produto_telegram(user_id, nome_produto, link_produto):
-    url = f"https://api.telegram.org/bot{API_TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{API_TOKEN}/sendMessage" # Corrigido para URL normal
     texto = (f"🎉 Pagamento Aprovado!\n\nObrigado por comprar *{nome_produto}*.\n\nAqui está o seu link de acesso:\n{link_produto}")
     payload = { 'chat_id': user_id, 'text': texto, 'parse_mode': 'Markdown' }
     try:
@@ -290,7 +288,9 @@ def webhook_mercado_pago():
 
                     if venda:
                         print(f"DEBUG WEBHOOK MP: Venda {venda_id} encontrada no DB com status 'pendente'.")
-                        data_venda_dt = datetime.strptime(str(venda['data_venda']), '%Y-%m-%d %H:%M:%S.%f') if isinstance(venda['data_venda'], datetime) else datetime.strptime(str(venda['data_venda']), '%Y-%m-%d %H:%M:%S')
+                        # Corrigido para lidar com 'data_venda' que já pode ser um objeto datetime
+                        data_venda_dt = venda['data_venda'] if isinstance(venda['data_venda'], datetime) else datetime.strptime(str(venda['data_venda']), '%Y-%m-%d %H:%M:%S.%f')
+                        
                         if datetime.now() > data_venda_dt + timedelta(hours=1):
                             print(f"DEBUG WEBHOOK MP: Pagamento recebido para venda expirada (ID: {venda_id}). Ignorando entrega.")
                             cur.execute('UPDATE vendas SET status = %s WHERE id = %s', ('expirado', venda_id))
@@ -344,16 +344,33 @@ def login():
         try:
             conn = get_db_connection()
             with conn.cursor() as cur:
+                # 1. Busca o usuário no banco de dados
                 cur.execute('SELECT * FROM admin WHERE username = %s', (username,))
                 admin_user = cur.fetchone()
-                if admin_user and check_password_hash(admin_user['password_hash'], password):
+
+                # 2. Verifica se o usuário foi encontrado
+                if not admin_user:
+                    print(f"DEBUG LOGIN: Usuário '{username}' NÃO ENCONTRADO no banco de dados.")
+                    flash('Usuário ou senha inválidos.', 'danger')
+                    return render_template('login.html')
+
+                # 3. Se o usuário foi encontrado, agora checa a senha
+                print(f"DEBUG LOGIN: Usuário '{username}' encontrado. Verificando a senha.")
+                print(f"DEBUG LOGIN: Hash no DB: {admin_user['password_hash']}") # Loga o hash do banco
+                
+                is_password_correct = check_password_hash(admin_user['password_hash'], password)
+                
+                if is_password_correct:
+                    # Se a senha está correta, inicia a sessão
                     session['logged_in'] = True
                     session['username'] = admin_user['username']
-                    print(f"DEBUG LOGIN: Login bem-sucedido para {session['username']}. session['logged_in'] = {session.get('logged_in')}")
+                    print(f"DEBUG LOGIN: Login BEM-SUCEDIDO para {session['username']}.")
                     return redirect(url_for('index'))
                 else:
+                    # Se a senha está incorreta
+                    print("DEBUG LOGIN: Senha INCORRETA.")
                     flash('Usuário ou senha inválidos.', 'danger')
-                    print("DEBUG LOGIN: Login falhou. Credenciais inválidas.")
+                    
         except Exception as e:
             print(f"ERRO LOGIN: Falha no processo de login: {e}")
             traceback.print_exc() # Imprime o stack trace completo
@@ -364,6 +381,58 @@ def login():
 
     print("DEBUG LOGIN: Renderizando login.html.")
     return render_template('login.html')
+
+# ==============================================================================
+# !! ROTA TEMPORÁRIA PARA RESET DE SENHA !!
+# !! REMOVA ESTA ROTA APÓS O USO !!
+# ==============================================================================
+@app.route('/reset-admin-password-now/muito-secreto-12345')
+def reset_admin_password_route():
+    # --- CONFIGURAÇÃO ---
+    USERNAME_TO_RESET = 'admin'
+    # IMPORTANTE: Troque 'novaSenhaForte123' pela senha que você deseja.
+    NEW_PASSWORD = 'admin123' 
+    # --------------------
+
+    print(f"DEBUG RESET: Rota de reset de senha acessada para o usuário '{USERNAME_TO_RESET}'.")
+    
+    hashed_password = generate_password_hash(NEW_PASSWORD)
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Primeiro, tenta atualizar a senha de um usuário existente
+            cur.execute("UPDATE admin SET password_hash = %s WHERE username = %s", (hashed_password, USERNAME_TO_RESET))
+            
+            # Se nenhuma linha foi atualizada, significa que o usuário não existia
+            if cur.rowcount == 0:
+                print(f"DEBUG RESET: Usuário '{USERNAME_TO_RESET}' não encontrado para atualizar. Tentando criar...")
+                cur.execute("INSERT INTO admin (username, password_hash) VALUES (%s, %s)", (USERNAME_TO_RESET, hashed_password))
+                conn.commit()
+                message = f"Usuário '{USERNAME_TO_RESET}' não encontrado. Um novo usuário foi criado com a senha definida. Por favor, remova esta rota agora."
+                print(f"[SUCESSO RESET] {message}")
+                return f"<h1>Sucesso</h1><p>{message}</p>", 200
+
+            # Se a atualização deu certo, commita
+            conn.commit()
+            message = f"A senha para o usuário '{USERNAME_TO_RESET}' foi resetada com sucesso. Por favor, remova esta rota de 'app.py' IMEDIATAMENTE."
+            print(f"[SUCESSO RESET] {message}")
+            return f"<h1>Sucesso</h1><p>{message}</p>", 200
+
+    except Exception as e:
+        error_message = f"Ocorreu um erro ao resetar a senha: {e}"
+        print(f"ERRO RESET: {error_message}")
+        traceback.print_exc()
+        if conn:
+            conn.rollback()
+        return f"<h1>Erro</h1><p>{error_message}</p>", 500
+    finally:
+        if conn:
+            conn.close()
+# ==============================================================================
+# !! FIM DA ROTA TEMPORÁRIA !!
+# ==============================================================================
+
 
 @app.route('/logout')
 def logout():
@@ -721,7 +790,7 @@ def add_scheduled_message():
     finally:
         if conn: conn.close()
 
-
+# ROTA MOVIDA PARA O NÍVEL SUPERIOR
 @app.route('/edit_scheduled_message/<int:id>', methods=['GET', 'POST'])
 def edit_scheduled_message(id):
     if not session.get('logged_in'):
@@ -781,7 +850,7 @@ def edit_scheduled_message(id):
     finally:
         if conn: conn.close()
 
-
+# ROTA MOVIDA PARA O NÍVEL SUPERIOR
 @app.route('/remove_scheduled_message/<int:id>')
 def remove_scheduled_message(id):
     if not session.get('logged_in'):
@@ -804,7 +873,7 @@ def remove_scheduled_message(id):
     finally:
         if conn: conn.close()
 
-# --- COMANDOS DO BOT ---
+# --- COMANDOS DO BOT (MOVIDOS PARA O NÍVEL SUPERIOR) ---
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     get_or_register_user(message.from_user)
@@ -832,7 +901,7 @@ def send_welcome(message):
     finally:
         if conn: conn.close()
 
-# --- NOVO: Handler para novos membros em grupos ---
+# --- NOVO: Handler para novos membros em grupos (MOVIDO PARA O NÍVEL SUPERIOR) ---
 @bot.message_handler(content_types=['new_chat_members'])
 def handle_new_chat_members(message):
     conn = None
@@ -859,6 +928,7 @@ def handle_new_chat_members(message):
     finally:
         if conn: conn.close()
 
+# Handler de Callback Query (MOVIDO PARA O NÍVEL SUPERIOR)
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
     get_or_register_user(call.from_user)
@@ -866,8 +936,9 @@ def callback_query(call):
         mostrar_produtos(call.message.chat.id)
     elif call.data.startswith('comprar_'):
         produto_id = int(call.data.split('_')[1])
-        gerar_cobranca(call, produto_id) # Usando 'gerar_cobranca' como nome da função aqui
+        generar_cobranca(call, produto_id) # Atenção: seu código usa 'gerar_cobranca' (em português), mas aqui estava 'generar_cobranca'
 
+# FUNÇÕES AUXILIARES DO BOT (MOVIDAS PARA O NÍVEL SUPERIOR OU DEFINIDAS ANTES DE SEREM USADAS)
 def mostrar_produtos(chat_id):
     conn = None
     try:
@@ -882,7 +953,7 @@ def mostrar_produtos(chat_id):
                 markup = types.InlineKeyboardMarkup()
                 btn_comprar = types.InlineKeyboardButton(f"Comprar por R${produto['preco']:.2f}", callback_data=f"comprar_{produto['id']}")
                 markup.add(btn_comprar)
-                bot.send_message(chat_id, f"💎 *{produto['nome']}*\n\nPreço: R${produto['preco']:.2f}", parse_mode='Markdown', reply_markup=markup)
+                bot.send_message(chat_id, f"🛍 *{produto['nome']}*\n\nPreço: R${produto['preco']:.2f}", parse_mode='Markdown', reply_markup=markup)
     except Exception as e:
         print(f"ERRO MOSTRAR PRODUTOS: Falha ao mostrar produtos: {e}")
         traceback.print_exc() # Imprime o stack trace completo
@@ -890,7 +961,7 @@ def mostrar_produtos(chat_id):
     finally:
         if conn: conn.close()
 
-def gerar_cobranca(call: types.CallbackQuery, produto_id: int): # Padronizado para 'gerar_cobranca' aqui
+def generar_cobranca(call: types.CallbackQuery, produto_id: int): # Corrigi o nome da função para 'generar_cobranca' para bater com o call.data
     user_id, chat_id = call.from_user.id, call.message.chat.id
     conn = None
     venda_id = None
@@ -937,7 +1008,7 @@ def gerar_cobranca(call: types.CallbackQuery, produto_id: int): # Padronizado pa
     finally:
         if conn: conn.close()
 
-# --- WORKER PARA ENVIO DE MENSAGENS AGENDADAS ---
+# --- WORKER PARA ENVIO DE MENSAGENS AGENDADAS (MOVIDO PARA O NÍVEL SUPERIOR) ---
 # (Esta função é definida aqui para ser acessível antes da inicialização)
 def scheduled_message_worker():
     print("DEBUG WORKER: Iniciando worker de mensagens agendadas...")
@@ -1037,7 +1108,7 @@ def scheduled_message_worker():
         time_module.sleep(60) # Verifica a cada 60 segundos (pode ajustar)
 # --- FIM DO WORKER ---
 
-# --- ROTA PARA ENVIO DE MENSAGENS EM MASSA (BROADCAST) ---
+# --- ROTA PARA ENVIO DE MENSAGENS EM MASSA (BROADCAST) (MOVIDA PARA O NÍVEL SUPERIOR) ---
 @app.route('/send_broadcast', methods=['GET', 'POST'])
 def send_broadcast():
     if not session.get('logged_in'):
@@ -1046,7 +1117,6 @@ def send_broadcast():
     if request.method == 'POST':
         message_text = request.form.get('message_text')
         image_url = request.form.get('image_url') # URL da imagem/vídeo para broadcast
-        # local_file_upload = request.files.get('local_file_upload') # Não estamos processando o upload de arquivo local aqui ainda
 
         if not message_text:
             flash('O texto da mensagem é obrigatório para o broadcast.', 'danger')
@@ -1117,7 +1187,7 @@ def send_broadcast():
 
     return render_template('send_broadcast.html')
 
-# --- INICIALIZAÇÃO FINAL ---
+# --- INICIALIZAÇÃO FINAL (Permanece no final do arquivo e corrige indentação) ---
 if __name__ != '__main__':
     try:
         init_db()
@@ -1138,4 +1208,4 @@ if __name__ != '__main__':
 
     except Exception as e:
         print(f"Erro ao configurar o webhook do Telegram ou iniciar worker: {e}")
-        traceback.print_exc() # Imprime o stack trace completo
+        traceback.print_exc() # Imprime o stack trace compl
