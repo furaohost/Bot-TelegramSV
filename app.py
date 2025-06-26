@@ -29,7 +29,7 @@ print(f"DEBUG: DATABASE_URL lida: {DATABASE_URL}")
 
 
 # --- 2. INICIALIZAÇÃO DO FLASK E DO BOT ---
-app = Flask(__name__)
+app = Flask(__name__, template_folder='web/templates', static_folder='web/static')
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'uma_chave_padrao_muito_segura_e_longa_para_dev_local_1234567890')
 bot = telebot.TeleBot(API_TOKEN, threaded=False)
 
