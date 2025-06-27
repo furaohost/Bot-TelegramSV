@@ -21,6 +21,20 @@ app.secret_key = os.getenv('FLASK_SECRET_KEY', 'chave_segura_dev')
 
 # Importa blueprint só após o `app` estar definido
 from web.routes.comunidades import create_comunidades_blueprint
+
+# ✅ Definir a função ANTES de registrar o blueprint
+def get_db_connection():
+    import psycopg2
+    import psycopg2.extras
+    conn = psycopg2.connect(
+        host=os.environ.get('DB_HOST', 'localhost'),
+        database=os.environ.get('DB_NAME', 'seu_banco'),
+        user=os.environ.get('DB_USER', 'seu_usuario'),
+        password=os.environ.get('DB_PASSWORD', 'sua_senha')
+    )
+    conn.autocommit = True
+    return conn
+
 comunidades_bp = create_comunidades_blueprint(get_db_connection)
 app.register_blueprint(comunidades_bp)
 
