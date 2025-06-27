@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for
-from database import get_db_connection
+from app import get_db_connection
 
 bp = Blueprint("comunidades", __name__, url_prefix="/comunidades")
 
