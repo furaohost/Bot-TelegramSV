@@ -1,25 +1,56 @@
-from flask import Blueprint, render_template, request, redirect, url_for
-from app import get_db_connection
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash
+from datetime import datetime
 
-bp = Blueprint("comunidades", __name__, url_prefix="/comunidades")
+def create_comunidades_blueprint(get_db_connection):
+    bp = Blueprint("comunidades", __name__, url_prefix="/comunidades")
 
-@bp.route("/")
-def lista():
-    conn = get_db_connection()
-    with conn.cursor() as cur:
-        cur.execute("SELECT id, nome, descricao FROM comunidades ORDER BY id")
+    @bp.route('/')
+    def comunidades():
+        if not session.get('logged_in'):
+            return redirect(url_for('login.login'))
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM comunidades ORDER BY id DESC")
         comunidades = cur.fetchall()
-    return render_template("comunidades/lista.html", comunidades=comunidades)
+        conn.close()
+        return render_template('comunidades.html', comunidades=comunidades)
 
-@bp.route("/nova", methods=["POST"])
-def nova():
-    nome = request.form["nome"]
-    desc = request.form.get("descricao", "")
-    conn = get_db_connection()
-    with conn.cursor() as cur:
-        cur.execute(
-            "INSERT INTO comunidades (nome, descricao) VALUES (%s,%s) ON CONFLICT DO NOTHING",
-            (nome, desc)
-        )
+    @bp.route('/nova', methods=['GET', 'POST'])
+    def nova_comunidade():
+        if not session.get('logged_in'):
+            return redirect(url_for('login.login'))
+
+        if request.method == 'POST':
+            nome = request.form['nome']
+            link = request.form['link']
+            categoria = request.form['categoria']
+            criada_em = datetime.now()
+
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("INSERT INTO comunidades (nome, link, categoria, criada_em) VALUES (%s, %s, %s, %s)",
+                        (nome, link, categoria, criada_em))
+            conn.commit()
+            conn.close()
+
+            flash('Comunidade adicionada com sucesso!', 'success')
+            return redirect(url_for('comunidades.comunidades'))
+
+        return render_template('nova_comunidade.html')
+
+    @bp.route('/excluir/<int:comunidade_id>', methods=['POST'])
+    def excluir_comunidade(comunidade_id):
+        if not session.get('logged_in'):
+            return redirect(url_for('login.login'))
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM comunidades WHERE id = %s", (comunidade_id,))
         conn.commit()
-    return redirect(url_for("comunidades.lista"))
+        conn.close()
+
+        flash('Comunidade excluída com sucesso!', 'success')
+        return redirect(url_for('comunidades.comunidades'))
+
+    return bp
