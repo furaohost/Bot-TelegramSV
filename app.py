@@ -175,6 +175,99 @@ def init_db():
             print("DEBUG DB INIT: Mensagem de boas-vindas padrão (comunidade) processada.")
             # --- Fim da adição de mensagem de boas-vindas à comunidade ---
 
+            # --- TABELA: comunidades (ADICIONADA AQUI!) ---
+            print("DEBUG DB INIT: Criando tabela 'comunidades'...")
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS comunidades (
+                    id SERIAL PRIMARY KEY,
+                    nome TEXT NOT NULL UNIQUE,
+                    descricao TEXT,
+                    chat_id BIGINT UNIQUE,
+                    status TEXT DEFAULT 'ativa',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            ''')
+            print("DEBUG DB INIT: Tabela 'comunidades' criada ou já existe.")
+
+            # Lógica para adicionar colunas a 'comunidades' se não existirem (para deploys existentes)
+            # Coluna 'descricao'
+            print("DEBUG DB INIT: Verificando coluna 'descricao' em 'comunidades'...")
+            cur.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name='comunidades' AND column_name='descricao';
+            """)
+            if not cur.fetchone():
+                try:
+                    cur.execute("ALTER TABLE comunidades ADD COLUMN descricao TEXT;")
+                    print("DEBUG DB INIT: Coluna 'descricao' adicionada à tabela 'comunidades'.")
+                except errors.DuplicateColumn:
+                    print("DEBUG DB INIT: Coluna 'descricao' já existe em 'comunidades' (capturado no ALTER).")
+                except Exception as e:
+                    print(f"ERRO DB INIT: Falha inesperada ao adicionar coluna 'descricao' em comunidades: {e}")
+                    traceback.print_exc()
+                    raise
+            else:
+                print("DEBUG DB INIT: Coluna 'descricao' já existe em 'comunidades'.")
+
+            # Coluna 'chat_id'
+            print("DEBUG DB INIT: Verificando coluna 'chat_id' em 'comunidades'...")
+            cur.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name='comunidades' AND column_name='chat_id';
+            """)
+            if not cur.fetchone():
+                try:
+                    # Adicione UNIQUE se for o caso na sua lógica original, caso contrário remova UNIQUE
+                    cur.execute("ALTER TABLE comunidades ADD COLUMN chat_id BIGINT UNIQUE;")
+                    print("DEBUG DB INIT: Coluna 'chat_id' adicionada à tabela 'comunidades'.")
+                except errors.DuplicateColumn:
+                    print("DEBUG DB INIT: Coluna 'chat_id' já existe em 'comunidades' (capturado no ALTER).")
+                except Exception as e:
+                    print(f"ERRO DB INIT: Falha inesperada ao adicionar coluna 'chat_id' em comunidades: {e}")
+                    traceback.print_exc()
+                    raise
+            else:
+                print("DEBUG DB INIT: Coluna 'chat_id' já existe em 'comunidades'.")
+
+            # Coluna 'status'
+            print("DEBUG DB INIT: Verificando coluna 'status' em 'comunidades'...")
+            cur.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name='comunidades' AND column_name='status';
+            """)
+            if not cur.fetchone():
+                try:
+                    cur.execute("ALTER TABLE comunidades ADD COLUMN status TEXT DEFAULT 'ativa';")
+                    print("DEBUG DB INIT: Coluna 'status' adicionada à tabela 'comunidades'.")
+                except errors.DuplicateColumn:
+                    print("DEBUG DB INIT: Coluna 'status' já existe em 'comunidades' (capturado no ALTER).")
+                except Exception as e:
+                    print(f"ERRO DB INIT: Falha inesperada ao adicionar coluna 'status' em comunidades: {e}")
+                    traceback.print_exc()
+                    raise
+            else:
+                print("DEBUG DB INIT: Coluna 'status' já existe em 'comunidades'.")
+
+            # Coluna 'created_at'
+            print("DEBUG DB INIT: Verificando coluna 'created_at' em 'comunidades'...")
+            cur.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name='comunidades' AND column_name='created_at';
+            """)
+            if not cur.fetchone():
+                try:
+                    cur.execute("ALTER TABLE comunidades ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;")
+                    print("DEBUG DB INIT: Coluna 'created_at' adicionada à tabela 'comunidades'.")
+                except errors.DuplicateColumn:
+                    print("DEBUG DB INIT: Coluna 'created_at' já existe em 'comunidades' (capturado no ALTER).")
+                except Exception as e:
+                    print(f"ERRO DB INIT: Falha inesperada ao adicionar coluna 'created_at' em comunidades: {e}")
+                    traceback.print_exc()
+                    raise
+            else:
+                print("DEBUG DB INIT: Coluna 'created_at' já existe em 'comunidades'.")
+            # --- FIM DA TABELA COMUNIDADES E ALTERAÇÕES ---
+
             # --- TABELA: scheduled_messages ---
             print("DEBUG DB INIT: Criando tabela 'scheduled_messages'...")
             cur.execute('''
@@ -885,27 +978,29 @@ def remove_scheduled_message(id):
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.reply_to(
-        message,
-        "Olá! Confirme que é maior de 18 anos:",
-        reply_markup=confirm_18_keyboard()
-    )
-    get_or_register_user(message.from_user)
-
     conn = None
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_bot',))
-            welcome_message = cur.fetchone()
-            final_message = "Olá! Bem-vindo(a)."
-            if welcome_message:
-                final_message = welcome_message['value'].replace('{first_name}', message.from_user.first_name or 'usuário')
+            welcome_message_row = cur.fetchone()
+            
+            final_welcome_message = "Olá! Bem-vindo(a)."
+            if welcome_message_row:
+                final_welcome_message = welcome_message_row['value'].replace('{first_name}', message.from_user.first_name or 'usuário')
             else:
-                final_message = f"Olá, {message.from_user.first_name or 'usuário'}! Bem-vindo(a)."
-            pass
+                final_welcome_message = f"Olá, {message.from_user.first_name or 'usuário'}! Bem-vindo(a)."
+
+            bot.reply_to(
+                message,
+                f"{final_welcome_message}\n\nConfirme que é maior de 18 anos:",
+                reply_markup=confirm_18_keyboard()
+            )
+            
+        get_or_register_user(message.from_user)
+            
     except Exception as e:
-        print(f"ERRO START: Falha ao enviar mensagem de boas-vindas: {e}")
+        print(f"ERRO START: Falha ao enviar mensagem de boas-vindas ou registrar usuário: {e}")
         traceback.print_exc()
         bot.reply_to(message, "Ocorreu um erro ao iniciar o bot. Tente novamente mais tarde.")
     finally:
