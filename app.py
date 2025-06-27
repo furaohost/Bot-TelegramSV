@@ -674,9 +674,56 @@ def logout():
 
 @app.route('/')
 def index():
-    print("DEBUG INDEX: Requisição para / (simplificada para depuração).")
-    # Apenas para depurar o 404, sem lógica complexa ou redirecionamentos por enquanto
-    return "Hello from the root path! Flask is receiving requests.", 200
+    print(f"DEBUG INDEX: Requisição para /. session.get('logged_in'): {session.get('logged_in')}")
+
+    if not session.get('logged_in'):
+        print("DEBUG INDEX: Usuário não logado. Redirecionando para login.")
+        return redirect(url_for('login'))
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute('SELECT COUNT(id) FROM users WHERE is_active = TRUE')
+            total_usuarios_row = cur.fetchone()
+            print(f"DEBUG INDEX: Resultado fetchone COUNT(users): {total_usuarios_row}")
+            total_usuarios = total_usuarios_row['count'] if total_usuarios_row and 'count' in total_usuarios_row and total_usuarios_row['count'] is not None else 0
+
+            cur.execute('SELECT COUNT(id) FROM produtos')
+            total_produtos_row = cur.fetchone()
+            print(f"DEBUG INDEX: Resultado fetchone COUNT(produtos): {total_produtos_row}")
+            total_produtos = total_produtos_row['count'] if total_produtos_row and 'count' in total_produtos_row and total_produtos_row['count'] is not None else 0
+
+            cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s", ('aprovado',))
+            vendas_data_row = cur.fetchone()
+            print(f"DEBUG INDEX: Resultado fetchone COUNT/SUM(vendas): {vendas_data_row}")
+            total_vendas_aprovadas = vendas_data_row['count'] if vendas_data_row and 'count' in vendas_data_row and vendas_data_row['count'] is not None else 0
+            receita_total = vendas_data_row['sum'] if vendas_data_row and 'sum' in vendas_data_row and vendas_data_row['sum'] is not None else 0.0
+            print(f"DEBUG INDEX: total_vendas_aprovadas: {total_vendas_aprovadas}, receita_total: {receita_total}")
+
+            cur.execute("SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, p.id as produto_id, CASE WHEN v.status = 'aprovado' THEN 'aprovado' WHEN v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() - v.data_venda)) > 3600 THEN 'expirado' ELSE v.status END AS status FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id ORDER BY v.id DESC LIMIT 5")
+            vendas_recentes = cur.fetchall()
+
+            chart_labels, chart_data = [], []
+            today = datetime.now()
+            for i in range(6, -1, -1):
+                day = today - timedelta(days=i)
+                start_of_day, end_of_day = datetime.combine(day.date(), time.min), datetime.combine(day.date(), time.max)
+                chart_labels.append(day.strftime('%d/%m'))
+                cur.execute("SELECT SUM(preco) AS sum FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s", ('aprovado', start_of_day, end_of_day))
+                daily_revenue_row = cur.fetchone()
+                daily_revenue = daily_revenue_row['sum'] if daily_revenue_row and 'sum' in daily_revenue_row and daily_revenue_row['sum'] is not None else 0
+                chart_data.append(daily_revenue)
+
+            print("DEBUG INDEX: Renderizando index.html.")
+            return render_template('index.html', total_vendas=total_vendas_aprovadas, total_usuarios=total_usuarios, total_produtos=total_produtos, receita_total=receita_total, vendas_recentes=vendas_recentes, chart_labels=json.dumps(chart_labels), chart_data=json.dumps(chart_data))
+    except Exception as e:
+        print(f"ERRO INDEX: Falha ao renderizar o dashboard: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar o dashboard.', 'danger')
+        return redirect(url_for('login'))
+    finally:
+        if conn: conn.close()
 
 # ----------------------------------------------------------------------
 # ROTAS PARA GERENCIAMENTO DE PRODUTOS
