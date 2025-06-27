@@ -175,39 +175,78 @@ def init_db():
             print("DEBUG DB INIT: Mensagem de boas-vindas padrão (comunidade) processada.")
             # --- Fim da adição de mensagem de boas-vindas à comunidade ---
 
-            # --- TABELA: comunidades (ADICIONADA AQUI!) ---
+            # --- TABELA: comunidades (AGORA COM AS COLUNAS CORRETAS: link, categoria, criada_em) ---
             print("DEBUG DB INIT: Criando tabela 'comunidades'...")
             cur.execute('''
                 CREATE TABLE IF NOT EXISTS comunidades (
                     id SERIAL PRIMARY KEY,
                     nome TEXT NOT NULL UNIQUE,
-                    descricao TEXT,
-                    chat_id BIGINT UNIQUE,
-                    status TEXT DEFAULT 'ativa',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    link TEXT,                  -- Adicionada: Usada em nova_comunidade
+                    categoria TEXT,             -- Adicionada: Usada em nova_comunidade
+                    criada_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Adicionada: Usada em nova_comunidade
+                    chat_id BIGINT UNIQUE,      -- Mantida: Para link com Telegram
+                    status TEXT DEFAULT 'ativa' -- Mantida: Para controle de status
                 );
             ''')
             print("DEBUG DB INIT: Tabela 'comunidades' criada ou já existe.")
 
             # Lógica para adicionar colunas a 'comunidades' se não existirem (para deploys existentes)
-            # Coluna 'descricao'
-            print("DEBUG DB INIT: Verificando coluna 'descricao' em 'comunidades'...")
+            # Coluna 'link'
+            print("DEBUG DB INIT: Verificando coluna 'link' em 'comunidades'...")
             cur.execute("""
                 SELECT column_name FROM information_schema.columns
-                WHERE table_name='comunidades' AND column_name='descricao';
+                WHERE table_name='comunidades' AND column_name='link';
             """)
             if not cur.fetchone():
                 try:
-                    cur.execute("ALTER TABLE comunidades ADD COLUMN descricao TEXT;")
-                    print("DEBUG DB INIT: Coluna 'descricao' adicionada à tabela 'comunidades'.")
+                    cur.execute("ALTER TABLE comunidades ADD COLUMN link TEXT;")
+                    print("DEBUG DB INIT: Coluna 'link' adicionada à tabela 'comunidades'.")
                 except errors.DuplicateColumn:
-                    print("DEBUG DB INIT: Coluna 'descricao' já existe em 'comunidades' (capturado no ALTER).")
+                    print("DEBUG DB INIT: Coluna 'link' já existe em 'comunidades' (capturado no ALTER).")
                 except Exception as e:
-                    print(f"ERRO DB INIT: Falha inesperada ao adicionar coluna 'descricao' em comunidades: {e}")
+                    print(f"ERRO DB INIT: Falha inesperada ao adicionar coluna 'link' em comunidades: {e}")
                     traceback.print_exc()
                     raise
             else:
-                print("DEBUG DB INIT: Coluna 'descricao' já existe em 'comunidades'.")
+                print("DEBUG DB INIT: Coluna 'link' já existe em 'comunidades'.")
+
+            # Coluna 'categoria'
+            print("DEBUG DB INIT: Verificando coluna 'categoria' em 'comunidades'...")
+            cur.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name='comunidades' AND column_name='categoria';
+            """)
+            if not cur.fetchone():
+                try:
+                    cur.execute("ALTER TABLE comunidades ADD COLUMN categoria TEXT;")
+                    print("DEBUG DB INIT: Coluna 'categoria' adicionada à tabela 'comunidades'.")
+                except errors.DuplicateColumn:
+                    print("DEBUG DB INIT: Coluna 'categoria' já existe em 'comunidades' (capturado no ALTER).")
+                except Exception as e:
+                    print(f"ERRO DB INIT: Falha inesperada ao adicionar coluna 'categoria' em comunidades: {e}")
+                    traceback.print_exc()
+                    raise
+            else:
+                print("DEBUG DB INIT: Coluna 'categoria' já existe em 'comunidades'.")
+
+            # Coluna 'criada_em'
+            print("DEBUG DB INIT: Verificando coluna 'criada_em' em 'comunidades'...")
+            cur.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name='comunidades' AND column_name='criada_em';
+            """)
+            if not cur.fetchone():
+                try:
+                    cur.execute("ALTER TABLE comunidades ADD COLUMN criada_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP;")
+                    print("DEBUG DB INIT: Coluna 'criada_em' adicionada à tabela 'comunidades'.")
+                except errors.DuplicateColumn:
+                    print("DEBUG DB INIT: Coluna 'criada_em' já existe em 'comunidades' (capturado no ALTER).")
+                except Exception as e:
+                    print(f"ERRO DB INIT: Falha inesperada ao adicionar coluna 'criada_em' em comunidades: {e}")
+                    traceback.print_exc()
+                    raise
+            else:
+                print("DEBUG DB INIT: Coluna 'criada_em' já existe em 'comunidades'.")
 
             # Coluna 'chat_id'
             print("DEBUG DB INIT: Verificando coluna 'chat_id' em 'comunidades'...")
@@ -217,7 +256,6 @@ def init_db():
             """)
             if not cur.fetchone():
                 try:
-                    # Adicione UNIQUE se for o caso na sua lógica original, caso contrário remova UNIQUE
                     cur.execute("ALTER TABLE comunidades ADD COLUMN chat_id BIGINT UNIQUE;")
                     print("DEBUG DB INIT: Coluna 'chat_id' adicionada à tabela 'comunidades'.")
                 except errors.DuplicateColumn:
@@ -247,25 +285,6 @@ def init_db():
                     raise
             else:
                 print("DEBUG DB INIT: Coluna 'status' já existe em 'comunidades'.")
-
-            # Coluna 'created_at'
-            print("DEBUG DB INIT: Verificando coluna 'created_at' em 'comunidades'...")
-            cur.execute("""
-                SELECT column_name FROM information_schema.columns
-                WHERE table_name='comunidades' AND column_name='created_at';
-            """)
-            if not cur.fetchone():
-                try:
-                    cur.execute("ALTER TABLE comunidades ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;")
-                    print("DEBUG DB INIT: Coluna 'created_at' adicionada à tabela 'comunidades'.")
-                except errors.DuplicateColumn:
-                    print("DEBUG DB INIT: Coluna 'created_at' já existe em 'comunidades' (capturado no ALTER).")
-                except Exception as e:
-                    print(f"ERRO DB INIT: Falha inesperada ao adicionar coluna 'created_at' em comunidades: {e}")
-                    traceback.print_exc()
-                    raise
-            else:
-                print("DEBUG DB INIT: Coluna 'created_at' já existe em 'comunidades'.")
             # --- FIM DA TABELA COMUNIDADES E ALTERAÇÕES ---
 
             # --- TABELA: scheduled_messages ---
@@ -803,8 +822,8 @@ def config_messages():
             current_welcome_message_community = current_welcome_message_community_row['value'] if current_welcome_message_community_row else ''
 
             if request.method == 'POST':
-                new_message_bot = request.form.get('welcome_message_bot')
-                new_message_community = request.form.get('welcome_message_community')
+                new_message_bot = request.form.get('message_text') # Corrigido para message_text, era welcome_message_bot
+                new_message_community = request.form.get('welcome_message_community') # Mantido o nome original do campo
 
                 cur.execute("UPDATE config SET value = %s WHERE key = %s", (new_message_bot, 'welcome_message_bot'))
 
