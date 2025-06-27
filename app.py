@@ -12,6 +12,26 @@ from datetime import datetime, timedelta, time
 from threading import Thread # Para rodar o worker em uma thread separada
 import time as time_module # Para time.sleep
 import traceback # Para imprimir o stack trace completo dos erros
+from bot.utils.keyboards import confirm_18_keyboard, menu_principal
+from bot.handlers.chamadas import register_chamadas_handlers  # novo import
+from web.routes.comunidades import bp as comunidades_bp
+app.register_blueprint(comunidades_bp)
+
+
+# … depois do bot = telebot.TeleBot(…) e get_db_connection:
+register_chamadas_handlers(bot, get_db_connection)
+
+
+# Handlers extras
+from bot.handlers.comunidades import register_comunidades_handlers
+from bot.handlers.ofertas import register_ofertas_handlers
+from bot.handlers.conteudos import register_conteudos_handlers
+
+register_comunidades_handlers(bot, get_db_connection)
+register_ofertas_handlers(bot, get_db_connection)
+register_conteudos_handlers(bot, get_db_connection)
+
+
 
 # Imports para PostgreSQL
 import psycopg2
@@ -876,6 +896,11 @@ def remove_scheduled_message(id):
 # --- COMANDOS DO BOT (MOVIDOS PARA O NÍVEL SUPERIOR) ---
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
+    bot.reply_to(
+        message,
+        "Olá! Confirme que é maior de 18 anos:",
+        reply_markup=confirm_18_keyboard()
+    )
     get_or_register_user(message.from_user)
 
     conn = None
@@ -929,8 +954,14 @@ def handle_new_chat_members(message):
         if conn: conn.close()
 
 # Handler de Callback Query (MOVIDO PARA O NÍVEL SUPERIOR)
-@bot.callback_query_handler(func=lambda call: True)
-def callback_query(call):
+@bot.callback_query_handler(func=lambda q: q.data == "confirm_18")
+def cb_confirm_18(call):
+    bot.edit_message_text(
+        "Menu principal:",
+        chat_id=call.message.chat.id,
+        message_id=call.message.id,
+        reply_markup=menu_principal()
+    )
     get_or_register_user(call.from_user)
     if call.data == 'ver_produtos':
         mostrar_produtos(call.message.chat.id)

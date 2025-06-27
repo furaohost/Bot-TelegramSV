@@ -1,0 +1,18 @@
+<!doctype html>
+<title>Comunidades</title>
+<h1>Comunidades</h1>
+
+<ul>
+{% for c in comunidades %}
+  <li>{{ c[0] }} — {{ c[1] }} {% if c[2] %}- {{ c[2] }}{% endif %}</li>
+{% else %}
+  <li>Nenhuma comunidade cadastrada.</li>
+{% endfor %}
+</ul>
+
+<h2>Criar nova</h2>
+<form method="post" action="{{ url_for('comunidades.nova') }}">
+  <input name="nome" placeholder="Nome" required>
+  <input name="descricao" placeholder="Descrição opcional">
+  <button type="submit">Criar</button>
+</form>
