@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SvBot Service - Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        /* Variáveis de Tema - Modo Escuro (Padrão) */
+        :root {
+            --primary-color: #6c5ce7; /* Roxo principal */
+            --primary-light: #a29bfe; /* Roxo claro */
+            --text-color: #f1f1f1; /* Texto muito claro */
+            --bg-color: #1a1a2e; /* Fundo escuro */
+            --card-color: #16213e; /* Cartão mais escuro */
+            --input-bg: #0f3460; /* Fundo do input */
+            --error-bg: #ff4d4f20; /* Fundo de erro */
+            --error-text: #ff7875; /* Texto de erro */
+            --error-border: #ff4d4f; /* Borda de erro */
+            --shadow-color: rgba(0, 0, 0, 0.3); /* Sombra principal */
+            --right-bg-gradient-start: #1a1a2e; /* Gradiente lado direito - início */
+            --right-bg-gradient-end: #0f3460; /* Gradiente lado direito - fim */
+        }
+
+        /* Variáveis de Tema - Modo Claro */
+        .light-mode {
+            --primary-color: #5e4ae6; /* Azul/Roxo principal - mais escuro para contraste */
+            --primary-light: #8d7eff; /* Azul/Roxo claro - mais escuro para contraste */
+            --text-color: #333333; /* Texto escuro */
+            --bg-color: #e8eaf6; /* Fundo claro (azul acinzentado) */
+            --card-color: #ffffff; /* Cartão branco */
+            --input-bg: #f0f2f5; /* Fundo do input claro */
+            --error-bg: #fdd8d8; /* Fundo de erro claro */
+            --error-text: #c0392b; /* Texto de erro escuro */
+            --error-border: #e74c3c; /* Borda de erro clara */
+            --shadow-color: rgba(0, 0, 0, 0.15); /* Sombra mais suave */
+            --right-bg-gradient-start: #ffffff; /* Gradiente lado direito - início (claro) */
+            --right-bg-gradient-end: #e0e0e0; /* Gradiente lado direito - fim (claro) */
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Poppins', sans-serif;
+            /* Transição suave para todas as propriedades de tema */
+            transition: background-color 0.4s ease-in-out, color 0.4s ease-in-out, 
+                        border-color 0.4s ease-in-out, box-shadow 0.4s ease-in-out,
+                        filter 0.4s ease-in-out, background 0.4s ease-in-out;
+        }
+        
+        body {
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+            overflow: hidden; /* Evita barras de rolagem desnecessárias */
+            position: relative; /* Para posicionar o botão de toggle */
+        }
+        
+        /* Botão de Toggle de Tema */
+        .toggle-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            background: var(--primary-color);
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 4px 12px var(--shadow-color);
+            transition: background 0.3s, transform 0.2s, box-shadow 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 14px;
+            z-index: 10; /* Garante que esteja acima do container */
+        }
+        .toggle-btn:hover {
+            background: var(--primary-light);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px var(--shadow-color);
+        }
+
+        .login-container {
+            background-color: var(--card-color);
+            padding: 0; /* Removido padding direto do container principal */
+            border-radius: 12px;
+            box-shadow: 0 10px 25px var(--shadow-color);
+            width: 100%;
+            max-width: 900px; /* Mais largo para desktop */
+            display: flex; /* Flexbox para dividir em dois lados */
+            flex-direction: row; /* Padrão desktop: lado a lado */
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.05); /* Borda sutil */
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .left-panel {
+            flex: 1;
+            padding: 2.5rem; /* ~40px */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            width: 100%; /* Garante que ocupe o espaço */
+            text-align: center;
+        }
+
+        .right-panel {
+            flex: 1;
+            background: linear-gradient(135deg, var(--right-bg-gradient-start), var(--right-bg-gradient-end));
+            color: var(--text-color); /* Pode ser ajustado para ser sempre branco/claro no gradiente */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2.5rem; /* ~40px */
+            text-align: center;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 2rem;
+            flex-direction: column; /* Logo e texto um abaixo do outro */
+        }
+        
+        .logo-icon {
+            width: 80px; /* Ícone maior */
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            margin-bottom: 1rem;
+        }
+        
+        .logo-icon svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 6px 12px rgba(108, 92, 231, 0.4)); /* Sombra mais pronunciada */
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+        
+        .logo-text h1 {
+            font-size: 2.5rem; /* Título maior */
+            font-weight: 800;
+            background: linear-gradient(to right, var(--primary-color), var(--primary-light));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        
+        .logo-text p {
+            color: var(--primary-light);
+            font-size: 1.1rem; /* Subtítulo maior */
+            opacity: 0.9;
+            letter-spacing: 0.5px;
+            max-width: 300px; /* Limita largura para melhor leitura */
+        }
+        
+        .input-group {
+            margin-bottom: 1.5rem;
+            width: 100%; /* Garante que o grupo de input ocupe toda a largura disponível */
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--primary-light);
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        
+        .input-group input {
+            width: 100%;
+            padding: 14px 18px; /* Mais padding */
+            background-color: var(--input-bg);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: var(--text-color);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .input-group input:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2); /* Sombra de foco mais visível */
+        }
+        
+        .signin-btn {
+            width: 100%;
+            padding: 16px; /* Botão maior */
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1rem; /* Fonte maior */
+            font-weight: 600;
+            letter-spacing: 0.8px; /* Mais espaçamento entre letras */
+            transition: all 0.3s ease;
+            margin-top: 1rem;
+            box-shadow: 0 4px 10px rgba(108, 92, 231, 0.3); /* Sombra mais pronunciada */
+        }
+        
+        .signin-btn:hover {
+            transform: translateY(-3px); /* Efeito de levantar mais acentuado */
+            box-shadow: 0 8px 15px rgba(108, 92, 231, 0.4);
+        }
+        
+        /* Estilos para mensagens flash */
+        .flash-message {
+            width: 100%;
+            padding: 12px 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 500;
+            background-color: var(--error-bg);
+            color: var(--error-text);
+            border: 1px solid var(--error-border);
+            font-size: 0.9rem;
+            animation: slideDown 0.5s ease-out;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Adaptação para telas menores (Mobile) */
+        @media (max-width: 768px) {
+            .login-container {
+                flex-direction: column; /* Coloca os painéis um abaixo do outro */
+                max-width: 400px; /* Limita largura em mobile */
+                border-radius: 12px; /* Mantém o arredondamento */
+            }
+            .right-panel {
+                display: none; /* Esconde o painel direito em mobile */
+            }
+            .left-panel {
+                padding: 1.8rem; /* Menos padding em mobile */
+            }
+            .logo {
+                margin-bottom: 1.5rem;
+            }
+            .logo-icon {
+                width: 60px; /* Ícone menor em mobile */
+                height: 60px;
+            }
+            .logo-text h1 {
+                font-size: 2rem; /* Título menor em mobile */
+            }
+            .logo-text p {
+                font-size: 0.9rem; /* Subtítulo menor em mobile */
+            }
+            .toggle-btn {
+                top: 10px;
+                right: 10px;
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button class="toggle-btn" onclick="toggleTheme()">
+        <span id="theme-icon">🌙</span> Mudar Tema
+    </button>
+
+    <div class="login-container">
+        <div class="left-panel">
+            <div class="logo">
+                <div class="logo-icon">
+                    <!-- SVG do avião de papel -->
+                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#6c5ce7"/>
+                                <stop offset="100%" stop-color="#a29bfe"/>
+                            </linearGradient>
+                        </defs>
+                        
+                        <path d="M20,60 L80,30 L60,70 L40,70 Z" fill="url(#gradient)" stroke="#fff" stroke-width="2"/>
+                        <line x1="50" y1="30" x2="50" y2="45" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+                        <line x1="40" y1="65" x2="60" y2="65" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div class="logo-text">
+                    <h1>SvBot Service</h1>
+                    <p>Intelligent automation solutions</p>
+                </div>
+            </div>
+            
+            <!-- Bloco para mensagens flash do Flask -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  <div class="flash-message">{{ message }}</div>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('login') }}" style="width: 100%; max-width: 300px;">
+                <div class="input-group">
+                    <input type="text" name="username" id="username" placeholder="Usuário" required>
+                </div>
+                
+                <div class="input-group">
+                    <input type="password" name="password" id="password" placeholder="••••••••" required>
+                </div>
+                
+                <button type="submit" class="signin-btn">ENTRAR</button>
+            </form>
+        </div>
+
+        <div class="right-panel">
+            <h3>🤖 Painel de Controle</h3>
+            <p>Gerencie seus produtos, visualize vendas e acompanhe o crescimento do seu bot.</p>
+        </div>
+    </div>
+
+    <script>
+        function toggleTheme() {
+            const isLight = document.body.classList.toggle("light-mode");
+            const themeIcon = document.getElementById('theme-icon');
+            if (isLight) {
+                themeIcon.textContent = '☀️';
+            } else {
+                themeIcon.textContent = '🌙';
+            }
+            localStorage.setItem('theme', isLight ? 'light' : 'dark');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme');
+            const themeIcon = document.getElementById('theme-icon');
+            if (savedTheme === 'light') {
+                document.body.classList.add('light-mode');
+                themeIcon.textContent = '☀️';
+            } else {
+                themeIcon.textContent = '🌙';
+            }
+        });
+    </script>
+</body>
+</html>

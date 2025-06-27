@@ -1,0 +1,53 @@
+{% extends "layout.html" %} {# ESTA LINHA É CRÍTICA! #}
+
+{% block title %}Editar Mensagem Agendada - Bot Telegram{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-4">
+    <h1 class="text-3xl font-bold mb-6 text-gray-800">Editar Mensagem Agendada</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="mb-4">
+                {% for category, message in messages %}
+                    <div class="p-3 rounded-md {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('edit_scheduled_message', id=message.id) }}" class="bg-white shadow-md rounded-lg p-6 mb-6">
+        <div class="mb-4">
+            <label for="message_text" class="block text-gray-700 text-sm font-bold mb-2">Texto da Mensagem:</label>
+            <textarea id="message_text" name="message_text" rows="5" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline resize-y">{{ message.message_text }}</textarea>
+        </div>
+        <div class="mb-4">
+            <label for="target_chat_id" class="block text-gray-700 text-sm font-bold mb-2">ID do Chat Alvo (Opcional - Deixe vazio para todos os usuários):</label>
+            <input type="number" id="target_chat_id" name="target_chat_id" value="{{ message.target_chat_id if message.target_chat_id else '' }}" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+            <p class="text-xs text-gray-500 mt-1">Se deixado vazio, a mensagem poderá ser enviada para todos os usuários do bot (requer lógica de envio específica).</p>
+        </div>
+        <div class="mb-4">
+            <label for="schedule_time" class="block text-gray-700 text-sm font-bold mb-2">Horário de Agendamento:</label>
+            <input type="datetime-local" id="schedule_time" name="schedule_time" value="{{ message.schedule_time_formatted }}" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+        </div>
+        <div class="mb-4">
+            <label for="status" class="block text-gray-700 text-sm font-bold mb-2">Status:</label>
+            <select id="status" name="status" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                <option value="pending" {% if message.status == 'pending' %}selected{% endif %}>Pendente</option>
+                <option value="sent" {% if message.status == 'sent' %}selected{% endif %}>Enviada</option>
+                <option value="failed" {% if message.status == 'failed' %}selected{% endif %}>Falha</option>
+            </select>
+        </div>
+        <div class="flex items-center justify-between">
+            <button type="submit" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                Atualizar Mensagem
+            </button>
+            <a href="{{ url_for('scheduled_messages') }}" class="inline-block align-baseline font-bold text-sm text-blue-500 hover:text-blue-800">
+                Cancelar
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}
