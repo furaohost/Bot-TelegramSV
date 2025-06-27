@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Nova Comunidade</h1>
+
+<form method="post">
+  <div class="mb-3">
+    <label for="nome" class="form-label">Nome</label>
+    <input type="text" name="nome" id="nome" class="form-control" required>
+  </div>
+
+  <div class="mb-3">
+    <label for="descricao" class="form-label">Descrição</label>
+    <textarea name="descricao" id="descricao" class="form-control" rows="3"></textarea>
+  </div>
+
+  <button type="submit" class="btn btn-success">Criar</button>
+  <a href="{{ url_for('comunidades.lista') }}" class="btn btn-link">Cancelar</a>
+</form>
+{% endblock %}

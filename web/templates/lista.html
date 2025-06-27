@@ -1,18 +1,33 @@
-<!doctype html>
-<title>Comunidades</title>
+{% extends "base.html" %}
+
+{% block content %}
 <h1>Comunidades</h1>
 
-<ul>
-{% for c in comunidades %}
-  <li>{{ c[0] }} — {{ c[1] }} {% if c[2] %}- {{ c[2] }}{% endif %}</li>
-{% else %}
-  <li>Nenhuma comunidade cadastrada.</li>
-{% endfor %}
-</ul>
+<a href="{{ url_for('comunidades.nova') }}" class="btn btn-primary mb-3">+ Nova Comunidade</a>
 
-<h2>Criar nova</h2>
-<form method="post" action="{{ url_for('comunidades.nova') }}">
-  <input name="nome" placeholder="Nome" required>
-  <input name="descricao" placeholder="Descrição opcional">
-  <button type="submit">Criar</button>
-</form>
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Nome</th>
+      <th>Descrição</th>
+      <th>Status</th>
+      <th>Ações</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in comunidades %}
+    <tr>
+      <td>{{ c.id }}</td>
+      <td>{{ c.nome }}</td>
+      <td>{{ c.descricao or '' }}</td>
+      <td>{{ c.status }}</td>
+      <td>
+        <a href="{{ url_for('comunidades.editar', cid=c.id) }}" class="btn btn-sm btn-outline-secondary">Editar</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
+
