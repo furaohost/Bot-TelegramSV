@@ -9,38 +9,38 @@ import pagamentos
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime, timedelta, time
-from threading import Thread  # Para rodar o worker em uma thread separada
-import time as time_module  # Para time.sleep
-import traceback  # Para imprimir o stack trace completo dos erros
+from threading import Thread
+import time as time_module
+import traceback
 
-from bot.utils.keyboards import confirm_18_keyboard, menu_principal
-from bot.handlers.chamadas import register_chamadas_handlers
+# 🔑 Definindo 'bot' e 'app' logo no início
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 app = Flask(__name__, template_folder='web/templates', static_folder='web/static')
-app.secret_key = os.getenv('FLASK_SECRET_KEY', 'chave_segura_dev')
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'chave_secreta')
 
-# Importa blueprint só após o `app` estar definido
-from web.routes.comunidades import create_comunidades_blueprint
-
-# ✅ Definir a função ANTES de registrar o blueprint
+# 📦 Banco de dados
 def get_db_connection():
     import psycopg2
     import psycopg2.extras
-    conn = psycopg2.connect(
-        host=os.environ.get('DB_HOST', 'localhost'),
-        database=os.environ.get('DB_NAME', 'seu_banco'),
-        user=os.environ.get('DB_USER', 'seu_usuario'),
-        password=os.environ.get('DB_PASSWORD', 'sua_senha')
-    )
-    conn.autocommit = True
-    return conn
+    try:
+        conn = psycopg2.connect(
+            host=os.environ.get("DB_HOST"),
+            database=os.environ.get("DB_NAME"),
+            user=os.environ.get("DB_USER"),
+            password=os.environ.get("DB_PASSWORD")
+        )
+        conn.autocommit = True
+        return conn
+    except Exception as e:
+        print("Erro ao conectar ao banco:", e)
+        return None
 
-comunidades_bp = create_comunidades_blueprint(get_db_connection)
-app.register_blueprint(comunidades_bp)
-
-# … depois do bot = telebot.TeleBot(…) e get_db_connection:
-register_chamadas_handlers(bot, get_db_connection)
-
+# Agora sim, pode importar os módulos que dependem de bot ou get_db_connection
+from bot.utils.keyboards import confirm_18_keyboard, menu_principal
+from bot.handlers.chamadas import register_chamadas_handlers
+from web.routes.comunidades import create_comunidades_blueprint
 
 # Handlers extras
 from bot.handlers.comunidades import register_comunidades_handlers
