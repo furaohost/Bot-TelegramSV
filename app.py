@@ -13,12 +13,14 @@ from threading import Thread
 import time as time_module
 import traceback
 
-# 🔑 Definindo 'bot' e 'app' logo no início
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-bot = telebot.TeleBot(TELEGRAM_TOKEN)
+API_TOKEN = os.environ.get("API_TOKEN")
+if not API_TOKEN:
+    raise ValueError("A variável de ambiente API_TOKEN não está definida.")
+
+bot = telebot.TeleBot(API_TOKEN)
 
 app = Flask(__name__, template_folder='web/templates', static_folder='web/static')
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'chave_secreta')
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "chave_secreta")
 
 # 📦 Banco de dados
 def get_db_connection():
