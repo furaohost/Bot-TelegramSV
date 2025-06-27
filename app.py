@@ -9,14 +9,20 @@ import pagamentos
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime, timedelta, time
-from threading import Thread # Para rodar o worker em uma thread separada
-import time as time_module # Para time.sleep
-import traceback # Para imprimir o stack trace completo dos erros
-from bot.utils.keyboards import confirm_18_keyboard, menu_principal
-from bot.handlers.chamadas import register_chamadas_handlers  # novo import
-from web.routes.comunidades import bp as comunidades_bp
-app.register_blueprint(comunidades_bp)
+from threading import Thread  # Para rodar o worker em uma thread separada
+import time as time_module  # Para time.sleep
+import traceback  # Para imprimir o stack trace completo dos erros
 
+from bot.utils.keyboards import confirm_18_keyboard, menu_principal
+from bot.handlers.chamadas import register_chamadas_handlers
+
+app = Flask(__name__, template_folder='web/templates', static_folder='web/static')
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'chave_segura_dev')
+
+# Importa blueprint só após o `app` estar definido
+from web.routes.comunidades import create_comunidades_blueprint
+comunidades_bp = create_comunidades_blueprint(get_db_connection)
+app.register_blueprint(comunidades_bp)
 
 # … depois do bot = telebot.TeleBot(…) e get_db_connection:
 register_chamadas_handlers(bot, get_db_connection)
