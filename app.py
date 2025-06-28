@@ -32,7 +32,7 @@ FLASK_SECRET_KEY = os.getenv(
 )
 
 print("DEBUG: API_TOKEN =", API_TOKEN)
-print("DEBUG: BASE_URL   =", BASE_URL)
+print("DEBUG: BASE_URL  =", BASE_URL)
 print("DEBUG: DATABASE_URL =", DATABASE_URL)
 
 if not API_TOKEN:
@@ -769,7 +769,7 @@ def produtos():
 def adicionar_produto():
     """
     Rota para adicionar um novo produto.
-    Permite exibir um formulário (GET) e processar o envio do formulário (POST).
+    Processa o envio do formulário (POST) e redireciona.
     Requer que o usuário esteja logado.
     """
     print(f"DEBUG ADICIONAR_PRODUTO: Requisição para /adicionar_produto. Method: {request.method}")
@@ -786,17 +786,16 @@ def adicionar_produto():
 
         if not nome or not preco or not link:
             flash('Todos os campos são obrigatórios!', 'danger')
-            # CORREÇÃO AQUI: Usa 'nova.html' para re-renderizar em caso de erro de validação
-            return render_template('nova.html', nome=nome, preco=preco, link=link)
+            return redirect(url_for('produtos')) # Redireciona de volta para produtos.html
 
         try:
             preco = float(preco)
             if preco <= 0:
                 flash('Preço deve ser um valor positivo.', 'danger')
-                return render_template('nova.html', nome=nome, preco=preco, link=link)
+                return redirect(url_for('produtos')) # Redireciona de volta para produtos.html
         except ValueError:
             flash('Preço inválido. Use um número.', 'danger')
-            return render_template('nova.html', nome=nome, preco=preco, link=link)
+            return redirect(url_for('produtos')) # Redireciona de volta para produtos.html
 
         conn = None
         try:
@@ -809,26 +808,25 @@ def adicionar_produto():
                 conn.commit()
             print(f"DEBUG ADICIONAR_PRODUTO: Produto '{nome}' adicionado com sucesso.")
             flash('Produto adicionado com sucesso!', 'success')
-            return redirect(url_for('produtos')) # Redireciona para a lista de produtos após sucesso
+            return redirect(url_for('produtos')) # Redireciona para a lista de produtos
         except Exception as e:
             print(f"ERRO ADICIONAR_PRODUTO: Falha ao adicionar produto: {e}")
             traceback.print_exc()
             flash('Erro ao adicionar produto.', 'danger')
             if conn and not conn.closed: conn.rollback()
-            # Retorna o template 'nova.html' com os dados e a mensagem de erro
-            return render_template('nova.html', nome=nome, preco=preco, link=link)
+            return redirect(url_for('produtos')) # Redireciona para produtos.html em caso de erro
         finally:
             if conn: conn.close()
     
-    # Se for um GET request, apenas renderiza o formulário de adição (nova.html)
-    return render_template('nova.html')
-
+    # Se for um GET request para /adicionar_produto, apenas redireciona para a lista de produtos
+    # já que o formulário de adição estará em produtos.html
+    return redirect(url_for('produtos', add_new_product=True)) # Passa um parâmetro para o JS saber abrir o form
 
 @app.route('/editar_produto/<int:produto_id>', methods=['GET', 'POST'])
 def editar_produto(produto_id):
     """
     Rota para editar um produto existente.
-    Exibe um formulário pré-preenchido (GET) e processa as atualizações (POST).
+    Processa o envio do formulário (POST) e redireciona.
     Requer que o usuário esteja logado.
     """
     print(f"DEBUG EDITAR_PRODUTO: Requisição para /editar_produto/{produto_id}. Method: {request.method}")
@@ -855,18 +853,18 @@ def editar_produto(produto_id):
 
                 if not nome or not preco or not link:
                     flash('Todos os campos são obrigatórios!', 'danger')
-                    # Permite re-renderizar 'edit_product.html' com os dados e a mensagem de erro
-                    # Você pode passar request.form para manter os dados no formulário
-                    return render_template('edit_product.html', produto=produto, nome_val=nome, preco_val=preco, link_val=link)
+                    # Em caso de erro, redireciona de volta para produtos.html,
+                    # passando os dados do POST via query params (se necessário para JS) ou apenas flash.
+                    return redirect(url_for('produtos', edit_id=produto_id, nome=nome, preco=preco, link=link))
                 
                 try:
                     preco = float(preco)
                     if preco <= 0:
                         flash('Preço deve ser um valor positivo.', 'danger')
-                        return render_template('edit_product.html', produto=produto, nome_val=nome, preco_val=preco, link_val=link)
+                        return redirect(url_for('produtos', edit_id=produto_id, nome=nome, preco=preco, link=link))
                 except ValueError:
                     flash('Preço inválido. Use um número.', 'danger')
-                    return render_template('edit_product.html', produto=produto, nome_val=nome, preco_val=preco, link_val=link)
+                    return redirect(url_for('produtos', edit_id=produto_id, nome=nome, preco=preco, link=link))
 
                 cur.execute(
                     "UPDATE produtos SET nome = %s, preco = %s, link = %s WHERE id = %s",
@@ -877,9 +875,9 @@ def editar_produto(produto_id):
                 flash('Produto atualizado com sucesso!', 'success')
                 return redirect(url_for('produtos'))
             
-            # GET request: Renderiza o formulário de edição com os dados do produto
-            # Passa os dados do produto para pré-preenchimento
-            return render_template('edit_product.html', produto=produto)
+            # GET request: Redireciona para a página de produtos,
+            # passando o ID do produto para que o JavaScript abra o formulário de edição.
+            return redirect(url_for('produtos', edit_id=produto_id))
 
     except Exception as e:
         print(f"ERRO EDITAR_PRODUTO: Falha ao editar produto: {e}")
@@ -981,9 +979,9 @@ def vendas():
 @app.route('/usuarios')
 def usuarios():
     """
-    Ruta para exibir a lista de usuários do bot na interface web do dashboard.
-    Requer que el usuario esteja logado.
-    Busca todos os usuários do banco de dados e los renderiza no template usuarios.html.
+    Rota para exibir a lista de usuários do bot na interface web do dashboard.
+    Requer que o usuário esteja logado.
+    Busca todos os usuários do banco de dados e os renderiza no template usuarios.html.
     """
     print("DEBUG USUARIOS: Requisição para /usuarios.")
 
@@ -1093,7 +1091,7 @@ def scheduled_messages():
         print(f"ERRO SCHEDULED_MESSAGES: Falha ao carregar mensagens agendadas: {e}")
         traceback.print_exc()
         flash('Erro ao carregar mensagens agendadas.', 'danger')
-        return redirect(url_for('index'))
+        return redirect(url_for('scheduled_messages'))
     finally:
         if conn: conn.close()
 
