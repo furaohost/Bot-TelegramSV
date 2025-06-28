@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 
 {% block title %}
-Produtos
+Gerenciar Produtos
 {% endblock %}
 
 {% block content %}
@@ -9,17 +9,17 @@ Produtos
     <div class="px-4 py-6 sm:px-0">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold text-gray-900">Gerenciar Produtos</h1>
-            <a href="{{ url_for('adicionar_produto') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            <button id="showAddFormBtn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                 <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
                 </svg>
-                Adicionar Produto
-            </a>
+                Adicionar Novo Produto
+            </button>
         </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <div class="mb-4">
+                <div class="mb-4" id="flash-messages">
                     {% for category, message in messages %}
                         <div class="p-3 mb-2 rounded-md {{ 'bg-green-100 text-green-800' if category == 'success' else ('bg-red-100 text-red-800' if category == 'danger' else 'bg-blue-100 text-blue-800') }}">
                             {{ message }}
@@ -29,6 +29,72 @@ Produtos
             {% endif %}
         {% endwith %}
 
+        <div id="addProductForm" class="bg-white shadow overflow-hidden sm:rounded-lg p-6 mb-6" style="display: none;">
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">Adicionar Novo Produto</h2>
+            <form action="{{ url_for('adicionar_produto') }}" method="POST" class="space-y-4">
+                <div>
+                    <label for="add_nome" class="block text-sm font-medium text-gray-700">Nome do Produto</label>
+                    <input type="text" name="nome" id="add_nome" required
+                        value="{{ request.args.get('nome_val', '') }}" {# Pega valor de query param em caso de erro #}
+                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="add_preco" class="block text-sm font-medium text-gray-700">Preço</label>
+                    <input type="number" name="preco" id="add_preco" step="0.01" required
+                        value="{{ request.args.get('preco_val', '') }}" {# Pega valor de query param em caso de erro #}
+                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="add_link" class="block text-sm font-medium text-gray-700">Link do Produto (URL)</label>
+                    <input type="url" name="link" id="add_link" required
+                        value="{{ request.args.get('link_val', '') }}" {# Pega valor de query param em caso de erro #}
+                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" id="cancelAddFormBtn" class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Cancelar
+                    </button>
+                    <button type="submit"
+                        class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Adicionar Produto
+                    </button>
+                </div>
+            </form>
+        </div>
+        <div id="editProductForm" class="bg-white shadow overflow-hidden sm:rounded-lg p-6 mb-6" style="display: none;">
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">Editar Produto</h2>
+            <form id="editProductActualForm" method="POST" class="space-y-4">
+                <input type="hidden" name="produto_id" id="edit_produto_id">
+                
+                <div>
+                    <label for="edit_nome" class="block text-sm font-medium text-gray-700">Nome do Produto</label>
+                    <input type="text" name="nome" id="edit_nome" required
+                        value="{{ request.args.get('nome_val', '') }}" {# Pega valor de query param em caso de erro #}
+                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="edit_preco" class="block text-sm font-medium text-gray-700">Preço</label>
+                    <input type="number" name="preco" id="edit_preco" step="0.01" required
+                        value="{{ request.args.get('preco_val', '') }}" {# Pega valor de query param em caso de erro #}
+                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="edit_link" class="block text-sm font-medium text-gray-700">Link do Produto (URL)</label>
+                    <input type="url" name="link" id="edit_link" required
+                        value="{{ request.args.get('link_val', '') }}" {# Pega valor de query param em caso de erro #}
+                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" id="cancelEditFormBtn" class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Cancelar
+                    </button>
+                    <button type="submit"
+                        class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Salvar Alterações
+                    </button>
+                </div>
+            </form>
+        </div>
         {% if produtos %}
         <div class="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
             <table class="min-w-full divide-y divide-gray-200">
@@ -53,7 +119,11 @@ Produtos
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     {% for produto in produtos %}
-                    <tr>
+                    <tr 
+                        data-produto-id="{{ produto.id }}" 
+                        data-produto-nome="{{ produto.nome }}" 
+                        data-produto-preco="{{ "%.2f" | format(produto.preco) }}" 
+                        data-produto-link="{{ produto.link }}">
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {{ produto.id }}
                         </td>
@@ -67,8 +137,11 @@ Produtos
                             <a href="{{ produto.link }}" target="_blank" class="text-indigo-600 hover:text-indigo-900">{{ produto.link }}</a>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            {# CORREÇÃO AQUI: Mudando 'edit_product' para 'editar_produto' e 'id' para 'produto_id' #}
-                            <a href="{{ url_for('editar_produto', produto_id=produto.id) }}" class="text-indigo-600 hover:text-indigo-900 mr-4">Editar</a>
+                            <button type="button" 
+                                class="edit-btn text-indigo-600 hover:text-indigo-900 mr-4"
+                                data-id="{{ produto.id }}">
+                                Editar
+                            </button>
                             <form action="{{ url_for('deletar_produto', produto_id=produto.id) }}" method="POST" class="inline-block" onsubmit="return confirm('Tem certeza que deseja deletar este produto?');">
                                 <button type="submit" class="text-red-600 hover:text-red-900">Deletar</button>
                             </form>
@@ -83,4 +156,143 @@ Produtos
         {% endif %}
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const showAddFormBtn = document.getElementById('showAddFormBtn');
+        const addProductForm = document.getElementById('addProductForm');
+        const cancelAddFormBtn = document.getElementById('cancelAddFormBtn');
+        
+        const editProductForm = document.getElementById('editProductForm');
+        const editProductActualForm = document.getElementById('editProductActualForm');
+        const cancelEditFormBtn = document.getElementById('cancelEditFormBtn');
+        const editButtons = document.querySelectorAll('.edit-btn'); // Seleciona todos os botões de editar
+
+        // Campos do formulário de adição (para resetar ou preencher)
+        const addNomeInput = document.getElementById('add_nome');
+        const addPrecoInput = document.getElementById('add_preco');
+        const addLinkInput = document.getElementById('add_link');
+
+        // Campos do formulário de edição
+        const editProdutoIdInput = document.getElementById('edit_produto_id');
+        const editNomeInput = document.getElementById('edit_nome');
+        const editPrecoInput = document.getElementById('edit_preco');
+        const editLinkInput = document.getElementById('edit_link');
+
+
+        // Funções para mostrar/esconder formulários
+        function showForm(formElement) {
+            hideAllForms(); // Garante que apenas um formulário esteja visível
+            formElement.style.display = 'block';
+            showAddFormBtn.style.display = 'none'; // Esconde o botão "Adicionar Produto"
+            formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function hideAllForms() {
+            addProductForm.style.display = 'none';
+            editProductForm.style.display = 'none';
+            showAddFormBtn.style.display = 'inline-flex'; // Mostra o botão "Adicionar Produto"
+        }
+
+
+        // Event Listeners para o formulário de adição
+        showAddFormBtn.addEventListener('click', function() {
+            showForm(addProductForm);
+            // Limpa os campos do formulário de adição ao abri-lo
+            addNomeInput.value = '';
+            addPrecoInput.value = '';
+            addLinkInput.value = '';
+        });
+
+        cancelAddFormBtn.addEventListener('click', function() {
+            hideAllForms();
+        });
+
+        // Event Listeners para o formulário de edição
+        cancelEditFormBtn.addEventListener('click', function() {
+            hideAllForms();
+        });
+
+        editButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const row = this.closest('tr'); // Pega a linha da tabela pai
+                const produtoId = row.dataset.produtoId;
+                const produtoNome = row.dataset.produtoNome;
+                const produtoPreco = row.dataset.produtoPreco;
+                const produtoLink = row.dataset.produtoLink;
+
+                // Preenche o formulário de edição
+                editProdutoIdInput.value = produtoId;
+                editNomeInput.value = produtoNome;
+                editPrecoInput.value = produtoPreco;
+                editLinkInput.value = produtoLink;
+
+                // Define a action do formulário para o ID correto
+                editProductActualForm.action = `{{ url_for('editar_produto', produto_id=0) }}`.replace('/0', `/${produtoId}`);
+
+                showForm(editProductForm);
+            });
+        });
+
+        // Lógica para exibir formulário automaticamente após um redirecionamento com erro/sucesso
+        const urlParams = new URLSearchParams(window.location.search);
+        const editId = urlParams.get('edit_id');
+        const addNewProduct = urlParams.get('add_new_product');
+        const nomeVal = urlParams.get('nome_val');
+        const precoVal = urlParams.get('preco_val');
+        const linkVal = urlParams.get('link_val');
+
+        const flashMessagesContainer = document.getElementById('flash-messages');
+        const hasError = flashMessagesContainer ? Array.from(flashMessagesContainer.children).some(
+            msgDiv => msgDiv.classList.contains('bg-red-100')
+        ) : false;
+
+        if (hasError) {
+            if (editId) { // Erro na edição, re-preenche o formulário de edição
+                editProdutoIdInput.value = editId;
+                editNomeInput.value = nomeVal || '';
+                editPrecoInput.value = precoVal || '';
+                editLinkInput.value = linkVal || '';
+                editProductActualForm.action = `{{ url_for('editar_produto', produto_id=0) }}`.replace('/0', `/${editId}`);
+                showForm(editProductForm);
+            } else if (addNewProduct) { // Erro na adição, re-preenche o formulário de adição
+                addNomeInput.value = nomeVal || '';
+                addPrecoInput.value = precoVal || '';
+                addLinkInput.value = linkVal || '';
+                showForm(addProductForm);
+            }
+        } else if (editId) { // Redirecionamento bem-sucedido de GET /editar_produto/<id> para exibir form de edição
+             // Se não houve erro, mas a URL tem edit_id (vindo de um GET para /editar_produto/<id>)
+             // É necessário buscar os dados do produto para preencher o formulário.
+             // Para evitar uma nova requisição ao DB, poderíamos ter passado os dados completos na query param,
+             // mas URLs longas não são ideais. A melhor forma aqui seria uma API endpoint RESTful.
+             // POR ENQUANTO: Se for um GET limpo sem erro, assumimos que o clique "Editar" da tabela já pré-preencheu.
+             // Se o fluxo é que o GET da rota /editar_produto/ID sempre redireciona para /produtos?edit_id=ID&...
+             // E esse GET já passa os 'nome_val', 'preco_val', 'link_val' como parâmetros de query.
+             // Isso já está implementado no app.py e nas linhas acima que usam `request.args.get()`.
+             // Então, apenas mostrar o formulário.
+            editProdutoIdInput.value = editId;
+            editNomeInput.value = nomeVal || '';
+            editPrecoInput.value = precoVal || '';
+            editLinkInput.value = linkVal || '';
+            editProductActualForm.action = `{{ url_for('editar_produto', produto_id=0) }}`.replace('/0', `/${editId}`);
+            showForm(editProductForm);
+
+        } else if (addNewProduct) { // Redirecionamento bem-sucedido de GET /adicionar_produto
+             showForm(addProductForm); // Apenas mostra o formulário (campos estarão vazios se não houver erro)
+        }
+
+        // Limpa os parâmetros de query para manter a URL limpa
+        if (window.history.replaceState) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('edit_id');
+            url.searchParams.delete('add_new_product');
+            url.searchParams.delete('nome_val');
+            url.searchParams.delete('preco_val');
+            url.searchParams.delete('link_val');
+            url.searchParams.delete('error');
+            window.history.replaceState({path:url.href}, '', url.href);
+        }
+    });
+</script>
 {% endblock %}
