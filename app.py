@@ -1048,6 +1048,237 @@ def toggle_user_status(user_id):
     finally:
         if conn: conn.close()
 
+@app.route('/scheduled_messages')
+def scheduled_messages():
+    """
+    Rota para exibir a lista de mensagens agendadas.
+    Requer que o usuário esteja logado.
+    """
+    print("DEBUG SCHEDULED_MESSAGES: Requisição para /scheduled_messages.")
+
+    if not session.get('logged_in'):
+        print("DEBUG SCHEDULED_MESSAGES: Usuário não logado. Redirecionando para login.")
+        flash('Por favor, faça login para acessar esta página.', 'warning')
+        return redirect(url_for('login'))
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT 
+                    sm.id,
+                    sm.message_text,
+                    sm.target_chat_id,
+                    sm.image_url,
+                    sm.schedule_time,
+                    sm.status,
+                    sm.created_at,
+                    sm.sent_at,
+                    COALESCE(u.username, 'Todos os usuários') AS target_username
+                FROM scheduled_messages sm
+                LEFT JOIN users u ON sm.target_chat_id = u.id
+                ORDER BY sm.schedule_time DESC
+            """)
+            messages_list = cur.fetchall()
+            print(f"DEBUG SCHEDULED_MESSAGES: {len(messages_list)} mensagens agendadas encontradas.")
+        
+        return render_template('scheduled_messages.html', messages=messages_list)
+    except Exception as e:
+        print(f"ERRO SCHEDULED_MESSAGES: Falha ao carregar mensagens agendadas: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar mensagens agendadas.', 'danger')
+        return redirect(url_for('index'))
+    finally:
+        if conn: conn.close()
+
+@app.route('/add_scheduled_message', methods=['GET', 'POST'])
+def add_scheduled_message():
+    """
+    Rota para adicionar uma nova mensagem agendada.
+    Permite exibir um formulário (GET) e processar o envio do formulário (POST).
+    Requer que o usuário esteja logado.
+    """
+    print(f"DEBUG ADD_SCHEDULED_MESSAGE: Requisição para /add_scheduled_message. Method: {request.method}")
+
+    if not session.get('logged_in'):
+        flash('Por favor, faça login para acessar esta página.', 'warning')
+        return redirect(url_for('login'))
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
+            users = cur.fetchall()
+
+        if request.method == 'POST':
+            message_text = request.form.get('message_text')
+            target_chat_id = request.form.get('target_chat_id')
+            image_url = request.form.get('image_url')
+            schedule_time_str = request.form.get('schedule_time')
+
+            if not message_text or not schedule_time_str:
+                flash('Texto da mensagem e tempo de agendamento são obrigatórios!', 'danger')
+                return render_template('add_scheduled_message.html', users=users)
+            
+            # Converte a string de data/hora para um objeto datetime
+            try:
+                schedule_time = datetime.strptime(schedule_time_str, '%Y-%m-%dT%H:%M')
+            except ValueError:
+                flash('Formato de data/hora inválido. Use AAAA-MM-DDTHH:MM.', 'danger')
+                return render_template('add_scheduled_message.html', users=users)
+            
+            # Valida se a data/hora é no futuro
+            if schedule_time <= datetime.now():
+                flash('A data e hora de agendamento devem ser no futuro.', 'danger')
+                return render_template('add_scheduled_message.html', users=users)
+
+            # Define target_chat_id como None se for 'all_users'
+            if target_chat_id == 'all_users':
+                target_chat_id = None
+            else:
+                try:
+                    target_chat_id = int(target_chat_id)
+                except (ValueError, TypeError):
+                    flash('ID do chat de destino inválido.', 'danger')
+                    return render_template('add_scheduled_message.html', users=users)
+
+            cur_conn = get_db_connection() # Nova conexão para evitar problemas de transação
+            try:
+                with cur_conn.cursor() as cur_inner:
+                    cur_inner.execute(
+                        "INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, schedule_time, status) VALUES (%s, %s, %s, %s, %s)",
+                        (message_text, target_chat_id, image_url if image_url else None, schedule_time, 'pending')
+                    )
+                    cur_conn.commit()
+                flash('Mensagem agendada com sucesso!', 'success')
+                return redirect(url_for('scheduled_messages'))
+            except Exception as e:
+                print(f"ERRO ADD_SCHEDULED_MESSAGE: Falha ao adicionar mensagem agendada: {e}")
+                traceback.print_exc()
+                flash('Erro ao agendar mensagem.', 'danger')
+                if cur_conn and not cur_conn.closed: cur_conn.rollback()
+            finally:
+                if cur_conn: cur_conn.close()
+
+        # GET request: Renderiza o formulário
+        return render_template('add_scheduled_message.html', users=users)
+
+    except Exception as e:
+        print(f"ERRO ADD_SCHEDULED_MESSAGE (GET): Falha ao carregar usuários para o formulário: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar o formulário de agendamento.', 'danger')
+        return redirect(url_for('scheduled_messages'))
+    finally:
+        if conn: conn.close()
+
+@app.route('/edit_scheduled_message/<int:message_id>', methods=['GET', 'POST'])
+def edit_scheduled_message(message_id):
+    """
+    Rota para editar uma mensagem agendada existente.
+    Permite exibir um formulário pré-preenchido (GET) e processar as atualizações (POST).
+    Requer que o usuário esteja logado.
+    """
+    print(f"DEBUG EDIT_SCHEDULED_MESSAGE: Requisição para /edit_scheduled_message/{message_id}. Method: {request.method}")
+
+    if not session.get('logged_in'):
+        flash('Por favor, faça login para acessar esta página.', 'warning')
+        return redirect(url_for('login'))
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute('SELECT * FROM scheduled_messages WHERE id = %s', (message_id,))
+            message = cur.fetchone()
+
+            if not message:
+                flash('Mensagem agendada não encontrada.', 'danger')
+                return redirect(url_for('scheduled_messages'))
+            
+            cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
+            users = cur.fetchall()
+
+            if request.method == 'POST':
+                message_text = request.form.get('message_text')
+                target_chat_id = request.form.get('target_chat_id')
+                image_url = request.form.get('image_url')
+                schedule_time_str = request.form.get('schedule_time')
+                status = request.form.get('status')
+
+                if not message_text or not schedule_time_str:
+                    flash('Texto da mensagem e tempo de agendamento são obrigatórios!', 'danger')
+                    return render_template('edit_scheduled_message.html', message=message, users=users)
+
+                try:
+                    schedule_time = datetime.strptime(schedule_time_str, '%Y-%m-%dT%H:%M')
+                except ValueError:
+                    flash('Formato de data/hora inválido. Use AAAA-MM-DDTHH:MM.', 'danger')
+                    return render_template('edit_scheduled_message.html', message=message, users=users)
+                
+                if target_chat_id == 'all_users':
+                    target_chat_id = None
+                else:
+                    try:
+                        target_chat_id = int(target_chat_id)
+                    except (ValueError, TypeError):
+                        flash('ID do chat de destino inválido.', 'danger')
+                        return render_template('edit_scheduled_message.html', message=message, users=users)
+
+                cur.execute(
+                    "UPDATE scheduled_messages SET message_text = %s, target_chat_id = %s, image_url = %s, schedule_time = %s, status = %s WHERE id = %s",
+                    (message_text, target_chat_id, image_url if image_url else None, schedule_time, status, message_id)
+                )
+                conn.commit()
+                print(f"DEBUG EDIT_SCHEDULED_MESSAGE: Mensagem agendada ID {message_id} atualizada com sucesso.")
+                flash('Mensagem agendada atualizada com sucesso!', 'success')
+                return redirect(url_for('scheduled_messages'))
+            
+            # GET request: Renderiza o formulário de edição com os dados da mensagem
+            # Formata a data para o formato esperado pelo input datetime-local
+            message['schedule_time_formatted'] = message['schedule_time'].strftime('%Y-%m-%dT%H:%M') if message['schedule_time'] else ''
+            return render_template('edit_scheduled_message.html', message=message, users=users)
+
+    except Exception as e:
+        print(f"ERRO EDIT_SCHEDULED_MESSAGE: Falha ao editar mensagem agendada: {e}")
+        traceback.print_exc()
+        flash('Erro ao editar mensagem agendada.', 'danger')
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('scheduled_messages'))
+    finally:
+        if conn: conn.close()
+
+@app.route('/delete_scheduled_message/<int:message_id>', methods=['POST'])
+def delete_scheduled_message(message_id):
+    """
+    Rota para deletar uma mensagem agendada.
+    Requer que o usuário esteja logado.
+    """
+    print(f"DEBUG DELETE_SCHEDULED_MESSAGE: Requisição para /delete_scheduled_message/{message_id}. Method: {request.method}")
+
+    if not session.get('logged_in'):
+        flash('Por favor, faça login para acessar esta página.', 'warning')
+        return redirect(url_for('login'))
+    
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute('DELETE FROM scheduled_messages WHERE id = %s', (message_id,))
+            conn.commit()
+            print(f"DEBUG DELETE_SCHEDULED_MESSAGE: Mensagem agendada ID {message_id} deletada com sucesso.")
+            flash('Mensagem agendada deletada com sucesso!', 'success')
+            return redirect(url_for('scheduled_messages'))
+    except Exception as e:
+        print(f"ERRO DELETE_SCHEDULED_MESSAGE: Falha ao deletar mensagem agendada: {e}")
+        traceback.print_exc()
+        flash('Erro ao deletar mensagem agendada.', 'danger')
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('scheduled_messages'))
+    finally:
+        if conn: conn.close()
+
 
 if __name__ == '__main__':
     # Inicializa o banco de dados e cria tabelas se não existirem
