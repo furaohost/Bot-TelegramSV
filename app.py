@@ -7,7 +7,8 @@ import time as time_module # Usado para time.sleep
 from datetime import datetime, timedelta, time
 from threading import Thread
 import sqlite3 # Explicitly imported for isinstance checks for SQLite
-
+import base64 # Added: Required for base64.b64decode in generar_cobranca
+import json # Added: Required for json.dumps in index
 
 # Importações Flask e Werkzeug
 from flask import (
@@ -28,27 +29,17 @@ from database.db_init import init_db
 import pagamentos
 
 # Importa os módulos de handlers e blueprints
-from bot.utils.keyboards import confirm_18_keyboard, menu_principal # This was in the first patch, so keeping it
-from bot.handlers.chamadas import register_chamadas_handlers # Assuming you want to keep this from first patch context
+from bot.utils.keyboards import confirm_18_keyboard, menu_principal
+from bot.handlers.chamadas import register_chamadas_handlers
 from bot.handlers.comunidades import register_comunidades_handlers
-from bot.handlers.ofertas import register_ofertas_handlers # Assuming you want to keep this from first patch context
-from bot.handlers.conteudos import register_conteudos_handlers # Assuming you want to keep this from first patch context
+from bot.handlers.ofertas import register_ofertas_handlers
+from bot.handlers.conteudos import register_conteudos_handlers
 from web.routes.comunidades import create_comunidades_blueprint
-
-# Se tiver outros handlers/blueprints de futuras Sprints, importe-os aqui:
-# from bot.handlers.chamadas import register_chamadas_handlers
-# from bot.handlers.ofertas import register_ofertas_handlers
-# from bot.handlers.conteudos import register_conteudos_handlers
 
 
 # ────────────────────────────────────────────────────────────────────
 # 1. CONFIGURAÇÃO INICIAL (Variáveis de Ambiente)
 # ────────────────────────────────────────────────────────────────────
-# Carrega variáveis de ambiente do ficheiro .env (apenas para desenvolvimento local)
-# Em produção (Render), as variáveis de ambiente são configuradas diretamente no serviço.
-from dotenv import load_dotenv
-load_dotenv() # Descomente para carregar .env localmente
-
 API_TOKEN = os.getenv('API_TOKEN')
 BASE_URL = os.getenv('BASE_URL')
 DATABASE_URL = os.getenv('DATABASE_URL')
@@ -56,7 +47,6 @@ FLASK_SECRET_KEY = os.getenv(
     'FLASK_SECRET_KEY',
     'uma_chave_padrao_muito_segura_e_longa_para_dev_local_1234567890' # Altere em produção!
 )
-# Mercado Pago Access Token
 MERCADOPAGO_ACCESS_TOKEN = os.getenv('MERCADOPAGO_ACCESS_TOKEN')
 
 
@@ -68,7 +58,6 @@ print(f"DEBUG: MERCADOPAGO_ACCESS_TOKEN lido: {'***' if MERCADOPAGO_ACCESS_TOKEN
 
 # Verifica se o API_TOKEN está configurado
 if not API_TOKEN:
-    # Use RuntimeError for critical errors in production, print for debug
     print("ERRO: A variável de ambiente 'API_TOKEN' não está definida. O bot não pode funcionar.")
     raise RuntimeError("API_TOKEN não configurado. O bot não pode funcionar.")
 
@@ -76,10 +65,8 @@ if not API_TOKEN:
 # ────────────────────────────────────────────────────────────────────
 # 2. FLASK & TELEBOT (Inicialização dos objetos principais)
 # ────────────────────────────────────────────────────────────────────
-# Inicializa a aplicação Flask, especificando os diretórios de templates e estáticos
-app = Flask(__name__, template_folder='web/templates', static_folder='web/static') # Keeping 'web/templates' as in HEAD
-app.secret_key = FLASK_SECRET_KEY # Chave secreta para sessões Flask
-# Inicializa o bot TeleBot. threaded=False é necessário para o uso com webhooks.
+app = Flask(__name__, template_folder='web/templates', static_folder='web/static')
+app.secret_key = FLASK_SECRET_KEY
 bot = telebot.TeleBot(API_TOKEN, threaded=False, parse_mode='Markdown')
 
 # ────────────────────────────────────────────────────────────────────
@@ -93,34 +80,32 @@ def get_or_register_user(user: types.User):
             print("ERRO DB: get_or_register_user - Não foi possível obter conexão com a base de dados.")
             return
 
-        with conn.cursor() as cur:
-            is_sqlite = isinstance(conn, sqlite3.Connection)
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        with conn: # Corrected: Use 'with conn' for transaction management and auto-closing
+            cur = conn.cursor() # Corrected: Get the cursor here, outside a 'with' statement
+
             # Verifica se o utilizador já existe
-            # The HEAD version's query was more concise and typical for both DBs.
             cur.execute("SELECT id, is_active FROM users WHERE id = %s" if not is_sqlite else "SELECT id, is_active FROM users WHERE id = ?", (user.id,))
             db_user = cur.fetchone()
 
             if db_user is None:
-                # The HEAD version relies on DB default for data_registro, which is better
                 cur.execute("INSERT INTO users (id, username, first_name, last_name, is_active) VALUES (%s, %s, %s, %s, %s)" if not is_sqlite else "INSERT INTO users (id, username, first_name, last_name, is_active) VALUES (?, ?, ?, ?, ?)",
                             (user.id, user.username, user.first_name, user.last_name, True))
-                conn.commit()
+                # conn.commit() # Removed: 'with conn:' handles commit
                 print(f"DEBUG DB: Novo utilizador registado: {user.username or user.first_name} (ID: {user.id})")
             else:
-                # Se o utilizador existe mas estava inativo, reativa-o
                 if not db_user['is_active']:
                     cur.execute("UPDATE users SET is_active = %s WHERE id = %s" if not is_sqlite else "UPDATE users SET is_active = ? WHERE id = ?", (True, user.id))
-                    conn.commit()
+                    # conn.commit() # Removed: 'with conn:' handles commit
                     print(f"DEBUG DB: Utilizador reativado: {user.username or user.first_name} (ID: {user.id})")
 
     except Exception as e:
         print(f"ERRO DB: get_or_register_user falhou: {e}")
-        traceback.print_exc() # Keep for full stack trace
-        if conn and not conn.closed:
-            conn.rollback() # Reverte a transação em caso de erro
+        traceback.print_exc()
+        # if conn and not conn.closed: conn.rollback() # Removed: 'with conn:' handles rollback
     finally:
         if conn:
-            conn.close()
+            conn.close() # Corrected: Use .close() method, not .closed attribute
 
 def enviar_produto_telegram(user_id, nome_produto, link_produto):
     url = f"https://api.telegram.org/bot{API_TOKEN}/sendMessage"
@@ -134,8 +119,6 @@ def enviar_produto_telegram(user_id, nome_produto, link_produto):
         print(f"ERRO: Falha ao enviar mensagem de entrega para {user_id}: {e}")
         traceback.print_exc()
 
-# This function was in the previous patch but not in the HEAD context here.
-# I'll include it assuming it's part of the bot's functionality.
 def mostrar_produtos_bot(chat_id):
     conn = None
     try:
@@ -145,7 +128,8 @@ def mostrar_produtos_bot(chat_id):
             return
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn.cursor() as cur:
+        with conn: # Corrected: Use 'with conn' here
+            cur = conn.cursor() # Corrected: Get the cursor here
             if is_sqlite:
                 cur.execute('SELECT * FROM produtos')
             else:
@@ -166,8 +150,6 @@ def mostrar_produtos_bot(chat_id):
     finally:
         if conn: conn.close()
 
-# This function was in the previous patch but not in the HEAD context here.
-# I'll include it assuming it's part of the bot's payment flow.
 def generar_cobranca(call: types.CallbackQuery, produto_id: int):
     user_id, chat_id = call.from_user.id, call.message.chat.id
     conn = None
@@ -179,7 +161,8 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
             return
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn.cursor() as cur:
+        with conn: # Corrected: Use 'with conn' here
+            cur = conn.cursor() # Corrected: Get the cursor here
             if is_sqlite:
                 cur.execute('SELECT * FROM produtos WHERE id = ?', (produto_id,))
             else:
@@ -190,22 +173,18 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
                 bot.send_message(chat_id, "Produto não encontrado.")
                 return
 
-            # Note: data_venda could use default CURRENT_TIMESTAMP in DB schema if defined
             data_venda = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             if is_sqlite:
                 cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (?, ?, ?, ?, ?)",
                             (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
-                # For SQLite, RETURNING ID isn't standard, rely on lastrowid if needed elsewhere
+                cur.execute("SELECT last_insert_rowid()") # For SQLite, get the last inserted row ID
+                venda_id = cur.fetchone()[0]
             else:
                 cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (%s, %s, %s, %s, %s) RETURNING id",
                             (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
-                venda_id = cur.fetchone()[0] # This will only work if RETURNING ID is supported and used
-
-            conn.commit()
-            if is_sqlite: # For SQLite, if you need venda_id immediately, you'd do:
-                cur.execute("SELECT last_insert_rowid()")
                 venda_id = cur.fetchone()[0]
 
+            # conn.commit() # Removed: 'with conn:' handles commit
 
             pagamento = pagamentos.criar_pagamento_pix(produto=produto, user=call.from_user, venda_id=venda_id)
 
@@ -230,7 +209,7 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
         print(f"ERRO GENERAR COBRANCA: Falha ao gerar cobrança/PIX: {e}")
         traceback.print_exc()
         bot.send_message(chat_id, "Ocorreu um erro interno ao gerar sua cobrança. Tente novamente.")
-        if conn and not conn.closed: conn.rollback()
+        # if conn and not conn.closed: conn.rollback() # Removed: 'with conn:' handles rollback
     finally:
         if conn: conn.close()
 
@@ -246,30 +225,26 @@ def format_datetime(value, format="%d/%m/%Y %H:%M:%S"):
     """
     if isinstance(value, str):
         try:
-            # Tenta analisar do formato ISO (usado por SQLite ou PostgreSQL TEXT)
-            # ou de outros formatos comummente usados
-            if 'T' in value and ('+' in value or value.count(':') == 3): # Ex: 2023-10-26T10:00:00.000000+00:00 or 2023-10-26 10:00:00.123456
-                dt_obj = datetime.fromisoformat(value.replace('Z', '+00:00') if value.endswith('Z') else value) # Handle 'Z' for UTC
-            elif ' ' in value and '.' in value: # Ex: 2023-10-26 10:00:00.123456
+            if 'T' in value and ('+' in value or value.count(':') == 3):
+                dt_obj = datetime.fromisoformat(value.replace('Z', '+00:00') if value.endswith('Z') else value)
+            elif ' ' in value and '.' in value:
                 dt_obj = datetime.strptime(value.split('.')[0], "%Y-%m-%d %H:%M:%S")
-            else: # Formato simples ISO 8601 sem milissegundos ou fuso horário
+            else:
                 dt_obj = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
         except ValueError:
-            return value # Retorna o valor original se não conseguir formatar
+            return value
     elif isinstance(value, datetime):
         dt_obj = value
     else:
-        return value # Retorna o valor original para outros tipos
+        return value
 
     return dt_obj.strftime(format)
 
-# Adiciona o filtro ao ambiente Jinja2 do Flask
 app.jinja_env.filters['datetimeformat'] = format_datetime
 
 # ────────────────────────────────────────────────────────────────────
 # 5. HANDLERS / BLUEPRINTS (Registro dos handlers do bot e blueprints Flask)
 # ────────────────────────────────────────────────────────────────────
-# These lines must be outside main function to be registered at startup
 register_chamadas_handlers(bot, get_db_connection)
 register_comunidades_handlers(bot, get_db_connection)
 register_ofertas_handlers(bot, get_db_connection)
@@ -287,11 +262,8 @@ def require_login():
     Middleware that checks if the user is logged in before accessing certain routes.
     Redirects to the login page if not authenticated.
     """
-    # List of endpoints that DO NOT require login
-    # 'static' for static files, 'telegram_webhook' for the bot, 'login' for the login page itself.
-    # 'None' can happen for favicon.ico and other requests without a defined endpoint.
     if request.endpoint in ['login', 'static', 'telegram_webhook', 'health_check', 'webhook_mercado_pago', 'reset_admin_password_route', None]:
-        return # Allow access
+        return
 
     if not session.get('logged_in'):
         print(f"DEBUG AUTH: Unauthorized access to '{request.path}'. Redirecting to login.")
@@ -317,10 +289,10 @@ def telegram_webhook():
     if request.headers.get('content-type') == 'application/json':
         json_str = request.get_data().decode('utf-8')
         update = types.Update.de_json(json_str)
-        bot.process_new_updates([update]) # Envia a atualização para o bot TeleBot processar
-        return '!', 200 # Responde OK para o Telegram
+        bot.process_new_updates([update])
+        return '!', 200
     else:
-        return "Unsupported Media Type", 415 # Retorna erro se o tipo de conteúdo não for JSON
+        return "Unsupported Media Type", 415
 
 @app.route('/webhook/mercado-pago', methods=['GET', 'POST'])
 def webhook_mercado_pago():
@@ -331,17 +303,15 @@ def webhook_mercado_pago():
     print(f"DEBUG WEBHOOK MP: Recebida requisição para /webhook/mercado-pago. Method: {request.method}")
 
     if request.method == 'GET':
-        # Responde a requisições GET (geralmente usadas pelo Mercado Pago para testar o webhook)
         print("DEBUG WEBHOOK MP: Requisição GET de teste do Mercado Pago recebida. Respondendo 200 OK.")
         return jsonify({'status': 'ok_test_webhook'}), 200
 
-    notification = request.json # Pega o corpo da requisição JSON
+    notification = request.json
     print(f"DEBUG WEBHOOK MP: Corpo da notificação POST: {notification}")
 
     if notification and notification.get('type') == 'payment':
         print(f"DEBUG WEBHOOK MP: Notificação de pagamento detetada. ID: {notification.get('data', {}).get('id')}")
         payment_id = notification['data']['id']
-        # Verifica o estado do pagamento diretamente com a API do Mercado Pago
         payment_info = pagamentos.verificar_status_pagamento(payment_id)
 
         print(f"DEBUG WEBHOOK MP: Estado do pagamento verificado: {payment_info.get('status') if payment_info else 'N/A'}")
@@ -355,27 +325,26 @@ def webhook_mercado_pago():
                     return jsonify({'status': 'db_connection_error'}), 500
 
                 is_sqlite = isinstance(conn, sqlite3.Connection)
-                with conn.cursor() as cur:
+                with conn: # Corrected: Use 'with conn' here
+                    cur = conn.cursor() # Corrected: Get the cursor here
                     venda_id = payment_info.get('external_reference')
                     print(f"DEBUG WEBHOOK MP: Pagamento aprovado. Venda ID (external_reference): {venda_id}")
 
-                if not venda_id:
-                    print("DEBUG WEBHOOK MP: external_reference não encontrado na notificação. Ignorando.")
-                    return jsonify({'status': 'ignored_no_external_ref'}), 200
+                    if not venda_id:
+                        print("DEBUG WEBHOOK MP: external_reference não encontrado na notificação. Ignorando.")
+                        return jsonify({'status': 'ignored_no_external_ref'}), 200
 
-                    # Fetch the sale and check its status
                     cur.execute('SELECT * FROM vendas WHERE id = %s AND status = %s' if not is_sqlite else 'SELECT * FROM vendas WHERE id = ? AND status = ?', (venda_id, 'pendente'))
                     venda = cur.fetchone()
 
                     if venda:
                         print(f"DEBUG WEBHOOK MP: Venda {venda_id} encontrada no DB com status 'pendente'.")
-                        # Handle potential string datetime from SQLite vs datetime object from psycopg2
                         data_venda_dt = datetime.fromisoformat(venda['data_venda']) if isinstance(venda['data_venda'], str) else venda['data_venda']
 
                         if datetime.now() > data_venda_dt + timedelta(hours=1):
                             print(f"DEBUG WEBHOOK MP: Pagamento recebido para venda expirada (ID: {venda_id}). Ignorando entrega.")
                             cur.execute('UPDATE vendas SET status = %s WHERE id = %s' if not is_sqlite else 'UPDATE vendas SET status = ? WHERE id = ?', ('expirado', venda_id))
-                            conn.commit()
+                            # conn.commit() # Removed: 'with conn:' handles commit
                             return jsonify({'status': 'expired_and_ignored'}), 200
 
                         payer_info = payment_info.get('payer', {})
@@ -383,7 +352,7 @@ def webhook_mercado_pago():
                         payer_email = payer_info.get('email')
                         cur.execute('UPDATE vendas SET status = %s, payment_id = %s, payer_name = %s, payer_email = %s WHERE id = %s' if not is_sqlite else 'UPDATE vendas SET status = ?, payment_id = ?, payer_name = ?, payer_email = ? WHERE id = ?',
                                     ('aprovado', payment_id, payer_name, payer_email, venda_id))
-                        conn.commit()
+                        # conn.commit() # Removed: 'with conn:' handles commit
 
                         cur.execute('SELECT * FROM produtos WHERE id = %s' if not is_sqlite else 'SELECT * FROM produtos WHERE id = ?', (venda['produto_id'],))
                         produto = cur.fetchone()
@@ -398,8 +367,8 @@ def webhook_mercado_pago():
             except Exception as e:
                 print(f"ERRO WEBHOOK MP: Erro no processamento da notificação de pagamento: {e}")
                 traceback.print_exc()
-                if conn and not conn.closed:
-                    conn.rollback() # Reverte a transação em caso de erro
+                # if conn and not conn.closed: # Removed: 'with conn:' handles rollback
+                #     conn.rollback()
                 return jsonify({'status': 'error_processing_webhook'}), 500
             finally:
                 if conn: conn.close()
@@ -414,7 +383,6 @@ def webhook_mercado_pago():
 def login():
     print(f"DEBUG LOGIN: Requisição para /login. Method: {request.method}")
 
-    # If already logged in, redirect to the main page (index)
     if session.get('logged_in'):
         print("DEBUG LOGIN: User already logged in. Redirecting to index.")
         return redirect(url_for('index'))
@@ -426,11 +394,12 @@ def login():
         try:
             conn = get_db_connection()
             if conn is None:
-                flash('Erro de conexão com a base de dados.', 'error') # Usar 'error' para estilização com Tailwind
+                flash('Erro de conexão com a base de dados.', 'error')
                 return render_template('login.html')
 
             is_sqlite = isinstance(conn, sqlite3.Connection)
-            with conn.cursor() as cur:
+            with conn: # Corrected: Use 'with conn' here
+                cur = conn.cursor() # Corrected: Get the cursor here
                 if is_sqlite:
                     cur.execute('SELECT * FROM admin WHERE username = ?', (username,))
                 else:
@@ -451,8 +420,8 @@ def login():
             print(f"ERRO LOGIN: Falha no processo de login: {e}")
             traceback.print_exc()
             flash('Erro no servidor ao tentar login.', 'error')
-            if conn and not conn.closed:
-                conn.rollback()
+            # if conn and not conn.closed: # Removed: 'with conn:' handles rollback
+            #     conn.rollback()
         finally:
             if conn: conn.close()
 
@@ -479,7 +448,8 @@ def reset_admin_password_route():
             return f"<h1>Error</h1><p>Database connection error.</p>", 500
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn.cursor() as cur:
+        with conn: # Corrected: Use 'with conn' here
+            cur = conn.cursor() # Corrected: Get the cursor here
             if is_sqlite:
                 cur.execute("UPDATE admin SET password_hash = ? WHERE username = ?", (hashed_password, USERNAME_TO_RESET))
             else:
@@ -491,12 +461,12 @@ def reset_admin_password_route():
                     cur.execute("INSERT INTO admin (username, password_hash) VALUES (?, ?)", (USERNAME_TO_RESET, hashed_password))
                 else:
                     cur.execute("INSERT INTO admin (username, password_hash) VALUES (%s, %s)", (USERNAME_TO_RESET, hashed_password))
-                conn.commit()
+                # conn.commit() # Removed: 'with conn:' handles commit
                 message = f"User '{USERNAME_TO_RESET}' not found. A new user was created with the default password. PLEASE, REMOVE THIS ROUTE NOW!"
                 print(f"[SUCCESS RESET] {message}")
                 return f"<h1>Success</h1><p>{message}</p>", 200
 
-            conn.commit()
+            # conn.commit() # Removed: 'with conn:' handles commit
             message = f"Password for user '{USERNAME_TO_RESET}' has been reset successfully. PLEASE, REMOVE THIS ROUTE FROM 'app.py' IMMEDIATELY!"
             print(f"[SUCCESS RESET] {message}")
             return f"<h1>Success</h1><p>{message}</p>", 200
@@ -505,7 +475,7 @@ def reset_admin_password_route():
         error_message = f"An error occurred while resetting the password: {e}"
         print(f"ERRO RESET: {error_message}")
         traceback.print_exc()
-        if conn and not conn.closed: conn.rollback()
+        # if conn and not conn.closed: conn.rollback() # Removed: 'with conn:' handles rollback
         return f"<h1>Error</h1><p>{error_message}</p>", 500
     finally:
         if conn:
@@ -539,13 +509,14 @@ def index():
     try:
         conn = get_db_connection()
         if conn is None:
-            flash('Erro de conexão com o banco de dados.', 'danger') # Consistent with previous 'danger'
+            flash('Erro de conexão com o banco de dados.', 'danger')
             return redirect(url_for('login'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn.cursor() as cur:
+        with conn: # Corrected: Use 'with conn' here
+            cur = conn.cursor() # Corrected: Get the cursor here
             # Total users
-            cur.execute('SELECT COUNT(id) AS count FROM users WHERE is_active = TRUE' if not is_sqlite else 'SELECT COUNT(id) FROM users WHERE is_active = 1')
+            cur.execute('SELECT COUNT(id) AS count FROM users WHERE is_active = TRUE' if not is_sqlite else 'SELECT COUNT(id) AS count FROM users WHERE is_active = 1')
             total_usuarios_row = cur.fetchone()
             total_usuarios = total_usuarios_row['count'] if total_usuarios_row and 'count' in total_usuarios_row and total_usuarios_row['count'] is not None else 0
 
@@ -559,10 +530,9 @@ def index():
             vendas_data_row = cur.fetchone()
             total_vendas_aprovadas = vendas_data_row['count'] if vendas_data_row and 'count' in vendas_data_row and vendas_data_row['count'] is not None else 0
             receita_total = float(vendas_data_row['sum']) if vendas_data_row and 'sum' in vendas_data_row and vendas_data_row['sum'] is not None else 0.0
-            print(f"DEBUG INDEX: total_vendas_aprovadas: {total_vendas_aprovadas}, receita_total: {receita_total}") # Corrected typo here
+            print(f"DEBUG INDEX: total_vendas_aprovadas: {total_vendas_aprovadas}, receita_total: {receita_total}")
 
             # Recent sales (LIMIT 5)
-            # The CASE WHEN logic for 'expired' status is adapted for SQLite and PostgreSQL
             if is_sqlite:
                 cur.execute("""
                     SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, p.id AS produto_id,
@@ -587,13 +557,12 @@ def index():
 
             # Data for daily revenue chart (last 7 days)
             chart_labels, chart_data = [], []
-            today_date = datetime.now().date() # Just the date
-            for i in range(6, -1, -1): # Loop for 7 days (today to 6 days ago)
+            today_date = datetime.now().date()
+            for i in range(6, -1, -1):
                 day = today_date - timedelta(days=i)
-                # Define start and end of the day for the query
                 start_of_day = datetime.combine(day, time.min)
                 end_of_day = datetime.combine(day, time.max)
-                chart_labels.append(day.strftime('%d/%m')) # Label format (day/month)
+                chart_labels.append(day.strftime('%d/%m'))
 
                 if is_sqlite:
                     cur.execute(
@@ -618,20 +587,20 @@ def index():
                 total_produtos=total_produtos,
                 receita_total=receita_total,
                 vendas_recentes=vendas_recentes,
-                chart_labels=json.dumps(chart_labels), # JSON.dumps to pass to JS
-                chart_data=json.dumps(chart_data)      # JSON.dumps to pass to JS
+                chart_labels=json.dumps(chart_labels),
+                chart_data=json.dumps(chart_data)
             )
     except Exception as e:
         print(f"ERRO INDEX: Falha ao renderizar o dashboard: {e}")
         traceback.print_exc()
-        flash('Erro ao carregar o dashboard.', 'danger') # Consistent with previous 'danger'
-        return redirect(url_for('login')) # Redirect to login in case of severe error
+        flash('Erro ao carregar o dashboard.', 'danger')
+        return redirect(url_for('login'))
     finally:
         if conn:
             conn.close()
 
 
-@app.route('/produtos')
+@app.route('/produtos', methods=['GET', 'POST']) # Corrected: Added 'POST' method here
 def produtos():
     """
     Route for managing products (add, list, edit, delete).
@@ -646,16 +615,16 @@ def produtos():
             return redirect(url_for('index'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn.cursor() as cur:
+        with conn: # Corrected: Use 'with conn' here
+            cur = conn.cursor() # Corrected: Get the cursor here
             if request.method == 'POST':
-                # This block handles ADDING a product (from the form on produtos.html)
                 nome = request.form.get('nome').strip()
                 preco_str = request.form.get('preco')
                 link = request.form.get('link').strip()
 
                 if not nome or not preco_str or not link:
                     flash('Todos os campos (Nome, Preço, Link) são obrigatórios.', 'danger')
-                    return redirect(url_for('produtos', nome_val=nome, preco_val=preco_str, link_val=link)) # Redirect with values for re-population
+                    return redirect(url_for('produtos', nome_val=nome, preco_val=preco_str, link_val=link))
                 try:
                     preco = float(preco_str)
                     if preco <= 0:
@@ -669,7 +638,7 @@ def produtos():
                     cur.execute('INSERT INTO produtos (nome, preco, link) VALUES (?, ?, ?)', (nome, preco, link))
                 else:
                     cur.execute('INSERT INTO produtos (nome, preco, link) VALUES (%s, %s, %s)', (nome, preco, link))
-                conn.commit()
+                # conn.commit() # Removed: 'with conn:' handles commit
                 flash('Produto adicionado com sucesso!', 'success')
                 return redirect(url_for('produtos'))
 
@@ -686,8 +655,8 @@ def produtos():
         print(f"ERRO PRODUTOS: Falha ao gerenciar produtos: {e}")
         traceback.print_exc()
         flash('Erro ao carregar ou adicionar produtos.', 'danger')
-        if conn and not conn.closed:
-            conn.rollback()
+        # if conn and not conn.closed: # Removed: 'with conn:' handles rollback
+        #     conn.rollback()
         return redirect(url_for('index'))
     finally:
         if conn:
@@ -709,7 +678,8 @@ def editar_produto(produto_id):
             return redirect(url_for('produtos'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn.cursor() as cur:
+        with conn: # Corrected: Use 'with conn' here
+            cur = conn.cursor() # Corrected: Get the cursor here
             if request.method == 'POST':
                 nome = request.form.get('nome').strip()
                 preco_str = request.form.get('preco')
@@ -732,7 +702,7 @@ def editar_produto(produto_id):
                     cur.execute("UPDATE produtos SET nome = ?, preco = ?, link = ? WHERE id = ?", (nome, preco, link, produto_id))
                 else:
                     cur.execute("UPDATE produtos SET nome = %s, preco = %s, link = %s WHERE id = %s", (nome, preco, link, produto_id))
-                conn.commit()
+                # conn.commit() # Removed: 'with conn:' handles commit
                 print(f"DEBUG EDITAR_PRODUTO: Produto ID {produto_id} atualizado com sucesso.")
                 flash('Produto atualizado com sucesso!', 'success')
                 return redirect(url_for('produtos'))
@@ -747,7 +717,6 @@ def editar_produto(produto_id):
                     flash('Produto não encontrado.', 'danger')
                     return redirect(url_for('produtos'))
 
-                # Pre-fill form values for GET request if they are not explicitly in request.form
                 return render_template('edit_product.html',
                                        produto=produto,
                                        nome_val=produto['nome'],
@@ -758,8 +727,7 @@ def editar_produto(produto_id):
         print(f"ERRO EDIT PRODUTO: Falha ao editar produto: {e}")
         traceback.print_exc()
         flash('Erro ao editar produto.', 'danger')
-        if conn and not conn.closed: conn.rollback()
-        # Try to return to produtos page, possibly with current form values if available
+        # if conn and not conn.closed: conn.rollback() # Removed: 'with conn:' handles rollback
         return redirect(url_for('produtos', edit_id=produto_id,
                                 nome_val=request.form.get('nome', ''),
                                 preco_val=request.form.get('preco', ''),
@@ -783,7 +751,8 @@ def deletar_produto(produto_id):
             return redirect(url_for('produtos'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn.cursor() as cur:
+        with conn: # Corrected: Use 'with conn' here
+            cur = conn.cursor() # Corrected: Get the cursor here
             if is_sqlite:
                 cur.execute('SELECT id FROM produtos WHERE id = ?', (produto_id,))
             else:
@@ -796,7 +765,7 @@ def deletar_produto(produto_id):
                 cur.execute('DELETE FROM produtos WHERE id = ?', (produto_id,))
             else:
                 cur.execute('DELETE FROM produtos WHERE id = %s', (produto_id,))
-            conn.commit()
+            # conn.commit() # Removed: 'with conn:' handles commit
             print(f"DEBUG DELETAR_PRODUTO: Produto ID {produto_id} deletado com sucesso.")
             flash('Produto deletado com sucesso!', 'success')
             return redirect(url_for('produtos'))
@@ -804,8 +773,8 @@ def deletar_produto(produto_id):
         print(f"ERRO REMOVER PRODUTO: Falha ao remover produto: {e}")
         traceback.print_exc()
         flash('Erro ao remover produto.', 'error')
-        if conn and not conn.closed:
-            conn.rollback()
+        # if conn and not conn.closed: # Removed: 'with conn:' handles rollback
+        #     conn.rollback()
         return redirect(url_for('produtos'))
     finally:
         if conn: conn.close()
@@ -826,7 +795,8 @@ def vendas():
             return redirect(url_for('index'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn.cursor() as cur:
+        with conn: # Corrected: Use 'with conn' here
+            cur = conn.cursor() # Corrected: Get the cursor here
             # Fetch available products for the filter
             cur.execute('SELECT id, nome FROM produtos ORDER BY nome')
             produtos_disponiveis = cur.fetchall()
@@ -861,14 +831,12 @@ def vendas():
             conditions = []
             params = []
 
-            # Filter parameters from GET request
             data_inicio_str = request.args.get('data_inicio')
             data_fim_str = request.args.get('data_fim')
             pesquisa_str = request.args.get('pesquisa')
             produto_id_str = request.args.get('produto_id')
             status_str = request.args.get('status')
 
-            # Add conditions to the base query based on filters
             if data_inicio_str:
                 conditions.append("DATE(v.data_venda) >= %s" if not is_sqlite else "DATE(v.data_venda) >= ?")
                 params.append(data_inicio_str)
@@ -882,7 +850,6 @@ def vendas():
                 conditions.append("p.id = %s" if not is_sqlite else "p.id = ?")
                 params.append(int(produto_id_str))
             if status_str:
-                # Need to handle 'expirado' status for filtering which is a computed column
                 if status_str == 'expirado':
                     if is_sqlite:
                         conditions.append("(v.status = 'pendente' AND (strftime('%s', 'now') - strftime('%s', v.data_venda)) > 3600)")
@@ -895,7 +862,6 @@ def vendas():
             if conditions:
                 query_base += " WHERE " + " AND ".join(conditions)
 
-            # Ordering
             query_base += " ORDER BY v.id DESC"
 
             cur.execute(query_base, tuple(params))
@@ -905,8 +871,8 @@ def vendas():
         print(f"ERRO VENDAS: Falha ao carregar vendas para o dashboard: {e}")
         traceback.print_exc()
         flash('Erro ao carregar as vendas.', 'danger')
-        if conn and not conn.closed:
-            conn.rollback()
+        # if conn and not conn.closed: # Removed: 'with conn:' handles rollback
+        #     conn.rollback()
         return redirect(url_for('index'))
     finally:
         if conn:
@@ -925,7 +891,8 @@ def venda_detalhes(id):
             return jsonify({'error': 'Erro de conexão com o banco de dados'}), 500
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn.cursor() as cur:
+        with conn: # Corrected: Use 'with conn' here
+            cur = conn.cursor() # Corrected: Get the cursor here
             if is_sqlite:
                 cur.execute('SELECT * FROM vendas WHERE id = ?', (id,))
             else:
@@ -933,8 +900,6 @@ def venda_detalhes(id):
 
             venda = cur.fetchone()
             if venda:
-                # Convert Row/RealDictRow object to a dictionary for jsonify
-                # Ensure that fields like data_venda are JSON serializable
                 venda_dict = dict(venda)
                 if 'data_venda' in venda_dict and isinstance(venda_dict['data_venda'], datetime):
                     venda_dict['data_venda'] = venda_dict['data_venda'].isoformat()
@@ -960,7 +925,8 @@ def usuarios():
             return redirect(url_for('index'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn.cursor() as cur:
+        with conn: # Corrected: Use 'with conn' here
+            cur = conn.cursor() # Corrected: Get the cursor here
             if is_sqlite:
                 cur.execute('SELECT * FROM users ORDER BY data_registro DESC')
             else:
@@ -974,8 +940,8 @@ def usuarios():
         print(f"ERRO UTILIZADORES: Falha ao carregar utilizadores: {e}")
         traceback.print_exc()
         flash('Erro ao carregar utilizadores.', 'error')
-        if conn and not conn.closed:
-            conn.rollback()
+        # if conn and not conn.closed: # Removed: 'with conn:' handles rollback
+        #     conn.rollback()
         return redirect(url_for('index'))
     finally:
         if conn:
@@ -993,7 +959,8 @@ def toggle_user_status(user_id):
             return redirect(url_for('usuarios'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn.cursor() as cur:
+        with conn: # Corrected: Use 'with conn' here
+            cur = conn.cursor() # Corrected: Get the cursor here
             if is_sqlite:
                 cur.execute('SELECT is_active FROM users WHERE id = ?', (user_id,))
             else:
@@ -1009,7 +976,7 @@ def toggle_user_status(user_id):
                 cur.execute('UPDATE users SET is_active = ? WHERE id = ?', (new_status, user_id))
             else:
                 cur.execute('UPDATE users SET is_active = %s WHERE id = %s', (new_status, user_id))
-            conn.commit()
+            # conn.commit() # Removed: 'with conn:' handles commit
 
             status_text = "ativado" if new_status else "desativado"
             print(f"DEBUG TOGGLE_USER_STATUS: Usuário {user_id} {status_text} com sucesso.")
@@ -1019,8 +986,8 @@ def toggle_user_status(user_id):
         print(f"ERRO REMOVER UTILIZADOR: Falha ao remover utilizador: {e}")
         traceback.print_exc()
         flash('Erro ao remover utilizador.', 'error')
-        if conn and not conn.closed:
-            conn.rollback()
+        # if conn and not conn.closed: # Removed: 'with conn:' handles rollback
+        #     conn.rollback()
         return redirect(url_for('usuarios'))
     finally:
         if conn: conn.close()
@@ -1033,11 +1000,12 @@ def scheduled_messages():
     try:
         conn = get_db_connection()
         if conn is None:
-            flash('Erro de conexão com a base de dados.', 'error')
+            flash('Erro de conexão com o banco de dados.', 'error')
             return redirect(url_for('login'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn.cursor() as cur:
+        with conn: # Corrected: Use 'with conn' here
+            cur = conn.cursor() # Corrected: Get the cursor here
             if is_sqlite:
                 cur.execute("""
                     SELECT
@@ -1078,36 +1046,32 @@ def scheduled_messages():
         print(f"ERRO CONFIG MENSAGENS: Falha ao configurar mensagens: {e}")
         traceback.print_exc()
         flash('Erro ao carregar ou atualizar mensagens.', 'error')
-        if conn and not conn.closed:
-            conn.rollback()
+        # if conn and not conn.closed: # Removed: 'with conn:' handles rollback
+        #     conn.rollback()
         return redirect(url_for('index'))
     finally:
         if conn: conn.close()
 
-# ────────────────────────────────────────────────────────────────────
-# 6. COMANDOS DO BOT TELEGRAM
-# ────────────────────────────────────────────────────────────────────
-
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    """
-    Handler para o comando /start. Regista o utilizador e envia uma mensagem de boas-vindas.
-    """
-    get_or_register_user(message.from_user) # Garante que o utilizador está na DB
+# Corrected: New Flask Route for adding scheduled messages (moved from send_welcome)
+@app.route('/add_scheduled_message', methods=['GET', 'POST'])
+def add_scheduled_message():
+    print(f"DEBUG ADD_SCHEDULED_MESSAGE: Requisição para /add_scheduled_message. Method: {request.method}")
 
     if not session.get('logged_in'):
         flash('Por favor, faça login para acessar esta página.', 'warning')
         return redirect(url_for('login'))
 
     conn = None
+    users = [] # Initialize users list
     try:
         conn = get_db_connection()
         if conn is None:
-            bot.reply_to(message, "Ocorreu um erro ao iniciar o bot. Tente novamente mais tarde.")
-            return
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('scheduled_messages'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn.cursor() as cur:
+        with conn: # Corrected: Use 'with conn' here for fetching users
+            cur = conn.cursor() # Corrected: Get the cursor here
             if is_sqlite:
                 cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
             else:
@@ -1135,7 +1099,7 @@ def send_welcome(message):
                 return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
 
             if target_chat_id == 'all_users':
-                target_chat_id_db = None # Use None for 'all users' in DB
+                target_chat_id_db = None
             else:
                 try:
                     target_chat_id_db = int(target_chat_id)
@@ -1143,35 +1107,37 @@ def send_welcome(message):
                     flash('ID do chat de destino inválido.', 'danger')
                     return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
 
-            cur_conn_for_insert = get_db_connection() # Use a new connection for the insert
-            if cur_conn_for_insert is None:
+            insert_conn = get_db_connection() # Get a separate connection for the insert
+            if insert_conn is None:
                 flash('Erro de conexão com o banco de dados.', 'danger')
                 return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
 
             try:
-                with cur_conn_for_insert.cursor() as cur_inner:
+                with insert_conn: # Corrected: Use 'with' for the insert connection too
+                    insert_cur = insert_conn.cursor() # Corrected: Get the cursor here
                     if is_sqlite:
-                        cur_inner.execute(
+                        insert_cur.execute(
                             "INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, schedule_time, status) VALUES (?, ?, ?, ?, ?)",
                             (message_text, target_chat_id_db, image_url if image_url else None, schedule_time, 'pending')
                         )
                     else:
-                        cur_inner.execute(
+                        insert_cur.execute(
                             "INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, schedule_time, status) VALUES (%s, %s, %s, %s, %s)",
                             (message_text, target_chat_id_db, image_url if image_url else None, schedule_time, 'pending')
                         )
-                    cur_conn_for_insert.commit()
+                    # insert_conn.commit() # Removed: 'with insert_conn:' handles commit
                 flash('Mensagem agendada com sucesso!', 'success')
                 return redirect(url_for('scheduled_messages'))
             except Exception as e:
                 print(f"ERRO ADD_SCHEDULED_MESSAGE: Falha ao adicionar mensagem agendada: {e}")
                 traceback.print_exc()
                 flash('Erro ao agendar mensagem.', 'danger')
-                if cur_conn_for_insert and not cur_conn_for_insert.closed: cur_conn_for_insert.rollback()
+                # if insert_conn and not insert_conn.closed: # Removed: 'with insert_conn:' handles rollback
+                #     insert_conn.rollback()
                 return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
             finally:
-                if cur_conn_for_insert: cur_conn_for_insert.close()
-
+                if insert_conn: insert_conn.close() # Ensure the insert connection is closed
+        # GET request for the form
         return render_template('add_scheduled_message.html', users=users)
 
     except Exception as e: # This handles exceptions from the initial GET request (e.g., fetching users)
@@ -1181,6 +1147,7 @@ def send_welcome(message):
         return redirect(url_for('scheduled_messages'))
     finally:
         if conn: conn.close()
+
 
 @app.route('/edit_scheduled_message/<int:message_id>', methods=['GET', 'POST'])
 def edit_scheduled_message(message_id):
@@ -1194,7 +1161,8 @@ def edit_scheduled_message(message_id):
             return redirect(url_for('scheduled_messages', error='edit_db_connection_error'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn.cursor() as cur:
+        with conn: # Corrected: Use 'with conn' here
+            cur = conn.cursor() # Corrected: Get the cursor here
             if is_sqlite:
                 cur.execute('SELECT * FROM scheduled_messages WHERE id = ?', (message_id,))
             else:
@@ -1247,14 +1215,13 @@ def edit_scheduled_message(message_id):
                         "UPDATE scheduled_messages SET message_text = %s, target_chat_id = %s, image_url = %s, schedule_time = %s, status = %s WHERE id = %s",
                         (message_text, target_chat_id_db, image_url if image_url else None, schedule_time, status, message_id)
                     )
-                conn.commit()
+                # conn.commit() # Removed: 'with conn:' handles commit
                 print(f"DEBUG EDIT_SCHEDULED_MESSAGE: Mensagem agendada ID {message_id} atualizada com sucesso.")
                 flash('Mensagem agendada atualizada com sucesso!', 'success')
                 return redirect(url_for('scheduled_messages'))
 
             # For GET request, format the schedule_time for the form
             message['schedule_time_formatted'] = message['schedule_time'].strftime('%Y-%m-%dT%H:%M') if message['schedule_time'] else ''
-            # Ensure target_chat_id is correctly set for the dropdown
             message['target_chat_id_selected'] = message['target_chat_id'] if message['target_chat_id'] is not None else 'all_users'
             return render_template('edit_scheduled_message.html', message=message, users=users)
 
@@ -1262,7 +1229,7 @@ def edit_scheduled_message(message_id):
         print(f"ERRO EDIT_SCHEDULED_MESSAGE: Falha ao editar mensagem agendada: {e}")
         traceback.print_exc()
         flash('Erro ao editar mensagem agendada.', 'danger')
-        if conn and not conn.closed: conn.rollback()
+        # if conn and not conn.closed: conn.rollback() # Removed: 'with conn:' handles rollback
         return redirect(url_for('scheduled_messages'))
     finally:
         if conn: conn.close()
@@ -1279,12 +1246,13 @@ def delete_scheduled_message(message_id):
             return redirect(url_for('scheduled_messages', error='delete_db_connection_error'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn.cursor() as cur:
+        with conn: # Corrected: Use 'with conn' here
+            cur = conn.cursor() # Corrected: Get the cursor here
             if is_sqlite:
                 cur.execute('DELETE FROM scheduled_messages WHERE id = ?', (message_id,))
             else:
                 cur.execute('DELETE FROM scheduled_messages WHERE id = %s', (message_id,))
-            conn.commit()
+            # conn.commit() # Removed: 'with conn:' handles commit
             print(f"DEBUG DELETE_SCHEDULE_MESSAGE: Mensagem agendada ID {message_id} deletada com sucesso.")
             flash('Mensagem agendada deletada com sucesso!', 'success')
             return redirect(url_for('scheduled_messages'))
@@ -1292,7 +1260,7 @@ def delete_scheduled_message(message_id):
         print(f"ERRO DELETE_SCHEDULE_MESSAGE: Falha ao deletar mensagem agendada: {e}")
         traceback.print_exc()
         flash('Erro ao deletar mensagem agendada.', 'danger')
-        if conn and not conn.closed: conn.rollback()
+        # if conn and not conn.closed: conn.rollback() # Removed: 'with conn:' handles rollback
         return redirect(url_for('scheduled_messages'))
     finally:
         if conn: conn.close()
@@ -1309,7 +1277,8 @@ def send_broadcast():
             return redirect(url_for('index', error='broadcast_db_connection_error'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn.cursor() as cur:
+        with conn: # Corrected: Use 'with conn' here
+            cur = conn.cursor() # Corrected: Get the cursor here
             if is_sqlite:
                 cur.execute('SELECT id, username, first_name FROM users WHERE is_active = 1 ORDER BY username ASC')
             else:
@@ -1322,20 +1291,20 @@ def send_broadcast():
 
             if not message_text:
                 flash('O texto da mensagem é obrigatório para o broadcast!', 'danger')
-                return render_template('send_broadcast.html', active_users=active_users, message_text_val=message_text, image_url_val=image_url) # Preserve entered values
+                return render_template('send_broadcast.html', active_users=active_users, message_text_val=message_text, image_url_val=image_url)
 
             sent_count = 0
             failed_count = 0
 
-            # Use a new connection for sending to avoid issues with current cursor
-            cur_conn_send = get_db_connection()
+            cur_conn_send = get_db_connection() # Get a new connection for sending
             if cur_conn_send is None:
                 flash('Erro de conexão com o banco de dados.', 'danger')
                 return render_template('send_broadcast.html', active_users=active_users, message_text_val=message_text, image_url_val=image_url)
 
             try:
-                with cur_conn_send.cursor() as cur_send:
-                    if is_sqlite:
+                with cur_conn_send: # Corrected: Use 'with' for the send connection too
+                    cur_send = cur_conn_send.cursor() # Corrected: Get the cursor here
+                    if is_sqlite: # Assuming is_sqlite is still valid from the outer scope
                         cur_send.execute("SELECT id FROM users WHERE is_active = 1")
                     else:
                         cur_send.execute("SELECT id FROM users WHERE is_active = TRUE")
@@ -1355,17 +1324,18 @@ def send_broadcast():
                                 print(f"AVISO: Usuário {user_id} blocked/not found during broadcast. Deactivating...")
                                 temp_conn_update = get_db_connection() # Get yet another connection for user update
                                 if temp_conn_update:
-                                    temp_is_sqlite = isinstance(temp_conn_update, sqlite3.Connection)
+                                    temp_is_sqlite = isinstance(temp_conn_update, sqlite3.Connection) # Assuming is_sqlite is valid
                                     try:
-                                        with temp_conn_update.cursor() as cur_u:
+                                        with temp_conn_update: # Corrected: Use 'with' for this temporary connection
+                                            cur_u = temp_conn_update.cursor() # Corrected: Get the cursor here
                                             if temp_is_sqlite:
                                                 cur_u.execute("UPDATE users SET is_active=0 WHERE id=?", (user_id,))
                                             else:
                                                 cur_u.execute("UPDATE users SET is_active=FALSE WHERE id=%s", (user_id,))
-                                            temp_conn_update.commit()
+                                            # temp_conn_update.commit() # Removed: Handled by 'with temp_conn_update:'
                                     except Exception as db_e:
                                         print(f"ERRO inactivating user {user_id} during broadcast: {db_e}")
-                                        if temp_conn_update: temp_conn_update.rollback()
+                                        # if temp_conn_update: temp_conn_update.rollback() # Removed: Handled by 'with temp_conn_update:'
                                     finally:
                                         if temp_conn_update: temp_conn_update.close()
                             failed_count += 1
@@ -1380,14 +1350,15 @@ def send_broadcast():
                 print(f"ERRO SEND_BROADCAST (send logic): {e}")
                 traceback.print_exc()
                 flash('Ocorreu um erro ao tentar enviar o broadcast.', 'danger')
-                if cur_conn_send and not cur_conn_send.closed: cur_conn_send.rollback()
-                return render_template('send_broadcast.html', active_users=active_users, message_text_val=message_text, image_url_val=image_url) # Preserve on error
+                # if cur_conn_send and not cur_conn_send.closed: # Removed: 'with cur_conn_send:' handles rollback
+                #     cur_conn_send.rollback()
+                return render_template('send_broadcast.html', active_users=active_users, message_text_val=message_text, image_url_val=image_url)
             finally:
                 if cur_conn_send: cur_conn_send.close()
 
         return render_template('send_broadcast.html', active_users=active_users)
 
-    except Exception as e: # This handles exceptions from the initial GET request (e.g., fetching users)
+    except Exception as e:
         print(f"ERRO SEND_BROADCAST (GET): Falha ao carregar usuários para o formulário: {e}")
         traceback.print_exc()
         flash('Erro ao carregar a página de broadcast.', 'danger')
@@ -1407,12 +1378,13 @@ def config_messages():
             return redirect(url_for('index'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn.cursor() as cur:
+        with conn: # Corrected: Use 'with conn' here
+            cur = conn.cursor() # Corrected: Get the cursor here
             if request.method == 'POST':
                 welcome_bot_message = request.form.get('welcome_message_bot')
                 welcome_community_message = request.form.get('welcome_message_community')
 
-                if welcome_bot_message is not None: # Use is not None to allow empty string
+                if welcome_bot_message is not None:
                     if is_sqlite:
                         cur.execute(
                             "INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value;",
@@ -1423,7 +1395,7 @@ def config_messages():
                             "INSERT INTO config (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;",
                             ('welcome_message_bot', welcome_bot_message)
                         )
-                if welcome_community_message is not None: # Use is not None
+                if welcome_community_message is not None:
                     if is_sqlite:
                         cur.execute(
                             "INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value;",
@@ -1434,7 +1406,7 @@ def config_messages():
                             "INSERT INTO config (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;",
                             ('welcome_message_community', welcome_community_message)
                         )
-                conn.commit()
+                # conn.commit() # Removed: 'with conn:' handles commit
                 flash('Configurações de mensagens atualizadas com sucesso!', 'success')
                 return redirect(url_for('config_messages'))
 
@@ -1452,14 +1424,14 @@ def config_messages():
             return render_template(
                 'config_messages.html',
                 welcome_message_bot=welcome_message_bot,
-                welcome_message_community=welcome_community_message
+                welcome_message_community=welcome_message_community
             )
 
     except Exception as e:
         print(f"ERRO CONFIG_MESSAGES: Falha ao carregar/salvar configurações de mensagens: {e}")
         traceback.print_exc()
         flash('Erro ao carregar/salvar configurações de mensagens.', 'danger')
-        if conn and not conn.closed: conn.rollback()
+        # if conn and not conn.closed: conn.rollback() # Removed: 'with conn:' handles rollback
         return redirect(url_for('index'))
     finally:
         if conn: conn.close()
@@ -1467,8 +1439,6 @@ def config_messages():
 # ────────────────────────────────────────────────────────────────────
 # 8. WORKER de mensagens agendadas
 # ────────────────────────────────────────────────────────────────────
-# This worker will be run in a separate thread or as a separate process.
-# For Render, it might need a separate 'worker' service in the Procfile.
 def scheduled_message_worker():
     """
     Worker that checks and sends scheduled messages to users.
@@ -1481,18 +1451,17 @@ def scheduled_message_worker():
             conn = get_db_connection()
             if conn is None:
                 print("ERRO WORKER: Could not get database connection. Retrying in 30s...")
-                time_module.sleep(30) # Wait before retrying
+                time_module.sleep(30)
                 continue
 
             is_sqlite = isinstance(conn, sqlite3.Connection)
-            with conn.cursor() as cur:
-                # Adapt query for SQLite/PostgreSQL
-                # Fetch pending messages whose schedule_time has passed
+            with conn: # Corrected: Use 'with conn' here
+                cur = conn.cursor() # Corrected: Get the cursor here
                 if is_sqlite:
                     cur.execute(
                         "SELECT * FROM scheduled_messages WHERE status='pending' AND schedule_time<=datetime('now') ORDER BY schedule_time"
                     )
-                else: # PostgreSQL
+                else:
                     cur.execute(
                         "SELECT * FROM scheduled_messages WHERE status='pending' AND schedule_time<=NOW() AT TIME ZONE 'UTC' ORDER BY schedule_time"
                     )
@@ -1500,18 +1469,16 @@ def scheduled_message_worker():
 
                 for row in rows:
                     targets = []
-                    # If a specific chat_id was defined in the scheduled message
                     if row["target_chat_id"]:
                         targets.append(row["target_chat_id"])
                     else:
-                        # Otherwise, send to all active users
                         if is_sqlite:
                             cur.execute("SELECT id FROM users WHERE is_active=1")
-                        else: # PostgreSQL
+                        else:
                             cur.execute("SELECT id FROM users WHERE is_active=TRUE")
                         targets = [u["id"] for u in cur.fetchall()]
 
-                    delivered_to_any_user = False # Track if message was delivered to at least one user
+                    delivered_to_any_user = False
                     for chat_id in targets:
                         try:
                             if row["image_url"]:
@@ -1521,23 +1488,23 @@ def scheduled_message_worker():
                             delivered_to_any_user = True
                             print(f"DEBUG WORKER: Message {row['id']} sent to {chat_id}.")
                         except telebot.apihelper.ApiTelegramException as e:
-                            # Handle specific Telegram errors (e.g., user blocked bot)
                             print(f"ERRO Telegram API for chat_id {chat_id}: {e}")
                             if "blocked" in str(e).lower() or "not found" in str(e).lower() or "deactivated" in str(e).lower():
                                 print(f"AVISO: User {chat_id} blocked/not found. Deactivating...")
-                                temp_conn_for_user_update = get_db_connection() # Get a fresh connection for this update
+                                temp_conn_for_user_update = get_db_connection()
                                 if temp_conn_for_user_update:
                                     temp_is_sqlite_for_user_update = isinstance(temp_conn_for_user_update, sqlite3.Connection)
                                     try:
-                                        with temp_conn_for_user_update.cursor() as temp_cur_user_update:
+                                        with temp_conn_for_user_update: # Corrected: Use 'with' for this temporary connection
+                                            temp_cur_user_update = temp_conn_for_user_update.cursor() # Corrected: Get the cursor here
                                             if temp_is_sqlite_for_user_update:
                                                 temp_cur_user_update.execute("UPDATE users SET is_active=0 WHERE id=?", (chat_id,))
-                                            else: # PostgreSQL
+                                            else:
                                                 temp_cur_user_update.execute("UPDATE users SET is_active=FALSE WHERE id=%s", (chat_id,))
-                                            temp_conn_for_user_update.commit()
+                                            # temp_conn_for_user_update.commit() # Removed: Handled by 'with temp_conn_for_user_update:'
                                     except Exception as db_e:
                                         print(f"ERRO updating user {chat_id} status during worker run: {db_e}")
-                                        if temp_conn_for_user_update: temp_conn_for_user_update.rollback()
+                                        # if temp_conn_for_user_update: temp_conn_for_user_update.rollback() # Removed: Handled by 'with temp_conn_for_user_update:'
                                     finally:
                                         if temp_conn_for_user_update: temp_conn_for_user_update.close()
                             # If all users fail for a broadcast, delivered_to_any_user will remain False
@@ -1545,37 +1512,69 @@ def scheduled_message_worker():
                             print(f"ERRO WORKER: Failed to send message {row['id']} to {chat_id}: {e}")
                             traceback.print_exc()
 
-                    # Update the status of the scheduled message in the DB
-                    # The message is considered 'sent' if it was successfully delivered to ANY target.
-                    # Otherwise, it's marked as 'failed' (e.g., if target_chat_id was blocked or all broadcast targets failed)
                     status_to_update = "sent" if delivered_to_any_user else "failed"
                     if is_sqlite:
                         cur.execute(
                             "UPDATE scheduled_messages SET status=?, sent_at=? WHERE id=?",
                             (status_to_update, datetime.now().isoformat(), row["id"]),
                         )
-                    else: # PostgreSQL
+                    else:
                         cur.execute(
                             "UPDATE scheduled_messages SET status=%s, sent_at=NOW() AT TIME ZONE 'UTC' WHERE id=%s",
                             (status_to_update, row["id"]),
                         )
-                conn.commit() # Commit all scheduled message status updates after processing the batch
+                # conn.commit() # Removed: 'with conn:' handles commit
 
         except Exception as e:
             print(f"ERRO WORKER Main Loop: {e}")
             traceback.print_exc()
-            if conn:
-                conn.rollback() # Rollback in case of a worker error
+            # if conn: # Removed: 'with conn:' handles rollback
+            #     conn.rollback()
         finally:
             if conn:
                 conn.close()
 
-        # Wait before the next check (adjust as needed)
-        time_module.sleep(30) # Check every 30 seconds
+        time_module.sleep(30)
 
 # ────────────────────────────────────────────────────────────────────
 # 9. FINAL INITIALIZATION AND EXECUTION
 # ────────────────────────────────────────────────────────────────────
+
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    """
+    Handler para o comando /start. Regista o utilizador e envia uma mensagem de boas-vindas.
+    """
+    get_or_register_user(message.from_user) # Garante que o utilizador está na DB
+    
+    # Fetch welcome message from config
+    conn = None
+    welcome_message_text = "Olá, {first_name}! Bem-vindo(a) ao bot!" # Default
+    try:
+        conn = get_db_connection()
+        if conn:
+            is_sqlite = isinstance(conn, sqlite3.Connection)
+            with conn:
+                cur = conn.cursor()
+                if is_sqlite:
+                    cur.execute("SELECT value FROM config WHERE key = ?", ('welcome_message_bot',))
+                else:
+                    cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_bot',))
+                row = cur.fetchone()
+                if row:
+                    welcome_message_text = row['value']
+    except Exception as e:
+        print(f"ERRO ao carregar mensagem de boas-vindas: {e}")
+        traceback.print_exc()
+    finally:
+        if conn: conn.close()
+
+    formatted_message = welcome_message_text.format(
+        first_name=message.from_user.first_name,
+        last_name=message.from_user.last_name or '',
+        username=message.from_user.username or 'usuário'
+    )
+    bot.reply_to(message, formatted_message, reply_markup=menu_principal()) # Assuming menu_principal is always desired
 
 # Condition for execution in production environment (Render) or locally
 if __name__ != '__main__':
@@ -1595,14 +1594,10 @@ if __name__ != '__main__':
         else:
             print("ERRO: API_TOKEN or BASE_URL environment variables not defined for webhook. Bot may not receive updates.")
 
-        # In a production environment with gunicorn, the scheduled message worker
-        # is typically run as a separate process via Procfile.
-        # Do not start a thread here if Render already manages a worker.
         print("DEBUG: Flask application ready. Scheduled worker not started embedded.")
     except Exception as e:
         print(f"ERRO ON SERVER INITIALIZATION: {e}")
         traceback.print_exc()
-        # Might need to re-raise the error or log it to Render's logging system
 
 else:
     # This part is executed when the script is run directly (local development)
@@ -1612,19 +1607,9 @@ else:
     # Initialize Mercado Pago SDK (for local testing)
     pagamentos.init_mercadopago_sdk()
 
-    # For local development, webhooks are usually not used directly
-    # But if you want to test webhooks locally, use ngrok or similar
-    # bot.remove_webhook() # Optional: remove webhook to avoid conflicts
-    # print("DEBUG: Webhook removed for local development.")
-
-    # Start the scheduled message worker in a separate thread for local development
-    # In production, this is a separate process in the Procfile
     worker_thread = Thread(target=scheduled_message_worker)
-    worker_thread.daemon = True # Allows the thread to be terminated when the main program ends
+    worker_thread.daemon = True
     worker_thread.start()
     print("DEBUG: Scheduled message worker started in background (local mode).")
 
-    # Start the Flask server
-    # host='0.0.0.0' so Flask is accessible from outside localhost (e.g., in Docker)
-    # port=5000 is the default port, but can be configured via 'PORT' environment variable
     app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5000)))
