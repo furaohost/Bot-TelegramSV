@@ -2,18 +2,11 @@ import os
 import sqlite3
 import psycopg2
 from psycopg2.extras import RealDictCursor
-# Importa a função de conexão centralizada da pasta database
-from database import get_db_connection 
+from database.database import get_db_connection # IMPORTA DIRETAMENTE DO FICHEIRO database.py, NÃO DO PACOTE
 from werkzeug.security import generate_password_hash # Para o hash da senha do admin
+from datetime import datetime # Para datetime('now') em SQLite
 
-# ------------------------------------------------------------------
-# Função auxiliar para garantir que colunas existem (útil para migrações leves)
-# ------------------------------------------------------------------
 def ensure_column(cursor, table, col_def, db_type):
-    """
-    Verifica se uma coluna existe em uma tabela e a adiciona se não existir.
-    Compatível com SQLite e PostgreSQL.
-    """
     col_name = col_def.split()[0]
     try:
         if db_type == "sqlite":
@@ -41,26 +34,19 @@ def ensure_column(cursor, table, col_def, db_type):
     except Exception as e:
         print(f"Erro ao verificar/adicionar coluna '{col_name}' em '{table}': {e}")
 
-
-# ------------------------------------------------------------------
-# Função principal de inicialização do DB
-# ------------------------------------------------------------------
 def init_db():
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
-            print("ERRO: Não foi possível obter uma conexão com o banco de dados.")
+            print("ERRO: Não foi possível obter uma conexão com o banco de dados para inicialização.")
             return
 
-        # Detecta o tipo de banco de dados para comandos específicos
         db_type = "postgresql" if isinstance(conn, psycopg2.extensions.connection) else "sqlite"
         print(f"Inicializando banco de dados ({db_type})...")
 
         with conn.cursor() as cur:
-            # ------------------------------------------------------------------
             # USERS
-            # ------------------------------------------------------------------
             if db_type == "sqlite":
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS users (
@@ -84,9 +70,7 @@ def init_db():
                     );
                 """)
             
-            # ------------------------------------------------------------------
             # PRODUTOS
-            # ------------------------------------------------------------------
             if db_type == "sqlite":
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS produtos (
@@ -106,9 +90,7 @@ def init_db():
                     );
                 """)
 
-            # ------------------------------------------------------------------
             # VENDAS
-            # ------------------------------------------------------------------
             if db_type == "sqlite":
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS vendas (
@@ -142,9 +124,7 @@ def init_db():
                     );
                 """)
 
-            # ------------------------------------------------------------------
             # ADMIN
-            # ------------------------------------------------------------------
             if db_type == "sqlite":
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS admin (
@@ -162,9 +142,7 @@ def init_db():
                     );
                 """)
 
-            # ------------------------------------------------------------------
             # CONFIG
-            # ------------------------------------------------------------------
             if db_type == "sqlite":
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS config (
@@ -180,9 +158,7 @@ def init_db():
                     );
                 """)
 
-            # ------------------------------------------------------------------
             # COMUNIDADES (Sprint 1)
-            # ------------------------------------------------------------------
             if db_type == "sqlite":
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS comunidades (
@@ -206,9 +182,7 @@ def init_db():
                     );
                 """)
 
-            # ------------------------------------------------------------------
             # SCHEDULED_MESSAGES
-            # ------------------------------------------------------------------
             if db_type == "sqlite":
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS scheduled_messages (
@@ -236,24 +210,19 @@ def init_db():
                     );
                 """)
 
-            # ---- Garante colunas novas caso você já tenha um DB antigo (aplica apenas a SQLite/PostgreSQL)
-            # A função ensure_column foi melhorada para ser mais robusta.
-            # Se em algum momento você acrescentar colunas depois, basta listar abaixo:
             for definition in [
                 "descricao TEXT",
-                "chat_id BIGINT", # Usar BIGINT para chat_id para compatibilidade com Telegram
+                "chat_id BIGINT",
                 "status TEXT DEFAULT 'ativa'",
                 "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
             ]:
                 ensure_column(cur, "comunidades", definition, db_type)
 
-            # ------------------------------------------------------------------
-            # ADMIN padrão (usando generate_password_hash do Flask-Security)
-            # ------------------------------------------------------------------
-            
             if db_type == "sqlite":
                 cur.execute("SELECT id FROM admin WHERE username = 'admin'")
                 if not cur.fetchone():
+                    # Importa generate_password_hash localmente para evitar ciclo
+                    from werkzeug.security import generate_password_hash
                     cur.execute(
                         "INSERT INTO admin (username, password_hash) VALUES (?, ?)",
                         ("admin", generate_password_hash("admin123")),
@@ -261,12 +230,13 @@ def init_db():
             else: # PostgreSQL
                 cur.execute("SELECT id FROM admin WHERE username = 'admin'")
                 if not cur.fetchone():
+                    # Importa generate_password_hash localmente para evitar ciclo
+                    from werkzeug.security import generate_password_hash
                     cur.execute(
                         "INSERT INTO admin (username, password_hash) VALUES (%s, %s)",
                         ("admin", generate_password_hash("admin123")),
                     )
 
-            # Mensagens padrão
             if db_type == "sqlite":
                 cur.execute(
                     "INSERT INTO config (key, value) VALUES ('welcome_message_bot',?) ON CONFLICT (key) DO NOTHING;",
@@ -291,15 +261,13 @@ def init_db():
 
     except Exception as e:
         print(f"ERRO DB INIT: {e}")
-        # import traceback; traceback.print_exc() # Descomente para ver o stack trace completo
         if conn:
-            conn.rollback() # Reverte as mudanças em caso de erro
-        raise # Re-levanta a exceção
+            conn.rollback()
+        raise
     finally:
         if conn:
             conn.close()
             print("Conexão com o banco de dados fechada após inicialização.")
 
 if __name__ == '__main__':
-    # Este bloco será executado apenas quando você rodar 'python database/db_init.py'
     init_db()
