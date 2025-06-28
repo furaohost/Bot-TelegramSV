@@ -1,3 +1,4 @@
+# database/connection_db.py (ou database/database.py, se você não renomeou)
 import os
 import sqlite3
 import psycopg2
@@ -18,7 +19,10 @@ def get_db_connection():
             return conn
         except sqlite3.Error as e:
             print(f"ERRO DB: Falha ao conectar ao SQLite: {e}")
-            raise
+            # Em vez de levantar, retornamos None para que o chamador possa lidar
+            return None 
+            # Se for um erro fatal de deploy, raise pode ser útil para o Render falhar o build
+            # raise # Descomente esta linha se você quer que o erro pare o deploy no Render
     
     try:
         conn = psycopg2.connect(
@@ -29,8 +33,12 @@ def get_db_connection():
         return conn
     except Exception as e:
         print(f"ERRO DB: Falha ao conectar ao PostgreSQL: {e}")
-        raise
+        # Em vez de levantar, retornamos None para que o chamador possa lidar
+        return None
+        # raise # Descomente esta linha se você quer que o erro pare o deploy no Render
 
+# A seção if __name__ == '__main__': (de teste) não precisa ser enviada no deploy
+# mas pode ficar comentada para uso local.
 # if __name__ == '__main__':
 #     conn = None
 #     try:
