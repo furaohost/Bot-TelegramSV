@@ -430,9 +430,8 @@ def webhook_mercado_pago():
             print(f"DEBUG WEBHOOK MP: Pagamento {payment_id} não aprovado ou info inválida. Status: {payment_info.get('status') if payment_info else 'N/A'}")
             return jsonify({'status': 'payment_not_approved'}), 200
 
-    print("DEBUG WEBHOOK MP: Notificação ignorada (não é tipo 'payment' ou JSON inválido).")
-    return jsonify({'status': 'ignored_general'}), 200
-
+    print("DEBUG WEBHOOK MP" Notificação ignorada (não é tipo 'payment' ou JSON Inválido).")
+    return jsonify({'status': 'ignorad_general'}), 200
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
