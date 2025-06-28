@@ -24,6 +24,7 @@ load_dotenv() # Load .env variables at the very beginning for full availability
 # Importa as funções centralizadas de conexão e inicialização do banco de dados
 from database import get_db_connection
 from database.db_init import init_db
+from datetime import datetime
 
 # Importa o módulo de pagamentos do Mercado Pago
 import pagamentos
@@ -546,7 +547,111 @@ def logout():
 
 
 @app.route('/')
+# Seu app.py (certifique-se que a linha abaixo está no topo do arquivo)
+
+# ... (restante do seu código) ...
+
+@app.route('/')
 def index():
+    """
+    Home page of the admin panel (dashboard).
+    Displays statistics and recent sales.
+    """
+    print(f"DEBUG INDEX: Request for /. session.get('logged_in'): {session.get('logged_in')}")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('login'))
+
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        with conn: # Corrected: Use 'with conn' here
+            cur = conn.cursor() # Corrected: Get the cursor here
+            # Total users
+            cur.execute('SELECT COUNT(id) AS count FROM users WHERE is_active = TRUE' if not is_sqlite else 'SELECT COUNT(id) AS count FROM users WHERE is_active = 1')
+            total_usuarios_row = cur.fetchone()
+            total_usuarios = total_usuarios_row['count'] if total_usuarios_row and 'count' in total_usuarios_row and total_usuarios_row['count'] is not None else 0
+
+            # Total products
+            cur.execute('SELECT COUNT(id) AS count FROM produtos')
+            total_produtos_row = cur.fetchone()
+            total_produtos = total_produtos_row['count'] if total_produtos_row and 'count' in total_produtos_row and total_produtos_row['count'] is not None else 0
+
+            # Approved sales and total revenue
+            cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s" if not is_sqlite else "SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = ?", ('aprovado',))
+            vendas_data_row = cur.fetchone()
+            receita_total = float(vendas_data_row['sum']) if vendas_data_row and 'sum' in vendas_data_row and vendas_data_row['sum'] is not None else 0.0
+            print(f"DEBUG INDEX: total_vendas_aprovadas: {total_vendas_aprovadas}, receita_total: {receita_total}")
+
+            # Recent sales (LIMIT 5)
+            if is_sqlite:
+                cur.execute("""
+                    SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, p.id AS produto_id,
+                    CASE WHEN v.status = 'aprovado' THEN 'aprovado'
+                         WHEN v.status = 'pendente' AND (strftime('%s', 'now') - strftime('%s', v.data_venda)) > 3600 THEN 'expirado'
+                         ELSE v.status
+                    END AS status
+                    FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id
+                    ORDER BY v.id DESC LIMIT 5
+                """)
+            else: # PostgreSQL
+                cur.execute("""
+                    SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, p.id AS produto_id,
+                    CASE WHEN v.status = 'aprovado' THEN 'aprovado'
+                         WHEN v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - v.data_venda)) > 3600 THEN 'expirado'
+                         ELSE v.status
+                    END AS status
+                    FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id
+                    ORDER BY v.id DESC LIMIT 5
+                """)
+            vendas_recentes = cur.fetchall()
+
+            # Data for daily revenue chart (last 7 days)
+            chart_labels, chart_data = [], []
+            today_date = datetime.now().date()
+            for i in range(6, -1, -1):
+                day = today_date - timedelta(days=i)
+                start_of_day = datetime.combine(day, time.min)
+                end_of_day = datetime.combine(day, time.max)
+                chart_labels.append(day.strftime('%d/%m'))
+
+                if is_sqlite:
+                    cur.execute(
+                        "SELECT SUM(preco) AS sum FROM vendas WHERE status = ? AND data_venda BETWEEN ? AND ?",
+                        ('aprovado', start_of_day.isoformat(), end_of_day.isoformat())
+                    )
+                else: # PostgreSQL
+                    cur.execute(
+                        "SELECT SUM(preco) AS sum FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s",
+                        ('aprovado', start_of_day, end_of_day)
+                    )
+
+                daily_revenue_row = cur.fetchone()
+                daily_revenue = float(daily_revenue_row['sum']) if daily_revenue_row and 'sum' in daily_revenue_row and daily_revenue_row['sum'] is not None else 0
+                chart_data.append(daily_revenue)
+
+            print("DEBUG INDEX: Rendering index.html with dashboard data.")
+            return render_template(
+                'index.html',
+                total_vendas=total_vendas_aprovadas,
+                total_usuarios=total_usuarios,
+                total_produtos=total_produtos,
+                receita_total=receita_total,
+                vendas_recentes=vendas_recentes,
+                chart_labels=json.dumps(chart_labels),
+                chart_data=json.dumps(chart_data),
+                current_year=datetime.now().year # <--- ESTA LINHA É A ADIÇÃO PRINCIPAL!
+            )
+    except Exception as e:
+        print(f"ERRO INDEX: Falha ao renderizar o dashboard: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar o dashboard.', 'danger')
+        return redirect(url_for('login'))
+    finally:
+        if conn:
+          conn.close()
     """
     Home page of the admin panel (dashboard).
     Displays statistics and recent sales.
