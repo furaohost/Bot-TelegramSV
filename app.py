@@ -7,26 +7,25 @@ import time as time_module
 from datetime import datetime, timedelta, time
 from threading import Thread
 
-# Importações Flask e Werkzeug (para segurança e hashing de senha)
+# Importações Flask e Werkzeug
 from flask import (
     Flask, render_template, request, redirect,
     url_for, session, flash, jsonify
 )
 from werkzeug.security import check_password_hash, generate_password_hash
 
-# Carrega variáveis de ambiente do arquivo .env (apenas para desenvolvimento local)
+# Carrega variáveis de ambiente (apenas para desenvolvimento local)
 from dotenv import load_dotenv
 load_dotenv()
 
-# IMPORTAÇÃO CORRETA DAS FUNÇÕES DO BANCO DE DADOS
-# Agora importamos diretamente de database.database e database.db_init
+# IMPORTAÇÕES CORRETAS DAS FUNÇÕES DO BANCO DE DADOS
 from database.database import get_db_connection
 from database.db_init import init_db
 
 # Importa o módulo de pagamentos do Mercado Pago
 import pagamentos
 
-# Importações de handlers e blueprints (seus módulos existentes do bot e web)
+# Importações de handlers e blueprints
 from bot.utils.keyboards import confirm_18_keyboard, menu_principal
 from bot.handlers.chamadas import register_chamadas_handlers
 from bot.handlers.comunidades import register_comunidades_handlers
@@ -55,8 +54,7 @@ print(f"DEBUG: MERCADOPAGO_ACCESS_TOKEN lido: {'***' if MERCADOPAGO_ACCESS_TOKEN
 
 
 if not API_TOKEN:
-    print("ERRO: A variável de ambiente 'API_TOKEN' não está definida. O bot não pode funcionar.")
-    # raise RuntimeError("API_TOKEN não configurado.") # Descomente se quiser deploy falhe sem token
+    print("ERRO: A variável de ambiente 'API_TOKEN' não está definida. O bot pode não funcionar.")
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -69,7 +67,6 @@ bot = telebot.TeleBot(API_TOKEN, threaded=False, parse_mode="Markdown")
 
 # ────────────────────────────────────────────────────────────────────
 # 3. FUNÇÕES DE UTILIDADE (Bot e Usuário) - Usam get_db_connection
-#    Estas funções chamam get_db_connection do módulo database.database
 # ────────────────────────────────────────────────────────────────────
 
 def get_or_register_user(user: types.User):
@@ -427,69 +424,66 @@ def webhook_mercado_pago():
             finally:
                 if conn: conn.close()
         else:
-            print(f"DEBUG WEBHOOK MP: Pagamento {payment_id} não aprovado ou info inválida. Status: {payment_info.get('status') if payment_info else 'N/A'}")
-            return jsonify({'status': 'payment_not_approved'}), 200
-
-    print("DEBUG WEBHOOK MP: Notificação ignorada (não é tipo 'payment' ou JSON inválido).")
-    return jsonify({'status': 'ignored_general'}), 200
-
+            # CORREÇÃO DA LINHA 433: Removendo o caractere invisível e corrigindo aspas
+            print("DEBUG WEBHOOK MP: Notificação ignorada (não é tipo 'payment' ou JSON inválido).")
+            return jsonify({'status': 'ignored_general'}), 200
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    print(f"DEBUG LOGIN: Requisição para /login. Method: {request.method}")
-    print(f"DEBUG LOGIN: session.get('logged_in'): {session.get('logged_in')}")
+    print(f"DEBUG LOGIN: Requisição para /login. Method: {request.method}")
+    print(f"DEBUG LOGIN: session.get('logged_in'): {session.get('logged_in')}")
 
-    if session.get('logged_in'):
-        print("DEBUG LOGIN: Usuário já logado. Redirecionando para index.")
-        return redirect(url_for('index'))
+    if session.get('logged_in'):
+        print("DEBUG LOGIN: Usuário já logado. Redirecionando para index.")
+        return redirect(url_for('index'))
 
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        conn = None
-        try:
-            conn = get_db_connection()
-            if conn is None:
-                flash('Erro de conexão com o banco de dados.', 'danger')
-                return render_template('login.html')
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        conn = None
+        try:
+            conn = get_db_connection()
+            if conn is None:
+                flash('Erro de conexão com o banco de dados.', 'danger')
+                return render_template('login.html')
 
-            is_sqlite = 'sqlite3' in conn.__class__.__module__
-            with conn.cursor() as cur:
-                if is_sqlite:
-                    cur.execute('SELECT * FROM admin WHERE username = ?', (username,))
-                else:
-                    cur.execute('SELECT * FROM admin WHERE username = %s', (username,))
-                admin_user = cur.fetchone()
+            is_sqlite = 'sqlite3' in conn.__class__.__module__
+            with conn.cursor() as cur:
+                if is_sqlite:
+                    cur.execute('SELECT * FROM admin WHERE username = ?', (username,))
+                else:
+                    cur.execute('SELECT * FROM admin WHERE username = %s', (username,))
+                admin_user = cur.fetchone()
 
-                if not admin_user:
-                    print(f"DEBUG LOGIN: Usuário '{username}' NÃO ENCONTRADO no banco de dados.")
-                    flash('Usuário ou senha inválidos.', 'danger')
-                    return render_template('login.html')
+                if not admin_user:
+                    print(f"DEBUG LOGIN: Usuário '{username}' NÃO ENCONTRADO no banco de dados.")
+                    flash('Usuário ou senha inválidos.', 'danger')
+                    return render_template('login.html')
 
-                print(f"DEBUG LOGIN: Usuário '{username}' encontrado. Verificando a senha.")
-                print(f"DEBUG LOGIN: Hash no DB: {admin_user['password_hash']}")
-                
-                is_password_correct = check_password_hash(admin_user['password_hash'], password)
-                
-                if is_password_correct:
-                    session['logged_in'] = True
-                    session['username'] = admin_user['username']
-                    print(f"DEBUG LOGIN: Login BEM-SUCEDIDO para {session['username']}.")
-                    return redirect(url_for('index'))
-                else:
-                    print("DEBUG LOGIN: Senha INCORRETA.")
-                    flash('Usuário ou senha inválidos.', 'danger')
-                    
-        except Exception as e:
-            print(f"ERRO LOGIN: Falha no processo de login: {e}")
-            traceback.print_exc()
-            flash('Erro no servidor ao tentar login.', 'danger')
-            if conn and not conn.closed: conn.rollback()
-    finally:
-        if conn: conn.close()
+                print(f"DEBUG LOGIN: Usuário '{username}' encontrado. Verificando a senha.")
+                print(f"DEBUG LOGIN: Hash no DB: {admin_user['password_hash']}")
+                
+                is_password_correct = check_password_hash(admin_user['password_hash'], password)
+                
+                if is_password_correct:
+                    session['logged_in'] = True
+                    session['username'] = admin_user['username']
+                    print(f"DEBUG LOGIN: Login BEM-SUCEDIDO para {session['username']}.")
+                    return redirect(url_for('index'))
+                else:
+                    print("DEBUG LOGIN: Senha INCORRETA.")
+                    flash('Usuário ou senha inválidos.', 'danger')
+                    
+        except Exception as e:
+            print(f"ERRO LOGIN: Falha no processo de login: {e}")
+            traceback.print_exc()
+            flash('Erro no servidor ao tentar login.', 'danger')
+            if conn and not conn.closed: conn.rollback()
+        finally:
+            if conn: conn.close()
 
-    print("DEBUG LOGIN: Renderizando login.html.")
-    return render_template('login.html')
+    print("DEBUG LOGIN: Renderizando login.html.")
+    return render_template('login.html')
 
 # ==============================================================================
 # !! ROTA TEMPORÁRIA PARA RESET DE SENHA !!
@@ -497,50 +491,50 @@ def login():
 # ==============================================================================
 @app.route('/reset-admin-password-now/muito-secreto-12345')
 def reset_admin_password_route():
-    USERNAME_TO_RESET = 'admin'
-    NEW_PASSWORD = 'admin123'    
+    USERNAME_TO_RESET = 'admin'
+    NEW_PASSWORD = 'admin123'    
 
-    print(f"DEBUG RESET: Rota de reset de senha acessada para o usuário '{USERNAME_TO_RESET}'.")
-    
-    hashed_password = generate_password_hash(NEW_PASSWORD)
-    conn = None
-    try:
-        conn = get_db_connection()
-        if conn is None:
-            return f"<h1>Erro</h1><p>Erro de conexão com o banco de dados.</p>", 500
+    print(f"DEBUG RESET: Rota de reset de senha acessada para o usuário '{USERNAME_TO_RESET}'.")
+    
+    hashed_password = generate_password_hash(NEW_PASSWORD)
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return f"<h1>Erro</h1><p>Erro de conexão com o banco de dados.</p>", 500
 
-        is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute("UPDATE admin SET password_hash = ? WHERE username = ?", (hashed_password, USERNAME_TO_RESET))
-            else:
-                cur.execute("UPDATE admin SET password_hash = %s WHERE username = %s", (hashed_password, USERNAME_TO_RESET))
-            
-            if cur.rowcount == 0:
-                print(f"DEBUG RESET: Usuário '{USERNAME_TO_RESET}' não encontrado para atualizar. Tentando criar...")
-                if is_sqlite:
-                    cur.execute("INSERT INTO admin (username, password_hash) VALUES (?, ?)", (USERNAME_TO_RESET, hashed_password))
-                else:
-                    cur.execute("INSERT INTO admin (username, password_hash) VALUES (%s, %s)", (USERNAME_TO_RESET, hashed_password))
-                conn.commit()
-                message = f"Usuário '{USERNAME_TO_RESET}' não encontrado. Um novo usuário foi criado com a senha definida. Por favor, remova esta rota agora."
-                print(f"[SUCESSO RESET] {message}")
-                return f"<h1>Sucesso</h1><p>{message}</p>", 200
+        is_sqlite = 'sqlite3' in conn.__class__.__module__
+        with conn.cursor() as cur:
+            if is_sqlite:
+                cur.execute("UPDATE admin SET password_hash = ? WHERE username = ?", (hashed_password, USERNAME_TO_RESET))
+            else:
+                cur.execute("UPDATE admin SET password_hash = %s WHERE username = %s", (hashed_password, USERNAME_TO_RESET))
+            
+            if cur.rowcount == 0:
+                print(f"DEBUG RESET: Usuário '{USERNAME_TO_RESET}' não encontrado para atualizar. Tentando criar...")
+                if is_sqlite:
+                    cur.execute("INSERT INTO admin (username, password_hash) VALUES (?, ?)", (USERNAME_TO_RESET, hashed_password))
+                else:
+                    cur.execute("INSERT INTO admin (username, password_hash) VALUES (%s, %s)", (USERNAME_TO_RESET, hashed_password))
+                conn.commit()
+                message = f"Usuário '{USERNAME_TO_RESET}' não encontrado. Um novo usuário foi criado com a senha definida. Por favor, remova esta rota agora."
+                print(f"[SUCESSO RESET] {message}")
+                return f"<h1>Sucesso</h1><p>{message}</p>", 200
 
-            conn.commit()
-            message = f"A senha para o usuário '{USERNAME_TO_RESET}' foi resetada com sucesso. Por favor, remova esta rota de 'app.py' IMEDIATELY."
-            print(f"[SUCESSO RESET] {message}")
-            return f"<h1>Sucesso</h1><p>{message}</p>", 200
+            conn.commit()
+            message = f"A senha para o usuário '{USERNAME_TO_RESET}' foi resetada com sucesso. Por favor, remova esta rota de 'app.py' IMEDIATELY."
+            print(f"[SUCESSO RESET] {message}")
+            return f"<h1>Sucesso</h1><p>{message}</p>", 200
 
-    except Exception as e:
-        error_message = f"Ocorreu um erro ao resetar a senha: {e}"
-        print(f"ERRO RESET: {error_message}")
-        traceback.print_exc()
-        if conn and not conn.closed: conn.rollback()
-        return f"<h1>Erro</h1><p>{error_message}</p>", 500
-    finally:
-        if conn:
-            conn.close()
+    except Exception as e:
+        error_message = f"Ocorreu um erro ao resetar a senha: {e}"
+        print(f"ERRO RESET: {error_message}")
+        traceback.print_exc()
+        if conn and not conn.closed: conn.rollback()
+        return f"<h1>Erro</h1><p>{error_message}</p>", 500
+    finally:
+        if conn:
+            conn.close()
 # ==============================================================================
 # !! FIM DA ROTA TEMPORÁRIA !!
 # ==============================================================================
@@ -548,79 +542,79 @@ def reset_admin_password_route():
 
 @app.route('/logout')
 def logout():
-    print(f"DEBUG LOGOUT: Desconectando usuário {session.get('username')}.")
-    session.clear()
-    flash('Você foi desconectado.', 'info')
-    return redirect(url_for('login'))
+    print(f"DEBUG LOGOUT: Desconectando usuário {session.get('username')}.")
+    session.clear()
+    flash('Você foi desconectado.', 'info')
+    return redirect(url_for('login'))
 
 @app.route('/')
 def index():
-    print(f"DEBUG INDEX: Requisição para /. session.get('logged_in'): {session.get('logged_in')}")
+    print(f"DEBUG INDEX: Requisição para /. session.get('logged_in'): {session.get('logged_in')}")
 
-    if not session.get('logged_in'):
-        print("DEBUG INDEX: Usuário não logado. Redirecionando para login.")
-        return redirect(url_for('login'))
+    if not session.get('logged_in'):
+        print("DEBUG INDEX: Usuário não logado. Redirecionando para login.")
+        return redirect(url_for('login'))
 
-    conn = None
-    try:
-        conn = get_db_connection()
-        if conn is None:
-            flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('login'))
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('login'))
 
-        is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute('SELECT COUNT(id) FROM users WHERE is_active = 1')
-            else:
-                cur.execute('SELECT COUNT(id) FROM users WHERE is_active = TRUE')
-            total_usuarios_row = cur.fetchone()
-            print(f"DEBUG INDEX: Resultado fetchone COUNT(users): {total_usuarios_row}")
-            total_usuarios = total_usuarios_row['count'] if total_usuarios_row and 'count' in total_usuarios_row and total_usuarios_row['count'] is not None else 0
+        is_sqlite = 'sqlite3' in conn.__class__.__module__
+        with conn.cursor() as cur:
+            if is_sqlite:
+                cur.execute('SELECT COUNT(id) FROM users WHERE is_active = 1')
+            else:
+                cur.execute('SELECT COUNT(id) FROM users WHERE is_active = TRUE')
+            total_usuarios_row = cur.fetchone()
+            print(f"DEBUG INDEX: Resultado fetchone COUNT(users): {total_usuarios_row}")
+            total_usuarios = total_usuarios_row['count'] if total_usuarios_row and 'count' in total_usuarios_row and total_usuarios_row['count'] is not None else 0
 
-            cur.execute('SELECT COUNT(id) FROM produtos')
-            total_produtos_row = cur.fetchone()
-            print(f"DEBUG INDEX: Resultado fetchone COUNT(produtos): {total_produtos_row}")
-            total_produtos = total_produtos_row['count'] if total_produtos_row and 'count' in total_produtos_row and total_produtos_row['count'] is not None else 0
+            cur.execute('SELECT COUNT(id) FROM produtos')
+            total_produtos_row = cur.fetchone()
+            print(f"DEBUG INDEX: Resultado fetchone COUNT(produtos): {total_produtos_row}")
+            total_produtos = total_produtos_row['count'] if total_produtos_row and 'count' in total_produtos_row and total_produtos_row['count'] is not None else 0
 
-            if is_sqlite:
-                cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = ?", ('aprovado',))
-            else:
-                cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s", ('aprovado',))
-            vendas_data_row = cur.fetchone()
-            print(f"DEBUG INDEX: Resultado fetchone COUNT/SUM(vendas): {vendas_data_row}")
-            total_vendas_aprovadas = vendas_data_row['count'] if vendas_data_row and 'count' in vendas_data_row and vendas_data_row['count'] is not None else 0
-            receita_total = vendas_data_row['sum'] if vendas_data_row and 'sum' in vendas_data_row and vendas_data_row['sum'] is not None else 0.0
-            print(f"DEBUG INDEX: total_vendas_aprovadas: {total_vendas_aprovadas}, receita_total: {receceita_total}")
+            if is_sqlite:
+                cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = ?", ('aprovado',))
+            else:
+                cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s", ('aprovado',))
+            vendas_data_row = cur.fetchone()
+            print(f"DEBUG INDEX: Resultado fetchone COUNT/SUM(vendas): {vendas_data_row}")
+            total_vendas_aprovadas = vendas_data_row['count'] if vendas_data_row and 'count' in vendas_data_row and vendas_data_row['count'] is not None else 0
+            receita_total = vendas_data_row['sum'] if vendas_data_row and 'sum' in vendas_data_row and vendas_data_row['sum'] is not None else 0.0
+            print(f"DEBUG INDEX: total_vendas_aprovadas: {total_vendas_aprovadas}, receita_total: {receita_total}")
 
-            cur.execute("SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, p.id as produto_id, CASE WHEN v.status = 'aprovado' THEN 'aprovado' WHEN v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() - v.data_venda)) > 3600 THEN 'expirado' ELSE v.status END AS status FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id ORDER BY v.id DESC LIMIT 5")
-            vendas_recentes = cur.fetchall()
+            cur.execute("SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, p.id as produto_id, CASE WHEN v.status = 'aprovado' THEN 'aprovado' WHEN v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() - v.data_venda)) > 3600 THEN 'expirado' ELSE v.status END AS status FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id ORDER BY v.id DESC LIMIT 5")
+            vendas_recentes = cur.fetchall()
 
-            chart_labels, chart_data = [], []
-            today = datetime.now()
-            for i in range(6, -1, -1):
-                day = today - timedelta(days=i)
-                start_of_day, end_of_day = datetime.combine(day.date(), time.min), datetime.combine(day.date(), time.max)
-                chart_labels.append(day.strftime('%d/%m'))
-                
-                if is_sqlite:
-                    cur.execute("SELECT SUM(preco) AS sum FROM vendas WHERE status = ? AND data_venda BETWEEN ? AND ?", ('aprovado', start_of_day, end_of_day))
-                else:
-                    cur.execute("SELECT SUM(preco) AS sum FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s", ('aprovado', start_of_day, end_of_day))
-                
-                daily_revenue_row = cur.fetchone()
-                daily_revenue = daily_revenue_row['sum'] if daily_revenue_row and 'sum' in daily_revenue_row and daily_revenue_row['sum'] is not None else 0
-                chart_data.append(daily_revenue)
+            chart_labels, chart_data = [], []
+            today = datetime.now()
+            for i in range(6, -1, -1):
+                day = today - timedelta(days=i)
+                start_of_day, end_of_day = datetime.combine(day.date(), time.min), datetime.combine(day.date(), time.max)
+                chart_labels.append(day.strftime('%d/%m'))
+                
+                if is_sqlite:
+                    cur.execute("SELECT SUM(preco) AS sum FROM vendas WHERE status = ? AND data_venda BETWEEN ? AND ?", ('aprovado', start_of_day, end_of_day))
+                else:
+                    cur.execute("SELECT SUM(preco) AS sum FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s", ('aprovado', start_of_day, end_of_day))
+                
+                daily_revenue_row = cur.fetchone()
+                daily_revenue = daily_revenue_row['sum'] if daily_revenue_row and 'sum' in daily_revenue_row and daily_revenue_row['sum'] is not None else 0
+                chart_data.append(daily_revenue)
 
-            print("DEBUG INDEX: Renderizando index.html.")
-            return render_template('index.html', total_vendas=total_vendas_aprovadas, total_usuarios=total_usuarios, total_produtos=total_produtos, receita_total=receita_total, vendas_recentes=vendas_recentes, chart_labels=json.dumps(chart_labels), chart_data=json.dumps(chart_data))
-    except Exception as e:
-        print(f"ERRO INDEX: Falha ao renderizar o dashboard: {e}")
-        traceback.print_exc()
-        flash('Erro ao carregar o dashboard.', 'danger')
-        return redirect(url_for('login'))
-    finally:
-        if conn: conn.close()
+            print("DEBUG INDEX: Renderizando index.html.")
+            return render_template('index.html', total_vendas=total_vendas_aprovadas, total_usuarios=total_usuarios, total_produtos=total_produtos, receita_total=receita_total, vendas_recentes=vendas_recentes, chart_labels=json.dumps(chart_labels), chart_data=json.dumps(chart_data))
+    except Exception as e:
+        print(f"ERRO INDEX: Falha ao renderizar o dashboard: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar o dashboard.', 'danger')
+        return redirect(url_for('login'))
+    finally:
+        if conn: conn.close()
 
 # ----------------------------------------------------------------------
 # ROTAS PARA GERENCIAMENTO DE PRODUTOS E VENDAS
@@ -628,519 +622,519 @@ def index():
 
 @app.route('/produtos')
 def produtos():
-    print("DEBUG PRODUTOS: Requisição para /produtos.")
+    print("DEBUG PRODUTOS: Requisição para /produtos.")
 
-    if not session.get('logged_in'):
-        flash('Por favor, faça login para acessar esta página.', 'warning')
-        return redirect(url_for('login'))
+    if not session.get('logged_in'):
+        flash('Por favor, faça login para acessar esta página.', 'warning')
+        return redirect(url_for('login'))
 
-    conn = None
-    try:
-        conn = get_db_connection()
-        if conn is None:
-            flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('index'))
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('index'))
 
-        is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute('SELECT * FROM produtos ORDER BY nome ASC')
-            else:
-                cur.execute('SELECT * FROM produtos ORDER BY nome ASC')
-            produtos_lista = cur.fetchall()
-            print(f"DEBUG PRODUTOS: {len(produtos_lista)} produtos encontrados.")
+        is_sqlite = 'sqlite3' in conn.__class__.__module__
+        with conn.cursor() as cur:
+            if is_sqlite:
+                cur.execute('SELECT * FROM produtos ORDER BY nome ASC')
+            else:
+                cur.execute('SELECT * FROM produtos ORDER BY nome ASC')
+            produtos_lista = cur.fetchall()
+            print(f"DEBUG PRODUTOS: {len(produtos_lista)} produtos encontrados.")
 
-        return render_template('produtos.html', produtos=produtos_lista)
+        return render_template('produtos.html', produtos=produtos_lista)
 
-    except Exception as e:
-        print(f"ERRO PRODUTOS: Falha ao carregar produtos para o dashboard: {e}")
-        traceback.print_exc()
-        flash('Erro ao carregar os produtos.', 'danger')
-        return redirect(url_for('index'))
-    finally:
-        if conn:
-            conn.close()
+    except Exception as e:
+        print(f"ERRO PRODUTOS: Falha ao carregar produtos para o dashboard: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar os produtos.', 'danger')
+        return redirect(url_for('index'))
+    finally:
+        if conn:
+            conn.close()
 
 @app.route('/adicionar_produto', methods=['GET', 'POST'])
 def adicionar_produto():
-    print(f"DEBUG ADICIONAR_PRODUTO: Requisição para /adicionar_produto. Method: {request.method}")
+    print(f"DEBUG ADICIONAR_PRODUTO: Requisição para /adicionar_produto. Method: {request.method}")
 
-    if not session.get('logged_in'):
-        flash('Por favor, faça login para acessar esta página.', 'warning')
-        return redirect(url_for('login'))
+    if not session.get('logged_in'):
+        flash('Por favor, faça login para acessar esta página.', 'warning')
+        return redirect(url_for('login'))
 
-    if request.method == 'POST':
-        nome = request.form.get('nome')
-        preco = request.form.get('preco')
-        link = request.form.get('link')
+    if request.method == 'POST':
+        nome = request.form.get('nome')
+        preco = request.form.get('preco')
+        link = request.form.get('link')
 
-        if not nome or not preco or not link:
-            flash('Todos os campos são obrigatórios!', 'danger')
-            return redirect(url_for('produtos', error='add_fields_missing',
-                                    nome_val=nome, preco_val=preco, link_val=link))
-        try:
-            preco = float(preco)
-            if preco <= 0:
-                flash('Preço deve ser um valor positivo.', 'danger')
-                return redirect(url_for('produtos', error='add_invalid_price',
-                                        nome_val=nome, preco_val=preco, link_val=link))
-        except ValueError:
-            flash('Preço inválido. Use um número.', 'danger')
-            return redirect(url_for('produtos', error='add_invalid_price_type',
-                                    nome_val=nome, preco_val=preco, link_val=link))
+        if not nome or not preco or not link:
+            flash('Todos os campos são obrigatórios!', 'danger')
+            return redirect(url_for('produtos', error='add_fields_missing',
+                                    nome_val=nome, preco_val=preco, link_val=link))
+        try:
+            preco = float(preco)
+            if preco <= 0:
+                flash('Preço deve ser um valor positivo.', 'danger')
+                return redirect(url_for('produtos', error='add_invalid_price',
+                                        nome_val=nome, preco_val=preco, link_val=link))
+        except ValueError:
+            flash('Preço inválido. Use um número.', 'danger')
+            return redirect(url_for('produtos', error='add_invalid_price_type',
+                                    nome_val=nome, preco_val=preco, link_val=link))
 
-        conn = None
-        try:
-            conn = get_db_connection()
-            if conn is None:
-                flash('Erro de conexão com o banco de dados para adicionar produto.', 'danger')
-                return redirect(url_for('produtos', error='add_db_connection_error'))
+        conn = None
+        try:
+            conn = get_db_connection()
+            if conn is None:
+                flash('Erro de conexão com o banco de dados para adicionar produto.', 'danger')
+                return redirect(url_for('produtos', error='add_db_connection_error'))
 
-            is_sqlite = 'sqlite3' in conn.__class__.__module__
-            with conn.cursor() as cur:
-                if is_sqlite:
-                    cur.execute("INSERT INTO produtos (nome, preco, link) VALUES (?, ?, ?)", (nome, preco, link))
-                else:
-                    cur.execute("INSERT INTO produtos (nome, preco, link) VALUES (%s, %s, %s)", (nome, preco, link))
-                conn.commit()
-            print(f"DEBUG ADICIONAR_PRODUTO: Produto '{nome}' adicionado com sucesso.")
-            flash('Produto adicionado com sucesso!', 'success')
-            return redirect(url_for('produtos'))
-        except Exception as e:
-            print(f"ERRO ADICIONAR_PRODUTO: Falha ao adicionar produto: {e}")
-            traceback.print_exc()
-            flash('Erro ao adicionar produto.', 'danger')
-            if conn and not conn.closed: conn.rollback()
-            return redirect(url_for('produtos', error='add_db_error',
-                                    nome_val=nome, preco_val=preco, link_val=link))
-        finally:
-            if conn: conn.close()
-    
-    return redirect(url_for('produtos', add_new_product=True))
+            is_sqlite = 'sqlite3' in conn.__class__.__module__
+            with conn.cursor() as cur:
+                if is_sqlite:
+                    cur.execute("INSERT INTO produtos (nome, preco, link) VALUES (?, ?, ?)", (nome, preco, link))
+                else:
+                    cur.execute("INSERT INTO produtos (nome, preco, link) VALUES (%s, %s, %s)", (nome, preco, link))
+                conn.commit()
+            print(f"DEBUG ADICIONAR_PRODUTO: Produto '{nome}' adicionado com sucesso.")
+            flash('Produto adicionado com sucesso!', 'success')
+            return redirect(url_for('produtos'))
+        except Exception as e:
+            print(f"ERRO ADICIONAR_PRODUTO: Falha ao adicionar produto: {e}")
+            traceback.print_exc()
+            flash('Erro ao adicionar produto.', 'danger')
+            if conn and not conn.closed: conn.rollback()
+            return redirect(url_for('produtos', error='add_db_error',
+                                    nome_val=nome, preco_val=preco, link_val=link))
+        finally:
+            if conn: conn.close()
+    
+    return redirect(url_for('produtos', add_new_product=True))
 
 
 @app.route('/editar_produto/<int:produto_id>', methods=['GET', 'POST'])
 def editar_produto(produto_id):
-    print(f"DEBUG EDITAR_PRODUTO: Requisição para /editar_produto/{produto_id}. Method: {request.method}")
+    print(f"DEBUG EDITAR_PRODUTO: Requisição para /editar_produto/{produto_id}. Method: {request.method}")
 
-    if not session.get('logged_in'):
-        flash('Por favor, faça login para acessar esta página.', 'warning')
-        return redirect(url_for('login'))
+    if not session.get('logged_in'):
+        flash('Por favor, faça login para acessar esta página.', 'warning')
+        return redirect(url_for('login'))
 
-    conn = None
-    try:
-        conn = get_db_connection()
-        if conn is None:
-            flash('Erro de conexão com o banco de dados para editar produto.', 'danger')
-            return redirect(url_for('produtos', error='edit_db_connection_error'))
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados para editar produto.', 'danger')
+            return redirect(url_for('produtos', error='edit_db_connection_error'))
 
-        is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute('SELECT * FROM produtos WHERE id = ?', (produto_id,))
-            else:
-                cur.execute('SELECT * FROM produtos WHERE id = %s', (produto_id,))
-            produto = cur.fetchone()
+        is_sqlite = 'sqlite3' in conn.__class__.__module__
+        with conn.cursor() as cur:
+            if is_sqlite:
+                cur.execute('SELECT * FROM produtos WHERE id = ?', (produto_id,))
+            else:
+                cur.execute('SELECT * FROM produtos WHERE id = %s', (produto_id,))
+            produto = cur.fetchone()
 
-            if not produto:
-                flash('Produto não encontrado.', 'danger')
-                return redirect(url_for('produtos'))
+            if not produto:
+                flash('Produto não encontrado.', 'danger')
+                return redirect(url_for('produtos'))
 
-            if request.method == 'POST':
-                nome = request.form.get('nome')
-                preco = request.form.get('preco')
-                link = request.form.get('link')
+            if request.method == 'POST':
+                nome = request.form.get('nome')
+                preco = request.form.get('preco')
+                link = request.form.get('link')
 
-                if not nome or not preco or not link:
-                    flash('Todos os campos são obrigatórios!', 'danger')
-                    return redirect(url_for('produtos', edit_id=produto_id,
-                                            nome_val=nome, preco_val=preco, link_val=link))
-                
-                try:
-                    preco = float(preco)
-                    if preco <= 0:
-                        flash('Preço deve ser um valor positivo.', 'danger')
-                        return redirect(url_for('produtos', edit_id=produto_id,
-                                                nome_val=nome, preco_val=preco, link_val=link))
-                except ValueError:
-                    flash('Preço inválido. Use um número.', 'danger')
-                    return redirect(url_for('produtos', edit_id=produto_id,
-                                            nome_val=nome, preco_val=preco, link_val=link))
+                if not nome or not preco or not link:
+                    flash('Todos os campos são obrigatórios!', 'danger')
+                    return redirect(url_for('produtos', edit_id=produto_id,
+                                            nome_val=nome, preco_val=preco, link_val=link))
+                
+                try:
+                    preco = float(preco)
+                    if preco <= 0:
+                        flash('Preço deve ser um valor positivo.', 'danger')
+                        return redirect(url_for('produtos', edit_id=produto_id,
+                                                nome_val=nome, preco_val=preco, link_val=link))
+                except ValueError:
+                    flash('Preço inválido. Use um número.', 'danger')
+                    return redirect(url_for('produtos', edit_id=produto_id,
+                                            nome_val=nome, preco_val=preco, link_val=link))
 
-                if is_sqlite:
-                    cur.execute(
-                        "UPDATE produtos SET nome = ?, preco = ?, link = ? WHERE id = ?",
-                        (nome, preco, link, produto_id)
-                    )
-                else:
-                    cur.execute(
-                        "UPDATE produtos SET nome = %s, preco = %s, link = %s WHERE id = %s",
-                        (nome, preco, link, produto_id)
-                    )
-                conn.commit()
-                print(f"DEBUG EDITAR_PRODUTO: Produto ID {produto_id} atualizado com sucesso.")
-                flash('Produto atualizado com sucesso!', 'success')
-                return redirect(url_for('produtos'))
-            
-            return redirect(url_for('produtos', edit_id=produto_id,
-                                    nome_val=produto['nome'],
-                                    preco_val=f"{produto['preco']:.2f}",
-                                    link_val=produto['link']))
+                if is_sqlite:
+                    cur.execute(
+                        "UPDATE produtos SET nome = ?, preco = ?, link = ? WHERE id = ?",
+                        (nome, preco, link, produto_id)
+                    )
+                else:
+                    cur.execute(
+                        "UPDATE produtos SET nome = %s, preco = %s, link = %s WHERE id = %s",
+                        (nome, preco, link, produto_id)
+                    )
+                conn.commit()
+                print(f"DEBUG EDITAR_PRODUTO: Produto ID {produto_id} atualizado com sucesso.")
+                flash('Produto atualizado com sucesso!', 'success')
+                return redirect(url_for('produtos'))
+            
+            return redirect(url_for('produtos', edit_id=produto_id,
+                                    nome_val=produto['nome'],
+                                    preco_val=f"{produto['preco']:.2f}",
+                                    link_val=produto['link']))
 
-    except Exception as e:
-        print(f"ERRO EDITAR_PRODUTO: Falha ao editar produto: {e}")
-        traceback.print_exc()
-        flash('Erro ao editar produto.', 'danger')
-        if conn and not conn.closed: conn.rollback()
-        return redirect(url_for('produtos', edit_id=produto_id,
-                                nome_val=request.form.get('nome', ''),
-                                preco_val=request.form.get('preco', ''),
-                                link_val=request.form.get('link', '')))
-    finally:
-        if conn: conn.close()
+    except Exception as e:
+        print(f"ERRO EDITAR_PRODUTO: Falha ao editar produto: {e}")
+        traceback.print_exc()
+        flash('Erro ao editar produto.', 'danger')
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('produtos', edit_id=produto_id,
+                                nome_val=request.form.get('nome', ''),
+                                preco_val=request.form.get('preco', ''),
+                                link_val=request.form.get('link', '')))
+    finally:
+        if conn: conn.close()
 
 @app.route('/deletar_produto/<int:produto_id>', methods=['POST'])
 def deletar_produto(produto_id):
-    print(f"DEBUG DELETAR_PRODUTO: Requisição para /deletar_produto/{produto_id}. Method: {request.method}")
+    print(f"DEBUG DELETAR_PRODUTO: Requisição para /deletar_produto/{produto_id}. Method: {request.method}")
 
-    if not session.get('logged_in'):
-        flash('Por favor, faça login para acessar esta página.', 'warning')
-        return redirect(url_for('login'))
-    
-    conn = None
-    try:
-        conn = get_db_connection()
-        if conn is None:
-            flash('Erro de conexão com o banco de dados para deletar produto.', 'danger')
-            return redirect(url_for('produtos', error='delete_db_connection_error'))
+    if not session.get('logged_in'):
+        flash('Por favor, faça login para acessar esta página.', 'warning')
+        return redirect(url_for('login'))
+    
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados para deletar produto.', 'danger')
+            return redirect(url_for('produtos', error='delete_db_connection_error'))
 
-        is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute('SELECT id FROM produtos WHERE id = ?', (produto_id,))
-            else:
-                cur.execute('SELECT id FROM produtos WHERE id = %s', (produto_id,))
-            if not cur.fetchone():
-                flash('Produto não encontrado.', 'danger')
-                return redirect(url_for('produtos'))
-            
-            if is_sqlite:
-                cur.execute('DELETE FROM produtos WHERE id = ?', (produto_id,))
-            else:
-                cur.execute('DELETE FROM produtos WHERE id = %s', (produto_id,))
-            conn.commit()
-            print(f"DEBUG DELETAR_PRODUTO: Produto ID {produto_id} deletado com sucesso.")
-            flash('Produto deletado com sucesso!', 'success')
-            return redirect(url_for('produtos'))
-    except Exception as e:
-        print(f"ERRO DELETAR_PRODUTO: Falha ao deletar produto: {e}")
-        traceback.print_exc()
-        flash('Erro ao deletar produto.', 'danger')
-        if conn and not conn.closed: conn.rollback()
-        return redirect(url_for('produtos'))
-    finally:
-        if conn: conn.close()
+        is_sqlite = 'sqlite3' in conn.__class__.__module__
+        with conn.cursor() as cur:
+            if is_sqlite:
+                cur.execute('SELECT id FROM produtos WHERE id = ?', (produto_id,))
+            else:
+                cur.execute('SELECT id FROM produtos WHERE id = %s', (produto_id,))
+            if not cur.fetchone():
+                flash('Produto não encontrado.', 'danger')
+                return redirect(url_for('produtos'))
+            
+            if is_sqlite:
+                cur.execute('DELETE FROM produtos WHERE id = ?', (produto_id,))
+            else:
+                cur.execute('DELETE FROM produtos WHERE id = %s', (produto_id,))
+            conn.commit()
+            print(f"DEBUG DELETAR_PRODUTO: Produto ID {produto_id} deletado com sucesso.")
+            flash('Produto deletado com sucesso!', 'success')
+            return redirect(url_for('produtos'))
+    except Exception as e:
+        print(f"ERRO DELETAR_PRODUTO: Falha ao deletar produto: {e}")
+        traceback.print_exc()
+        flash('Erro ao deletar produto.', 'danger')
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('produtos'))
+    finally:
+        if conn: conn.close()
 
 @app.route('/vendas')
 def vendas():
-    print("DEBUG VENDAS: Requisição para /vendas.")
+    print("DEBUG VENDAS: Requisição para /vendas.")
 
-    if not session.get('logged_in'):
-        flash('Por favor, faça login para acessar esta página.', 'warning')
-        return redirect(url_for('login'))
+    if not session.get('logged_in'):
+        flash('Por favor, faça login para acessar esta página.', 'warning')
+        return redirect(url_for('login'))
 
-    conn = None
-    try:
-        conn = get_db_connection()
-        if conn is None:
-            flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('index'))
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('index'))
 
-        is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute("""
-                    SELECT 
-                        v.id, 
-                        u.username, 
-                        u.first_name, 
-                        p.nome AS nome_produto, 
-                        v.preco, 
-                        v.status, 
-                        v.data_venda,
-                        v.payment_id,
-                        v.payer_name,
-                        v.payer_email
-                    FROM vendas v
-                    JOIN users u ON v.user_id = u.id
-                    JOIN produtos p ON v.produto_id = p.id
-                    ORDER BY v.data_venda DESC
-                """)
-            else:
-                cur.execute("""
-                    SELECT 
-                        v.id, 
-                        u.username, 
-                        u.first_name, 
-                        p.nome AS nome_produto, 
-                        v.preco, 
-                        v.status, 
-                        v.data_venda,
-                        v.payment_id,
-                        v.payer_name,
-                        v.payer_email
-                    FROM vendas v
-                    JOIN users u ON v.user_id = u.id
-                    JOIN produtos p ON v.produto_id = p.id
-                    ORDER BY v.data_venda DESC
-                """)
-            vendas_lista = cur.fetchall()
-            print(f"DEBUG VENDAS: {len(vendas_lista)} vendas encontradas.")
+        is_sqlite = 'sqlite3' in conn.__class__.__module__
+        with conn.cursor() as cur:
+            if is_sqlite:
+                cur.execute("""
+                    SELECT 
+                        v.id, 
+                        u.username, 
+                        u.first_name, 
+                        p.nome AS nome_produto, 
+                        v.preco, 
+                        v.status, 
+                        v.data_venda,
+                        v.payment_id,
+                        v.payer_name,
+                        v.payer_email
+                    FROM vendas v
+                    JOIN users u ON v.user_id = u.id
+                    JOIN produtos p ON v.produto_id = p.id
+                    ORDER BY v.data_venda DESC
+                """)
+            else:
+                cur.execute("""
+                    SELECT 
+                        v.id, 
+                        u.username, 
+                        u.first_name, 
+                        p.nome AS nome_produto, 
+                        v.preco, 
+                        v.status, 
+                        v.data_venda,
+                        v.payment_id,
+                        v.payer_name,
+                        v.payer_email
+                    FROM vendas v
+                    JOIN users u ON v.user_id = u.id
+                    JOIN produtos p ON v.produto_id = p.id
+                    ORDER BY v.data_venda DESC
+                """)
+            vendas_lista = cur.fetchall()
+            print(f"DEBUG VENDAS: {len(vendas_lista)} vendas encontradas.")
 
-        return render_template('vendas.html', vendas=vendas_lista)
+        return render_template('vendas.html', vendas=vendas_lista)
 
-    except Exception as e:
-        print(f"ERRO VENDAS: Falha ao carregar vendas para o dashboard: {e}")
-        traceback.print_exc()
-        flash('Erro ao carregar as vendas.', 'danger')
-        return redirect(url_for('index'))
-    finally:
-        if conn:
-            conn.close()
+    except Exception as e:
+        print(f"ERRO VENDAS: Falha ao carregar vendas para o dashboard: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar as vendas.', 'danger')
+        return redirect(url_for('index'))
+    finally:
+        if conn:
+            conn.close()
 
 @app.route('/usuarios')
 def usuarios():
-    print("DEBUG USUARIOS: Requisição para /usuarios.")
+    print("DEBUG USUARIOS: Requisição para /usuarios.")
 
-    if not session.get('logged_in'):
-        flash('Por favor, faça login para acessar esta página.', 'warning')
-        return redirect(url_for('login'))
+    if not session.get('logged_in'):
+        flash('Por favor, faça login para acessar esta página.', 'warning')
+        return redirect(url_for('login'))
 
-    conn = None
-    try:
-        conn = get_db_connection()
-        if conn is None:
-            flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('index'))
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('index'))
 
-        is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute('SELECT * FROM users ORDER BY data_registro DESC')
-            else:
-                cur.execute('SELECT * FROM users ORDER BY data_registro DESC')
-            usuarios_lista = cur.fetchall()
-            print(f"DEBUG USUARIOS: {len(usuarios_lista)} usuários encontrados.")
+        is_sqlite = 'sqlite3' in conn.__class__.__module__
+        with conn.cursor() as cur:
+            if is_sqlite:
+                cur.execute('SELECT * FROM users ORDER BY data_registro DESC')
+            else:
+                cur.execute('SELECT * FROM users ORDER BY data_registro DESC')
+            usuarios_lista = cur.fetchall()
+            print(f"DEBUG USUARIOS: {len(usuarios_lista)} usuários encontrados.")
 
-        return render_template('usuarios.html', usuarios=usuarios_lista)
+        return render_template('usuarios.html', usuarios=usuarios_lista)
 
-    except Exception as e:
-        print(f"ERRO USUARIOS: Falha ao carregar usuários para o dashboard: {e}")
-        traceback.print_exc()
-        flash('Erro ao carregar os usuários.', 'danger')
-        return redirect(url_for('index'))
-    finally:
-        if conn:
-            conn.close()
+    except Exception as e:
+        print(f"ERRO USUARIOS: Falha ao carregar usuários para o dashboard: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar os usuários.', 'danger')
+        return redirect(url_for('index'))
+    finally:
+        if conn:
+            conn.close()
 
 @app.route('/toggle_user_status/<int:user_id>', methods=['POST'])
 def toggle_user_status(user_id):
-    print(f"DEBUG TOGGLE_USER_STATUS: Requisição para /toggle_user_status/{user_id}. Method: {request.method}")
+    print(f"DEBUG TOGGLE_USER_STATUS: Requisição para /toggle_user_status/{user_id}. Method: {request.method}")
 
-    if not session.get('logged_in'):
-        flash('Por favor, faça login para acessar esta página.', 'warning')
-        return redirect(url_for('login'))
-    
-    conn = None
-    try:
-        conn = get_db_connection()
-        if conn is None:
-            flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('usuarios', error='toggle_db_connection_error'))
+    if not session.get('logged_in'):
+        flash('Por favor, faça login para acessar esta página.', 'warning')
+        return redirect(url_for('login'))
+    
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('usuarios', error='toggle_db_connection_error'))
 
-        is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute('SELECT is_active FROM users WHERE id = ?', (user_id,))
-            else:
-                cur.execute('SELECT is_active FROM users WHERE id = %s', (user_id,))
-            user = cur.fetchone()
+        is_sqlite = 'sqlite3' in conn.__class__.__module__
+        with conn.cursor() as cur:
+            if is_sqlite:
+                cur.execute('SELECT is_active FROM users WHERE id = ?', (user_id,))
+            else:
+                cur.execute('SELECT is_active FROM users WHERE id = %s', (user_id,))
+            user = cur.fetchone()
 
-            if not user:
-                flash('Usuário não encontrado.', 'danger')
-                return redirect(url_for('usuarios'))
-            
-            new_status = not user['is_active']
-            if is_sqlite:
-                cur.execute('UPDATE users SET is_active = ? WHERE id = ?', (new_status, user_id))
-            else:
-                cur.execute('UPDATE users SET is_active = %s WHERE id = %s', (new_status, user_id))
-            conn.commit()
-            
-            status_text = "ativado" if new_status else "desativado"
-            print(f"DEBUG TOGGLE_USER_STATUS: Usuário {user_id} {status_text} com sucesso.")
-            flash(f'Usuário {user_id} {status_text} com sucesso!', 'success')
-            return redirect(url_for('usuarios'))
-    except Exception as e:
-        print(f"ERRO TOGGLE_USER_STATUS: Falha ao alterar status do usuário: {e}")
-        traceback.print_exc()
-        flash('Erro ao alterar status do usuário.', 'danger')
-        if conn and not conn.closed: conn.rollback()
-        return redirect(url_for('usuarios'))
-    finally:
-        if conn: conn.close()
+            if not user:
+                flash('Usuário não encontrado.', 'danger')
+                return redirect(url_for('usuarios'))
+            
+            new_status = not user['is_active']
+            if is_sqlite:
+                cur.execute('UPDATE users SET is_active = ? WHERE id = ?', (new_status, user_id))
+            else:
+                cur.execute('UPDATE users SET is_active = %s WHERE id = %s', (new_status, user_id))
+            conn.commit()
+            
+            status_text = "ativado" if new_status else "desativado"
+            print(f"DEBUG TOGGLE_USER_STATUS: Usuário {user_id} {status_text} com sucesso.")
+            flash(f'Usuário {user_id} {status_text} com sucesso!', 'success')
+            return redirect(url_for('usuarios'))
+    except Exception as e:
+        print(f"ERRO TOGGLE_USER_STATUS: Falha ao alterar status do usuário: {e}")
+        traceback.print_exc()
+        flash('Erro ao alterar status do usuário.', 'danger')
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('usuarios'))
+    finally:
+        if conn: conn.close()
 
 @app.route('/scheduled_messages')
 def scheduled_messages():
-    print(f"DEBUG SCHEDULED_MESSAGES: Requisição para /scheduled_messages. Method: {request.method}")
+    print(f"DEBUG SCHEDULED_MESSAGES: Requisição para /scheduled_messages. Method: {request.method}")
 
-    if not session.get('logged_in'):
-        flash('Por favor, faça login para acessar esta página.', 'warning')
-        return redirect(url_for('login'))
+    if not session.get('logged_in'):
+        flash('Por favor, faça login para acessar esta página.', 'warning')
+        return redirect(url_for('login'))
 
-    conn = None
-    try:
-        conn = get_db_connection()
-        if conn is None:
-            flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('index'))
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('index'))
 
-        is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute("""
-                    SELECT 
-                        sm.id,
-                        sm.message_text,
-                        sm.target_chat_id,
-                        sm.image_url,
-                        sm.schedule_time,
-                        sm.status,
-                        sm.created_at,
-                        sm.sent_at,
-                        COALESCE(u.username, 'Todos os usuários') AS target_username
-                    FROM scheduled_messages sm
-                    LEFT JOIN users u ON sm.target_chat_id = u.id
-                    ORDER BY sm.schedule_time DESC
-                """)
-            else:
-                cur.execute("""
-                    SELECT 
-                        sm.id,
-                        sm.message_text,
-                        sm.target_chat_id,
-                        sm.image_url,
-                        sm.schedule_time,
-                        sm.status,
-                        sm.created_at,
-                        sm.sent_at,
-                        COALESCE(u.username, 'Todos os usuários') AS target_username
-                    FROM scheduled_messages sm
-                    LEFT JOIN users u ON sm.target_chat_id = u.id
-                    ORDER BY sm.schedule_time DESC
-                """)
-            messages_list = cur.fetchall()
-            print(f"DEBUG SCHEDULED_MESSAGES: {len(messages_list)} mensagens agendadas encontradas.")
-        
-        return render_template('scheduled_messages.html', messages=messages_list)
-    except Exception as e:
-        print(f"ERRO SCHEDULED_MESSAGES: Falha ao carregar mensagens agendadas: {e}")
-        traceback.print_exc()
-        flash('Erro ao carregar mensagens agendadas.', 'danger')
-        return redirect(url_for('index'))
-    finally:
-        if conn: conn.close()
+        is_sqlite = 'sqlite3' in conn.__class__.__module__
+        with conn.cursor() as cur:
+            if is_sqlite:
+                cur.execute("""
+                    SELECT 
+                        sm.id,
+                        sm.message_text,
+                        sm.target_chat_id,
+                        sm.image_url,
+                        sm.schedule_time,
+                        sm.status,
+                        sm.created_at,
+                        sm.sent_at,
+                        COALESCE(u.username, 'Todos os usuários') AS target_username
+                    FROM scheduled_messages sm
+                    LEFT JOIN users u ON sm.target_chat_id = u.id
+                    ORDER BY sm.schedule_time DESC
+                """)
+            else:
+                cur.execute("""
+                    SELECT 
+                        sm.id,
+                        sm.message_text,
+                        sm.target_chat_id,
+                        sm.image_url,
+                        sm.schedule_time,
+                        sm.status,
+                        sm.created_at,
+                        sm.sent_at,
+                        COALESCE(u.username, 'Todos os usuários') AS target_username
+                    FROM scheduled_messages sm
+                    LEFT JOIN users u ON sm.target_chat_id = u.id
+                    ORDER BY sm.schedule_time DESC
+                """)
+            messages_list = cur.fetchall()
+            print(f"DEBUG SCHEDULED_MESSAGES: {len(messages_list)} mensagens agendadas encontradas.")
+        
+        return render_template('scheduled_messages.html', messages=messages_list)
+    except Exception as e:
+        print(f"ERRO SCHEDULED_MESSAGES: Falha ao carregar mensagens agendadas: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar mensagens agendadas.', 'danger')
+        return redirect(url_for('index'))
+    finally:
+        if conn: conn.close()
 
 @app.route('/add_scheduled_message', methods=['GET', 'POST'])
 def add_scheduled_message():
-    print(f"DEBUG ADD_SCHEDULED_MESSAGE: Requisição para /add_scheduled_message. Method: {request.method}")
+    print(f"DEBUG ADD_SCHEDULED_MESSAGE: Requisição para /add_scheduled_message. Method: {request.method}")
 
-    if not session.get('logged_in'):
-        flash('Por favor, faça login para acessar esta página.', 'warning')
-        return redirect(url_for('login'))
+    if not session.get('logged_in'):
+        flash('Por favor, faça login para acessar esta página.', 'warning')
+        return redirect(url_for('login'))
 
-    conn = None
-    try:
-        conn = get_db_connection()
-        if conn is None:
-            flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('scheduled_messages', error='add_db_connection_error'))
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('scheduled_messages', error='add_db_connection_error'))
 
-        is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
-            else:
-                cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
-            users = cur.fetchall()
+        is_sqlite = 'sqlite3' in conn.__class__.__module__
+        with conn.cursor() as cur:
+            if is_sqlite:
+                cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
+            else:
+                cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
+            users = cur.fetchall()
 
-        if request.method == 'POST':
-            message_text = request.form.get('message_text')
-            target_chat_id = request.form.get('target_chat_id')
-            image_url = request.form.get('image_url')
-            schedule_time_str = request.form.get('schedule_time')
+        if request.method == 'POST':
+            message_text = request.form.get('message_text')
+            target_chat_id = request.form.get('target_chat_id')
+            image_url = request.form.get('image_url')
+            schedule_time_str = request.form.get('schedule_time')
 
-            if not message_text or not schedule_time_str:
-                flash('Texto da mensagem e tempo de agendamento são obrigatórios!', 'danger')
-                return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
-            
-            try:
-                schedule_time = datetime.strptime(schedule_time_str, '%Y-%m-%dT%H:%M')
-            except ValueError:
-                flash('Formato de data/hora inválido. Use AAAA-MM-DDTHH:MM.', 'danger')
-                return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
-            
-            if schedule_time <= datetime.now():
-                flash('A data e hora de agendamento devem ser no futuro.', 'danger')
-                return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
+            if not message_text or not schedule_time_str:
+                flash('Texto da mensagem e tempo de agendamento são obrigatórios!', 'danger')
+                return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
+            
+            try:
+                schedule_time = datetime.strptime(schedule_time_str, '%Y-%m-%dT%H:%M')
+            except ValueError:
+                flash('Formato de data/hora inválido. Use AAAA-MM-DDTHH:MM.', 'danger')
+                return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
+            
+            if schedule_time <= datetime.now():
+                flash('A data e hora de agendamento devem ser no futuro.', 'danger')
+                return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
 
-            if target_chat_id == 'all_users':
-                target_chat_id = None
-            else:
-                try:
-                    target_chat_id = int(target_chat_id)
-                except (ValueError, TypeError):
-                    flash('ID do chat de destino inválido.', 'danger')
-                    return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
+            if target_chat_id == 'all_users':
+                target_chat_id = None
+            else:
+                try:
+                    target_chat_id = int(target_chat_id)
+                except (ValueError, TypeError):
+                    flash('ID do chat de destino inválido.', 'danger')
+                    return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
 
-            cur_conn = get_db_connection()
-            if cur_conn is None:
-                flash('Erro de conexão com o banco de dados.', 'danger')
-                return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
+            cur_conn = get_db_connection()
+            if cur_conn is None:
+                flash('Erro de conexão com o banco de dados.', 'danger')
+                return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
 
-            try:
-                with cur_conn.cursor() as cur_inner:
-                    if is_sqlite:
-                        cur_inner.execute(
-                            "INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, schedule_time, status) VALUES (?, ?, ?, ?, ?)",
-                            (message_text, target_chat_id, image_url if image_url else None, schedule_time, 'pending')
-                        )
-                    else:
-                        cur_inner.execute(
-                            "INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, schedule_time, status) VALUES (%s, %s, %s, %s, %s)",
-                            (message_text, target_chat_id, image_url if image_url else None, schedule_time, 'pending')
-                        )
-                    cur_conn.commit()
-                flash('Mensagem agendada com sucesso!', 'success')
-                return redirect(url_for('scheduled_messages'))
-            except Exception as e:
-                print(f"ERRO ADD_SCHEDULED_MESSAGE: Falha ao adicionar mensagem agendada: {e}")
-                traceback.print_exc()
-                flash('Erro ao agendar mensagem.', 'danger')
-                if cur_conn and not cur_conn.closed: cur_conn.rollback()
-                return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
-            finally:
-                if cur_conn: cur_conn.close()
+            try:
+                with cur_conn.cursor() as cur_inner:
+                    if is_sqlite:
+                        cur_inner.execute(
+                            "INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, schedule_time, status) VALUES (?, ?, ?, ?, ?)",
+                            (message_text, target_chat_id, image_url if image_url else None, schedule_time, 'pending')
+                        )
+                    else:
+                        cur_inner.execute(
+                            "INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, schedule_time, status) VALUES (%s, %s, %s, %s, %s)",
+                            (message_text, target_chat_id, image_url if image_url else None, schedule_time, 'pending')
+                        )
+                    cur_conn.commit()
+                flash('Mensagem agendada com sucesso!', 'success')
+                return redirect(url_for('scheduled_messages'))
+            except Exception as e:
+                print(f"ERRO ADD_SCHEDULED_MESSAGE: Falha ao adicionar mensagem agendada: {e}")
+                traceback.print_exc()
+                flash('Erro ao agendar mensagem.', 'danger')
+                if cur_conn and not cur_conn.closed: cur_conn.rollback()
+                return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
+            finally:
+                if cur_conn: cur_conn.close()
 
-        return render_template('add_scheduled_message.html', users=users)
+        return render_template('add_scheduled_message.html', users=users)
 
-    except Exception as e:
-        print(f"ERRO ADD_SCHEDULED_MESSAGE (GET): Falha ao carregar usuários para o formulário: {e}")
-        traceback.print_exc()
-        flash('Erro ao carregar o formulário de agendamento.', 'danger')
-        return redirect(url_for('scheduled_messages'))
-    finally:
-        if conn: conn.close()
+    except Exception as e:
+        print(f"ERRO ADD_SCHEDULED_MESSAGE (GET): Falha ao carregar usuários para o formulário: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar o formulário de agendamento.', 'danger')
+        return redirect(url_for('scheduled_messages'))
+    finally:
+        if conn: conn.close()
 
 @app.route('/edit_scheduled_message/<int:message_id>', methods=['GET', 'POST'])
 def edit_scheduled_message(message_id):
