@@ -726,7 +726,7 @@ def index():
         if conn: conn.close()
 
 # ----------------------------------------------------------------------
-# ROTAS PARA GERENCIAMENTO DE PRODUTOS
+# ROTAS PARA GERENCIAMENTO DE PRODUTOS E VENDAS
 # ----------------------------------------------------------------------
 
 @app.route('/produtos')
@@ -923,6 +923,55 @@ def deletar_produto(produto_id):
     finally:
         if conn: conn.close()
 
+@app.route('/vendas')
+def vendas():
+    """
+    Rota para exibir a lista de vendas na interface web do dashboard.
+    Requer que o usuário esteja logado.
+    Busca todas as vendas do banco de dados e as renderiza no template vendas.html.
+    """
+    print("DEBUG VENDAS: Requisição para /vendas.")
+
+    if not session.get('logged_in'):
+        print("DEBUG VENDAS: Usuário não logado. Redirecionando para login.")
+        flash('Por favor, faça login para acessar esta página.', 'warning')
+        return redirect(url_for('login'))
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Busca todas as vendas com informações de usuário e produto
+            cur.execute("""
+                SELECT 
+                    v.id, 
+                    u.username, 
+                    u.first_name, 
+                    p.nome AS nome_produto, 
+                    v.preco, 
+                    v.status, 
+                    v.data_venda,
+                    v.payment_id,
+                    v.payer_name,
+                    v.payer_email
+                FROM vendas v
+                JOIN users u ON v.user_id = u.id
+                JOIN produtos p ON v.produto_id = p.id
+                ORDER BY v.data_venda DESC
+            """)
+            vendas_lista = cur.fetchall()
+            print(f"DEBUG VENDAS: {len(vendas_lista)} vendas encontradas.")
+
+        return render_template('vendas.html', vendas=vendas_lista)
+
+    except Exception as e:
+        print(f"ERRO VENDAS: Falha ao carregar vendas para o dashboard: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar as vendas.', 'danger')
+        return redirect(url_for('index'))
+    finally:
+        if conn:
+            conn.close()
 
 if __name__ == '__main__':
     # Inicializa o banco de dados e cria tabelas se não existirem
