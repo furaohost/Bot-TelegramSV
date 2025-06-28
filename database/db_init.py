@@ -2,10 +2,16 @@ import sqlite3
 import os
 import psycopg2
 from psycopg2 import Error
+# ADICIONE ESTA IMPORTAÇÃO
+from werkzeug.security import generate_password_hash
 
 def init_db():
     # Determina se está usando SQLite ou PostgreSQL com base em DATABASE_URL
     database_url = os.getenv('DATABASE_URL')
+
+    # DEFINA AS CREDENCIAIS PADRÃO AQUI
+    DEFAULT_ADMIN_USERNAME = 'admin'
+    DEFAULT_ADMIN_PASSWORD_HASH = generate_password_hash('admin123') # GERANDO O HASH DA SENHA 'admin123'
 
     if database_url:
         # Inicialização para PostgreSQL
@@ -15,8 +21,7 @@ def init_db():
             conn = psycopg2.connect(database_url)
             cur = conn.cursor()
 
-            # Criação das tabelas para PostgreSQL
-            # Use IF NOT EXISTS para evitar erros se as tabelas já existirem
+            # Criação das tabelas para PostgreSQL (SEU CÓDIGO EXISTENTE AQUI)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id BIGINT PRIMARY KEY,
@@ -74,8 +79,14 @@ def init_db():
                 );
             """)
 
+            # ADICIONE ESTE BLOCO PARA GARANTIR A CRIAÇÃO/ATUALIZAÇÃO DO ADMIN NO POSTGRESQL
+            cur.execute(f"""
+                INSERT INTO admin (username, password_hash) VALUES (%s, %s)
+                ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash;
+            """, (DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD_HASH))
+
             conn.commit()
-            print("Banco de dados PostgreSQL inicializado com sucesso.")
+            print("Banco de dados PostgreSQL inicializado com sucesso e usuário admin verificado/criado.")
 
         except Error as e:
             print(f"ERRO DB INIT: Falha na inicialização do banco de dados PostgreSQL: {e}")
@@ -94,10 +105,10 @@ def init_db():
             conn = sqlite3.connect('database.db')
             cur = conn.cursor()
 
-            # Criação das tabelas para SQLite
+            # Criação das tabelas para SQLite (SEU CÓDIGO EXISTENTE AQUI)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY, -- Use INTEGER para auto-incremento em SQLite para PK
+                    id INTEGER PRIMARY KEY,
                     username TEXT,
                     first_name TEXT,
                     last_name TEXT,
@@ -139,7 +150,7 @@ def init_db():
                 CREATE TABLE IF NOT EXISTS scheduled_messages (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     message_text TEXT NOT NULL,
-                    target_chat_id INTEGER, -- NULL para todos os usuários
+                    target_chat_id INTEGER,
                     image_url TEXT,
                     schedule_time DATETIME NOT NULL,
                     status TEXT DEFAULT 'pending',
@@ -154,8 +165,14 @@ def init_db():
                 );
             """)
 
+            # ADICIONE ESTE BLOCO PARA GARANTIR A CRIAÇÃO/ATUALIZAÇÃO DO ADMIN NO SQLITE
+            cur.execute(f"""
+                INSERT INTO admin (username, password_hash) VALUES (?, ?)
+                ON CONFLICT (username) DO UPDATE SET password_hash = excluded.password_hash;
+            """, (DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD_HASH))
+
             conn.commit()
-            print("Banco de dados SQLite inicializado com sucesso.")
+            print("Banco de dados SQLite inicializado com sucesso e usuário admin verificado/criado.")
 
         except sqlite3.Error as e:
             print(f"ERRO DB INIT: Falha na inicialização do banco de dados SQLite: {e}")
