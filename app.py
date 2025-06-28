@@ -1279,6 +1279,93 @@ def delete_scheduled_message(message_id):
     finally:
         if conn: conn.close()
 
+@app.route('/send_broadcast', methods=['GET', 'POST'])
+def send_broadcast():
+    """
+    Rota para enviar uma mensagem de broadcast imediata.
+    Requer que o usuário esteja logado.
+    """
+    print(f"DEBUG SEND_BROADCAST: Requisição para /send_broadcast. Method: {request.method}")
+
+    if not session.get('logged_in'):
+        flash('Por favor, faça login para acessar esta página.', 'warning')
+        return redirect(url_for('login'))
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Recupera todos os usuários ativos para o seletor de destino (opcional)
+            cur.execute('SELECT id, username, first_name FROM users WHERE is_active = TRUE ORDER BY username ASC')
+            active_users = cur.fetchall()
+
+        if request.method == 'POST':
+            message_text = request.form.get('message_text')
+            image_url = request.form.get('image_url')
+            
+            if not message_text:
+                flash('O texto da mensagem é obrigatório para o broadcast!', 'danger')
+                return render_template('send_broadcast.html', active_users=active_users)
+
+            sent_count = 0
+            failed_count = 0
+            
+            # Itera sobre todos os usuários ativos para enviar a mensagem
+            cur_conn_send = get_db_connection() # Nova conexão para evitar problemas de transação
+            try:
+                with cur_conn_send.cursor() as cur_send:
+                    cur_send.execute("SELECT id FROM users WHERE is_active = TRUE")
+                    users_to_send = cur_send.fetchall()
+                    
+                    for user_data in users_to_send:
+                        user_id = user_data['id']
+                        try:
+                            if image_url:
+                                bot.send_photo(user_id, image_url, caption=message_text, parse_mode="Markdown")
+                            else:
+                                bot.send_message(user_id, message_text, parse_mode="Markdown")
+                            sent_count += 1
+                        except telebot.apihelper.ApiTelegramException as e:
+                            print(f"ERRO BROADCAST para {user_id}: {e}")
+                            if "blocked" in str(e).lower() or "not found" in str(e).lower() or "deactivated" in str(e).lower():
+                                print(f"AVISO: Usuário {user_id} bloqueou/não encontrado durante broadcast. Inativando...")
+                                # Inativa o usuário no banco de dados se o bot foi bloqueado
+                                cur_update_user = get_db_connection()
+                                try:
+                                    with cur_update_user.cursor() as cur_u:
+                                        cur_u.execute("UPDATE users SET is_active=FALSE WHERE id=%s", (user_id,))
+                                        cur_update_user.commit()
+                                except Exception as db_e:
+                                    print(f"ERRO ao inativar usuário {user_id} durante broadcast: {db_e}")
+                                    if cur_update_user: cur_update_user.rollback()
+                                finally:
+                                    if cur_update_user: cur_update_user.close()
+                            failed_count += 1
+                        except Exception as e:
+                            print(f"ERRO INESPERADO BROADCAST para {user_id}: {e}")
+                            traceback.print_exc()
+                            failed_count += 1
+                
+                flash(f'Broadcast enviado com sucesso para {sent_count} usuários. Falha em {failed_count} usuários.', 'success')
+                return redirect(url_for('index')) # Redireciona para o dashboard após o envio
+            except Exception as e:
+                print(f"ERRO SEND_BROADCAST (lógica de envio): {e}")
+                traceback.print_exc()
+                flash('Ocorreu um erro ao tentar enviar o broadcast.', 'danger')
+                if cur_conn_send and not cur_conn_send.closed: cur_conn_send.rollback()
+            finally:
+                if cur_conn_send: cur_conn_send.close()
+
+        # GET request: Apenas renderiza o formulário
+        return render_template('send_broadcast.html', active_users=active_users)
+
+    except Exception as e:
+        print(f"ERRO SEND_BROADCAST (GET): Falha ao carregar usuários para o formulário: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar a página de broadcast.', 'danger')
+        return redirect(url_for('index'))
+    finally:
+        if conn: conn.close()
 
 if __name__ == '__main__':
     # Inicializa o banco de dados e cria tabelas se não existirem
