@@ -1,294 +1,166 @@
-# database/db_init.py
+import sqlite3
 import os
-import sqlite3 # Adicionado explicitamente porque isinstance(conn, sqlite3.Connection) é usado
 import psycopg2
-from psycopg2.extras import RealDictCursor # Adicionado explicitamente se usado por psycopg2.extensions.connection
-from psycopg2 import errors
-from datetime import datetime # Para datetime('now') em SQLite e CURRENT_TIMESTAMP em PostgreSQL
-from werkzeug.security import generate_password_hash # Para o hash da senha do admin
-
-# IMPORTAÇÃO CORRETA: Agora aponta para database.py no mesmo pacote
-from .database import get_db_connection
-
-def ensure_column(cursor, table, col_def, db_type):
-    col_name = col_def.split()[0]
-    try:
-        if db_type == "sqlite":
-            cursor.execute(f"PRAGMA table_info({table})")
-            existing_columns = [row[1] for row in cursor.fetchall()]
-        elif db_type == "postgresql":
-            cursor.execute(
-                """
-                SELECT column_name FROM information_schema.columns
-                WHERE table_schema = 'public' AND table_name = %s AND column_name = %s;
-                """,
-                (table, col_name)
-            )
-            existing_columns = [row['column_name'] for row in cursor.fetchall()]
-        else:
-            print(f"AVISO: Tipo de banco de dados '{db_type}' não suportado para ensure_column.")
-            return
-
-        if col_name not in existing_columns:
-            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col_def}")
-            print(f"Adicionada coluna '{col_name}' à tabela '{table}'.")
-        else:
-            print(f"Coluna '{col_name}' já existe na tabela '{table}'.")
-
-    except Exception as e:
-        print(f"Erro ao verificar/adicionar coluna '{col_name}' em '{table}': {e}")
+from psycopg2 import Error
 
 def init_db():
-    conn = None
-    try:
-        conn = get_db_connection()
-        if conn is None:
-            print("ERRO: Não foi possível obter uma conexão com o banco de dados para inicialização.")
-            return # Retorna sem levantar exceção se a conexão falhou
+    # Determina se está usando SQLite ou PostgreSQL com base em DATABASE_URL
+    database_url = os.getenv('DATABASE_URL')
 
-        # Determine o tipo de banco de dados para adaptar as queries
-        db_type = "postgresql"
-        if isinstance(conn, sqlite3.Connection): # Use isinstance diretamente aqui
-            db_type = "sqlite"
+    if database_url:
+        # Inicialização para PostgreSQL
+        print("Inicializando banco de dados (PostgreSQL)...")
+        conn = None
+        try:
+            conn = psycopg2.connect(database_url)
+            cur = conn.cursor()
 
-        print(f"Inicializando banco de dados ({db_type})...")
-
-        with conn.cursor() as cur:
-            # USERS
-            if db_type == "sqlite":
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS users (
-                        id INTEGER PRIMARY KEY,
-                        username TEXT,
-                        first_name TEXT,
-                        last_name TEXT,
-                        data_registro TEXT DEFAULT (datetime('now')),
-                        is_active BOOLEAN DEFAULT 1
-                    );
-                """)
-            else: # PostgreSQL
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS users (
-                        id BIGINT PRIMARY KEY,
-                        username TEXT,
-                        first_name TEXT,
-                        last_name TEXT,
-                        data_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        is_active BOOLEAN DEFAULT TRUE
-                    );
-                """)
-            
-            # PRODUTOS
-            if db_type == "sqlite":
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS produtos (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        nome TEXT NOT NULL,
-                        preco REAL NOT NULL,
-                        link TEXT NOT NULL
-                    );
-                """)
-            else: # PostgreSQL
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS produtos (
-                        id SERIAL PRIMARY KEY,
-                        nome TEXT NOT NULL,
-                        preco NUMERIC(10,2) NOT NULL,
-                        link TEXT NOT NULL
-                    );
-                """)
-
-            # VENDAS
-            if db_type == "sqlite":
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS vendas (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id INTEGER,
-                        produto_id INTEGER,
-                        preco REAL,
-                        status TEXT,
-                        data_venda TEXT DEFAULT (datetime('now')),
-                        payment_id TEXT,
-                        payer_name TEXT,
-                        payer_email TEXT,
-                        FOREIGN KEY (user_id) REFERENCES users (id),
-                        FOREIGN KEY (produto_id) REFERENCES produtos (id)
-                    );
-                """)
-            else: # PostgreSQL
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS vendas (
-                        id SERIAL PRIMARY KEY,
-                        user_id BIGINT,
-                        produto_id INTEGER,
-                        preco NUMERIC(10,2),
-                        status TEXT,
-                        data_venda TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        payment_id TEXT,
-                        payer_name TEXT,
-                        payer_email TEXT,
-                        FOREIGN KEY (user_id) REFERENCES users(id),
-                        FOREIGN KEY (produto_id) REFERENCES produtos(id)
-                    );
-                """)
-
-            # ADMIN
-            if db_type == "sqlite":
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS admin (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        username TEXT UNIQUE NOT NULL,
-                        password_hash TEXT NOT NULL
-                    );
-                """)
-            else: # PostgreSQL
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS admin (
-                        id SERIAL PRIMARY KEY,
-                        username TEXT UNIQUE NOT NULL,
-                        password_hash TEXT NOT NULL
-                    );
-                """)
-
-            # CONFIG
-            if db_type == "sqlite":
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS config (
-                        key TEXT PRIMARY KEY,
-                        value TEXT
-                    );
-                """)
-            else: # PostgreSQL
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS config (
-                        key TEXT PRIMARY KEY,
-                        value TEXT
-                    );
-                """)
-
-            # COMUNIDADES (Sprint 1)
-            if db_type == "sqlite":
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS comunidades (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        nome TEXT NOT NULL,
-                        descricao TEXT,
-                        chat_id INTEGER,
-                        status TEXT DEFAULT 'ativa',
-                        created_at TEXT DEFAULT (datetime('now'))
-                    );
-                """)
-            else: # PostgreSQL
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS comunidades (
-                        id SERIAL PRIMARY KEY,
-                        nome TEXT NOT NULL,
-                        descricao TEXT,
-                        chat_id BIGINT,
-                        status TEXT DEFAULT 'ativa',
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    );
-                """)
-
-            # SCHEDULED_MESSAGES
-            if db_type == "sqlite":
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS scheduled_messages (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        message_text TEXT NOT NULL,
-                        target_chat_id INTEGER,
-                        image_url TEXT,
-                        schedule_time TEXT NOT NULL,
-                        status TEXT DEFAULT 'pending',
-                        created_at TEXT DEFAULT (datetime('now')),
-                        sent_at TEXT
-                    );
-                """)
-            else: # PostgreSQL
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS scheduled_messages (
-                        id SERIAL PRIMARY KEY,
-                        message_text TEXT NOT NULL,
-                        target_chat_id BIGINT,
-                        image_url TEXT,
-                        schedule_time TIMESTAMP WITH TIME ZONE NOT NULL,
-                        status TEXT DEFAULT 'pending',
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        sent_at TIMESTAMP
-                    );
-                """)
-
-            # Adicionar colunas existentes (ensure_column) para comunidades
-            for definition in [
-                "descricao TEXT",
-                "chat_id BIGINT", # SQLite INTEGER
-                "status TEXT DEFAULT 'ativa'",
-                "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP", # SQLite TEXT DEFAULT (datetime('now'))
-            ]:
-                ensure_column(cur, "comunidades", definition, db_type)
-
-            # Inserção de ADMIN padrão
-            if db_type == "sqlite":
-                cur.execute("SELECT id FROM admin WHERE username = 'admin'")
-                if not cur.fetchone():
-                    cur.execute(
-                        "INSERT INTO admin (username, password_hash) VALUES (?, ?)",
-                        ("admin", generate_password_hash("admin123")),
-                    )
-            else: # PostgreSQL
-                cur.execute("SELECT id FROM admin WHERE username = 'admin'")
-                if not cur.fetchone():
-                    cur.execute(
-                        "INSERT INTO admin (username, password_hash) VALUES (%s, %s)",
-                        ("admin", generate_password_hash("admin123")),
-                    )
-
-            # Inserção de Mensagens padrão
-            if db_type == "sqlite":
-                cur.execute(
-                    "INSERT INTO config (key, value) VALUES ('welcome_message_bot',?) ON CONFLICT (key) DO NOTHING;",
-                    ("Olá, {first_name}! Bem-vindo(a) ao bot!",),
-                )
-                cur.execute(
-                    "INSERT INTO config (key, value) VALUES ('welcome_message_community',?) ON CONFLICT (key) DO NOTHING;",
-                    ("Bem-vindo(a) à nossa comunidade, {first_name}!",),
-                )
-            else: # PostgreSQL
-                cur.execute(
-                    "INSERT INTO config (key, value) VALUES ('welcome_message_bot',%s) ON CONFLICT (key) DO NOTHING;",
-                    ("Olá, {first_name}! Bem-vindo(a) ao bot!",),
-                )
-                cur.execute(
-                    "INSERT INTO config (key, value) VALUES ('welcome_message_community',%s) ON CONFLICT (key) DO NOTHING;",
-                    ("Bem-vindo(a) à nossa comunidade, {first_name}!",),
-                )
+            # Criação das tabelas para PostgreSQL
+            # Use IF NOT EXISTS para evitar erros se as tabelas já existirem
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id BIGINT PRIMARY KEY,
+                    username VARCHAR(255),
+                    first_name VARCHAR(255),
+                    last_name VARCHAR(255),
+                    is_active BOOLEAN DEFAULT TRUE,
+                    data_registro TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS admin (
+                    id SERIAL PRIMARY KEY,
+                    username VARCHAR(255) UNIQUE NOT NULL,
+                    password_hash VARCHAR(255) NOT NULL
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS produtos (
+                    id SERIAL PRIMARY KEY,
+                    nome VARCHAR(255) NOT NULL,
+                    preco NUMERIC(10, 2) NOT NULL,
+                    link TEXT NOT NULL
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS vendas (
+                    id SERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES users(id),
+                    produto_id INTEGER NOT NULL REFERENCES produtos(id),
+                    preco NUMERIC(10, 2) NOT NULL,
+                    status VARCHAR(50) NOT NULL,
+                    data_venda TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    payment_id VARCHAR(255),
+                    payer_name VARCHAR(255),
+                    payer_email VARCHAR(255)
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS scheduled_messages (
+                    id SERIAL PRIMARY KEY,
+                    message_text TEXT NOT NULL,
+                    target_chat_id BIGINT, -- NULL para todos os usuários
+                    image_url TEXT,
+                    schedule_time TIMESTAMP WITH TIME ZONE NOT NULL,
+                    status VARCHAR(50) DEFAULT 'pending',
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    sent_at TIMESTAMP WITH TIME ZONE
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS config (
+                    key VARCHAR(255) PRIMARY KEY,
+                    value TEXT
+                );
+            """)
 
             conn.commit()
-            print("DEBUG DB INIT: Tabelas e dados padrão OK.")
-            return True # Retorna True em caso de sucesso
+            print("Banco de dados PostgreSQL inicializado com sucesso.")
 
-    except Exception as e:
-        print(f"ERRO DB INIT: Falha na inicialização do banco de dados: {e}")
-        # traceback.print_exc() # Descomente para ver o traceback completo em caso de erro
-        if conn:
-            conn.rollback()
-        return False # Retorna False em caso de erro
-    finally:
-        if conn:
-            conn.close()
-            print("Conexão com o banco de dados fechada após inicialização.")
+        except Error as e:
+            print(f"ERRO DB INIT: Falha na inicialização do banco de dados PostgreSQL: {e}")
+            if conn:
+                conn.rollback()
+        finally:
+            if conn:
+                conn.close()
 
-if __name__ == '__main__':
-    # Adicione os imports necessários para rodar localmente
-    import sys
-    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) # Ajusta o path para encontrar app.py ou outros módulos raiz
-    from dotenv import load_dotenv
-    load_dotenv() # Carrega variáveis do .env se existir
+    else:
+        # Inicialização para SQLite (para desenvolvimento local sem DATABASE_URL)
+        print("Inicializando banco de dados (SQLite)...")
+        conn = None
+        try:
+            # Conecta a um arquivo de banco de dados SQLite local
+            conn = sqlite3.connect('database.db')
+            cur = conn.cursor()
 
-    # Verifica se a conexão com psycopg2.extensions.connection é necessária (apenas para o teste)
-    try:
-        import psycopg2.extensions # Tenta importar para verificar o tipo de conexão
-    except ImportError:
-        pass # Não faz nada se psycopg2 não estiver instalado
+            # Criação das tabelas para SQLite
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY, -- Use INTEGER para auto-incremento em SQLite para PK
+                    username TEXT,
+                    first_name TEXT,
+                    last_name TEXT,
+                    is_active BOOLEAN DEFAULT 1,
+                    data_registro DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS admin (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS produtos (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nome TEXT NOT NULL,
+                    preco REAL NOT NULL,
+                    link TEXT NOT NULL
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS vendas (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    produto_id INTEGER NOT NULL,
+                    preco REAL NOT NULL,
+                    status TEXT NOT NULL,
+                    data_venda DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    payment_id TEXT,
+                    payer_name TEXT,
+                    payer_email TEXT,
+                    FOREIGN KEY (user_id) REFERENCES users(id),
+                    FOREIGN KEY (produto_id) REFERENCES produtos(id)
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS scheduled_messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    message_text TEXT NOT NULL,
+                    target_chat_id INTEGER, -- NULL para todos os usuários
+                    image_url TEXT,
+                    schedule_time DATETIME NOT NULL,
+                    status TEXT DEFAULT 'pending',
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    sent_at DATETIME
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS config (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                );
+            """)
 
-    init_db()
+            conn.commit()
+            print("Banco de dados SQLite inicializado com sucesso.")
+
+        except sqlite3.Error as e:
+            print(f"ERRO DB INIT: Falha na inicialização do banco de dados SQLite: {e}")
+            if conn:
+                conn.rollback()
+        finally:
+            if conn:
+                conn.close()
