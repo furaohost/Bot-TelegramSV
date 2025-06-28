@@ -383,6 +383,54 @@ def webhook_mercado_pago():
 def login():
     print(f"DEBUG LOGIN: Requisição para /login. Method: {request.method}")
 
+    # AQUI ESTÁ O AJUSTE PARA GARANTIR A QUEBRA DO LOOP E LIMPEZA DE SESSÃO
+    if session.get('logged_in'):
+        print("DEBUG LOGIN: Sessão já ativa, limpando sessão para novo login.")
+        session.clear() # Limpa explicitamente a sessão
+        flash('Sua sessão expirou ou foi invalidada. Por favor, faça login novamente.', 'warning')
+        return redirect(url_for('login')) # Redireciona para o próprio /login, agora com a sessão limpa
+    # FIM DO AJUSTE
+
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        conn = None
+        try:
+            conn = get_db_connection()
+            if conn is None:
+                flash('Erro de conexão com a base de dados.', 'error')
+                return render_template('login.html')
+
+            is_sqlite = isinstance(conn, sqlite3.Connection)
+            with conn:
+                cur = conn.cursor()
+                if is_sqlite:
+                    cur.execute('SELECT * FROM admin WHERE username = ?', (username,))
+                else:
+                    cur.execute('SELECT * FROM admin WHERE username = %s', (username,))
+                admin_user = cur.fetchone()
+
+                if admin_user and check_password_hash(admin_user['password_hash'], password):
+                    session['logged_in'] = True
+                    session['username'] = admin_user['username']
+                    print(f"DEBUG LOGIN: Login realizado com sucesso para {session['username']}.")
+                    flash("Login realizado com sucesso!", "success")
+                    return redirect(url_for('index'))
+                else:
+                    print("DEBUG LOGIN: Usuário ou senha incorretos.")
+                    flash('Usuário ou senha inválidos.', 'danger')
+
+        except Exception as e:
+            print(f"ERRO LOGIN: Falha no processo de login: {e}")
+            traceback.print_exc()
+            flash('Erro no servidor ao tentar login.', 'error')
+        finally:
+            if conn: conn.close()
+
+    print("DEBUG LOGIN: Renderizando login.html.")
+    return render_template('login.html')
+    print(f"DEBUG LOGIN: Requisição para /login. Method: {request.method}")
+
     if session.get('logged_in'):
         print("DEBUG LOGIN: User already logged in. Redirecting to index.")
         return redirect(url_for('index'))
