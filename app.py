@@ -32,7 +32,7 @@ FLASK_SECRET_KEY = os.getenv(
 )
 
 print("DEBUG: API_TOKEN =", API_TOKEN)
-print("DEBUG: BASE_URL  =", BASE_URL)
+print("DEBUG: BASE_URL   =", BASE_URL)
 print("DEBUG: DATABASE_URL =", DATABASE_URL)
 
 if not API_TOKEN:
@@ -226,7 +226,7 @@ def init_db():
                         traceback.print_exc()
                         raise
                 else:
-                    print(f"DEBUG DB INIT: Coluna 'is_active' já existe em 'users'.") # BUG: Esta linha deveria ser f"DEBUG DB INIT: Coluna '{col_name}' já existe em 'comunidades'."
+                    print(f"DEBUG DB INIT: Coluna '{col_name}' já existe em 'comunidades'.") 
             print("DEBUG DB INIT: Tabela 'comunidades' criada ou já existe.")
 
 
@@ -786,32 +786,17 @@ def adicionar_produto():
 
         if not nome or not preco or not link:
             flash('Todos os campos são obrigatórios!', 'danger')
-            # CORREÇÃO AQUI: Se o formulário de adicionar estiver em 'produtos.html',
-            # você precisaria de uma maneira de persistir os dados ou renderizar a
-            # 'produtos.html' com uma flag para exibir o modal/formulário de adicionar.
-            # No entanto, se 'adicionar_produto.html' for um formulário em página separada,
-            # então ele precisa existir.
-            #
-            # Opção 1 (se adicionar_produto.html existe e é uma página separada):
-            return render_template('adicionar_produto.html') 
-            # Opção 2 (se você quer que o formulário esteja na produtos.html e após erro, retorne lá):
-            # flash('Todos os campos são obrigatórios!', 'danger')
-            # return redirect(url_for('produtos')) # Ou retornar render_template('produtos.html', ...) com erro
-            #
-            # Pela sua estrutura, o mais seguro é criar 'adicionar_produto.html' ou mudar o template.
-            # Vou assumir que você tem um template 'nova.html' que pode servir para adicionar.
-            # OU VOCÊ VAI CRIAR 'adicionar_produto.html'. Pelo momento, vamos manter a linha original e o foco será em você criar esse template.
+            # CORREÇÃO AQUI: Usa 'nova.html' para re-renderizar em caso de erro de validação
+            return render_template('nova.html', nome=nome, preco=preco, link=link)
 
         try:
             preco = float(preco)
             if preco <= 0:
                 flash('Preço deve ser um valor positivo.', 'danger')
-                # Mesmo ponto aqui: se adicionar_produto.html não existe, isso vai falhar.
-                return render_template('adicionar_produto.html')
+                return render_template('nova.html', nome=nome, preco=preco, link=link)
         except ValueError:
             flash('Preço inválido. Use um número.', 'danger')
-            # E aqui.
-            return render_template('adicionar_produto.html')
+            return render_template('nova.html', nome=nome, preco=preco, link=link)
 
         conn = None
         try:
@@ -824,30 +809,25 @@ def adicionar_produto():
                 conn.commit()
             print(f"DEBUG ADICIONAR_PRODUTO: Produto '{nome}' adicionado com sucesso.")
             flash('Produto adicionado com sucesso!', 'success')
-            return redirect(url_for('produtos')) # Redireciona para a lista de produtos
+            return redirect(url_for('produtos')) # Redireciona para a lista de produtos após sucesso
         except Exception as e:
             print(f"ERRO ADICIONAR_PRODUTO: Falha ao adicionar produto: {e}")
             traceback.print_exc()
             flash('Erro ao adicionar produto.', 'danger')
             if conn and not conn.closed: conn.rollback()
+            # Retorna o template 'nova.html' com os dados e a mensagem de erro
+            return render_template('nova.html', nome=nome, preco=preco, link=link)
         finally:
             if conn: conn.close()
     
-    # Se for um GET request, apenas renderiza o formulário
-    # CORREÇÃO AQUI: Se 'adicionar_produto.html' não existe, essa linha causou o erro TemplateNotFound.
-    # Você tem um 'nova.html' que poderia ser o formulário de adição.
-    # Se você quer TUDO em produtos.html, essa rota GET nem precisaria renderizar um template.
-    # Ela poderia apenas redirecionar para 'produtos.html' e o JS lá abriria um modal, por exemplo.
-    # Por ora, a correção mais simples é **você criar o arquivo 'adicionar_produto.html'**
-    # OU mudar esta linha para um template existente (ex: return render_template('nova.html')).
-    # Vou deixar como está, mas com a nota de que 'adicionar_produto.html' PRECISA EXISTIR.
-    return render_template('adicionar_produto.html')
+    # Se for um GET request, apenas renderiza o formulário de adição (nova.html)
+    return render_template('nova.html')
 
 
 @app.route('/editar_produto/<int:produto_id>', methods=['GET', 'POST'])
 def editar_produto(produto_id):
     """
-    Ruta para editar un producto existente.
+    Rota para editar um produto existente.
     Exibe um formulário pré-preenchido (GET) e processa as atualizações (POST).
     Requer que o usuário esteja logado.
     """
@@ -875,19 +855,18 @@ def editar_produto(produto_id):
 
                 if not nome or not preco or not link:
                     flash('Todos os campos são obrigatórios!', 'danger')
-                    # Esta linha está OK, pois 'edit_product.html' existe.
-                    return render_template('edit_product.html', produto=produto)
+                    # Permite re-renderizar 'edit_product.html' com os dados e a mensagem de erro
+                    # Você pode passar request.form para manter os dados no formulário
+                    return render_template('edit_product.html', produto=produto, nome_val=nome, preco_val=preco, link_val=link)
                 
                 try:
                     preco = float(preco)
                     if preco <= 0:
                         flash('Preço deve ser um valor positivo.', 'danger')
-                        # Esta linha está OK.
-                        return render_template('edit_product.html', produto=produto)
+                        return render_template('edit_product.html', produto=produto, nome_val=nome, preco_val=preco, link_val=link)
                 except ValueError:
                     flash('Preço inválido. Use um número.', 'danger')
-                    # Esta linha está OK.
-                    return render_template('edit_product.html', produto=produto)
+                    return render_template('edit_product.html', produto=produto, nome_val=nome, preco_val=preco, link_val=link)
 
                 cur.execute(
                     "UPDATE produtos SET nome = %s, preco = %s, link = %s WHERE id = %s",
@@ -899,7 +878,7 @@ def editar_produto(produto_id):
                 return redirect(url_for('produtos'))
             
             # GET request: Renderiza o formulário de edição com os dados do produto
-            # Esta linha está OK, pois 'edit_product.html' existe.
+            # Passa os dados do produto para pré-preenchimento
             return render_template('edit_product.html', produto=produto)
 
     except Exception as e:
@@ -1002,9 +981,9 @@ def vendas():
 @app.route('/usuarios')
 def usuarios():
     """
-    Rota para exibir a lista de usuários do bot na interface web do dashboard.
-    Requer que o usuário esteja logado.
-    Busca todos os usuários do banco de dados e os renderiza no template usuarios.html.
+    Ruta para exibir a lista de usuários do bot na interface web do dashboard.
+    Requer que el usuario esteja logado.
+    Busca todos os usuários do banco de dados e los renderiza no template usuarios.html.
     """
     print("DEBUG USUARIOS: Requisição para /usuarios.")
 
@@ -1080,7 +1059,7 @@ def scheduled_messages():
     Rota para exibir a lista de mensagens agendadas.
     Requer que o usuário esteja logado.
     """
-    print("DEBUG SCHEDULED_MESSAGES: Requisição para /scheduled_messages.")
+    print(f"DEBUG SCHEDULED_MESSAGES: Requisição para /scheduled_messages. Method: {request.method}")
 
     if not session.get('logged_in'):
         print("DEBUG SCHEDULED_MESSAGES: Usuário não logado. Redirecionando para login.")
@@ -1146,19 +1125,19 @@ def add_scheduled_message():
 
             if not message_text or not schedule_time_str:
                 flash('Texto da mensagem e tempo de agendamento são obrigatórios!', 'danger')
-                return render_template('add_scheduled_message.html', users=users)
+                return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str) # Passa dados para re-preencher
             
             # Converte a string de data/hora para um objeto datetime
             try:
                 schedule_time = datetime.strptime(schedule_time_str, '%Y-%m-%dT%H:%M')
             except ValueError:
                 flash('Formato de data/hora inválido. Use AAAA-MM-DDTHH:MM.', 'danger')
-                return render_template('add_scheduled_message.html', users=users)
+                return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str) # Passa dados para re-preencher
             
             # Valida se a data/hora é no futuro
             if schedule_time <= datetime.now():
                 flash('A data e hora de agendamento devem ser no futuro.', 'danger')
-                return render_template('add_scheduled_message.html', users=users)
+                return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str) # Passa dados para re-preencher
 
             # Define target_chat_id como None se for 'all_users'
             if target_chat_id == 'all_users':
@@ -1168,7 +1147,7 @@ def add_scheduled_message():
                     target_chat_id = int(target_chat_id)
                 except (ValueError, TypeError):
                     flash('ID do chat de destino inválido.', 'danger')
-                    return render_template('add_scheduled_message.html', users=users)
+                    return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str) # Passa dados para re-preencher
 
             cur_conn = get_db_connection() # Nova conexão para evitar problemas de transação
             try:
@@ -1185,6 +1164,7 @@ def add_scheduled_message():
                 traceback.print_exc()
                 flash('Erro ao agendar mensagem.', 'danger')
                 if cur_conn and not cur_conn.closed: cur_conn.rollback()
+                return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str) # Passa dados para re-preencher
             finally:
                 if cur_conn: cur_conn.close()
 
@@ -1235,13 +1215,13 @@ def edit_scheduled_message(message_id):
 
                 if not message_text or not schedule_time_str:
                     flash('Texto da mensagem e tempo de agendamento são obrigatórios!', 'danger')
-                    return render_template('edit_scheduled_message.html', message=message, users=users)
+                    return render_template('edit_scheduled_message.html', message=message, users=users, message_text_val=message_text, target_chat_id_val=target_chat_id, image_url_val=image_url, schedule_time_str_val=schedule_time_str) # Passa dados para re-preencher
 
                 try:
                     schedule_time = datetime.strptime(schedule_time_str, '%Y-%m-%dT%H:%M')
                 except ValueError:
                     flash('Formato de data/hora inválido. Use AAAA-MM-DDTHH:MM.', 'danger')
-                    return render_template('edit_scheduled_message.html', message=message, users=users)
+                    return render_template('edit_scheduled_message.html', message=message, users=users, message_text_val=message_text, target_chat_id_val=target_chat_id, image_url_val=image_url, schedule_time_str_val=schedule_time_str) # Passa dados para re-preencher
                 
                 if target_chat_id == 'all_users':
                     target_chat_id = None
@@ -1250,7 +1230,7 @@ def edit_scheduled_message(message_id):
                         target_chat_id = int(target_chat_id)
                     except (ValueError, TypeError):
                         flash('ID do chat de destino inválido.', 'danger')
-                        return render_template('edit_scheduled_message.html', message=message, users=users)
+                        return render_template('edit_scheduled_message.html', message=message, users=users, message_text_val=message_text, target_chat_id_val=target_chat_id, image_url_val=image_url, schedule_time_str_val=schedule_time_str) # Passa dados para re-preencher
 
                 cur.execute(
                     "UPDATE scheduled_messages SET message_text = %s, target_chat_id = %s, image_url = %s, schedule_time = %s, status = %s WHERE id = %s",
