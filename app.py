@@ -973,6 +973,82 @@ def vendas():
         if conn:
             conn.close()
 
+@app.route('/usuarios')
+def usuarios():
+    """
+    Rota para exibir a lista de usuários do bot na interface web do dashboard.
+    Requer que o usuário esteja logado.
+    Busca todos os usuários do banco de dados e os renderiza no template usuarios.html.
+    """
+    print("DEBUG USUARIOS: Requisição para /usuarios.")
+
+    if not session.get('logged_in'):
+        print("DEBUG USUARIOS: Usuário não logado. Redirecionando para login.")
+        flash('Por favor, faça login para acessar esta página.', 'warning')
+        return redirect(url_for('login'))
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Busca todos os usuários do banco de dados
+            cur.execute('SELECT * FROM users ORDER BY data_registro DESC')
+            usuarios_lista = cur.fetchall()
+            print(f"DEBUG USUARIOS: {len(usuarios_lista)} usuários encontrados.")
+
+        # Renderiza o template 'usuarios.html', passando a lista de usuários
+        return render_template('usuarios.html', usuarios=usuarios_lista)
+
+    except Exception as e:
+        print(f"ERRO USUARIOS: Falha ao carregar usuários para o dashboard: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar os usuários.', 'danger')
+        return redirect(url_for('index'))
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/toggle_user_status/<int:user_id>', methods=['POST'])
+def toggle_user_status(user_id):
+    """
+    Rota para alternar o status (ativo/inativo) de um usuário.
+    Requer que o usuário esteja logado.
+    """
+    print(f"DEBUG TOGGLE_USER_STATUS: Requisição para /toggle_user_status/{user_id}. Method: {request.method}")
+
+    if not session.get('logged_in'):
+        flash('Por favor, faça login para acessar esta página.', 'warning')
+        return redirect(url_for('login'))
+    
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute('SELECT is_active FROM users WHERE id = %s', (user_id,))
+            user = cur.fetchone()
+
+            if not user:
+                flash('Usuário não encontrado.', 'danger')
+                return redirect(url_for('usuarios'))
+            
+            new_status = not user['is_active']
+            cur.execute('UPDATE users SET is_active = %s WHERE id = %s', (new_status, user_id))
+            conn.commit()
+            
+            status_text = "ativado" if new_status else "desativado"
+            print(f"DEBUG TOGGLE_USER_STATUS: Usuário {user_id} {status_text} com sucesso.")
+            flash(f'Usuário {user_id} {status_text} com sucesso!', 'success')
+            return redirect(url_for('usuarios'))
+    except Exception as e:
+        print(f"ERRO TOGGLE_USER_STATUS: Falha ao alterar status do usuário: {e}")
+        traceback.print_exc()
+        flash('Erro ao alterar status do usuário.', 'danger')
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('usuarios'))
+    finally:
+        if conn: conn.close()
+
+
 if __name__ == '__main__':
     # Inicializa o banco de dados e cria tabelas se não existirem
     init_db()
