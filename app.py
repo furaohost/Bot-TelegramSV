@@ -22,7 +22,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 # Importa as funções centralizadas de conexão e inicialização do banco de dados
 # Certifique-se de que esses arquivos estão na pasta 'database/'
-from database import get_db_connection
+from database.database import get_db_connection
 from database.db_init import init_db # Importa a função de inicialização do DB
 
 # Importa o módulo de pagamentos do Mercado Pago
