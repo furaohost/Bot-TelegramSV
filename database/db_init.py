@@ -1,10 +1,14 @@
+# database/db_init.py
 import os
-import sqlite3
+import sqlite3 # Adicionado explicitamente porque isinstance(conn, sqlite3.Connection) é usado
 import psycopg2
-from psycopg2.extras import RealDictCursor
-from database.database import get_db_connection # IMPORTA DIRETAMENTE DO FICHEIRO database.py, NÃO DO PACOTE
+from psycopg2.extras import RealDictCursor # Adicionado explicitamente se usado por psycopg2.extensions.connection
+from psycopg2 import errors
+from datetime import datetime # Para datetime('now') em SQLite e CURRENT_TIMESTAMP em PostgreSQL
 from werkzeug.security import generate_password_hash # Para o hash da senha do admin
-from datetime import datetime # Para datetime('now') em SQLite
+
+# IMPORTAÇÃO CORRETA: Agora aponta para database.py no mesmo pacote
+from .database import get_db_connection
 
 def ensure_column(cursor, table, col_def, db_type):
     col_name = col_def.split()[0]
@@ -40,9 +44,13 @@ def init_db():
         conn = get_db_connection()
         if conn is None:
             print("ERRO: Não foi possível obter uma conexão com o banco de dados para inicialização.")
-            return
+            return # Retorna sem levantar exceção se a conexão falhou
 
-        db_type = "postgresql" if isinstance(conn, psycopg2.extensions.connection) else "sqlite"
+        # Determine o tipo de banco de dados para adaptar as queries
+        db_type = "postgresql"
+        if isinstance(conn, sqlite3.Connection): # Use isinstance diretamente aqui
+            db_type = "sqlite"
+
         print(f"Inicializando banco de dados ({db_type})...")
 
         with conn.cursor() as cur:
@@ -210,19 +218,19 @@ def init_db():
                     );
                 """)
 
+            # Adicionar colunas existentes (ensure_column) para comunidades
             for definition in [
                 "descricao TEXT",
-                "chat_id BIGINT",
+                "chat_id BIGINT", # SQLite INTEGER
                 "status TEXT DEFAULT 'ativa'",
-                "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+                "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP", # SQLite TEXT DEFAULT (datetime('now'))
             ]:
                 ensure_column(cur, "comunidades", definition, db_type)
 
+            # Inserção de ADMIN padrão
             if db_type == "sqlite":
                 cur.execute("SELECT id FROM admin WHERE username = 'admin'")
                 if not cur.fetchone():
-                    # Importa generate_password_hash localmente para evitar ciclo
-                    from werkzeug.security import generate_password_hash
                     cur.execute(
                         "INSERT INTO admin (username, password_hash) VALUES (?, ?)",
                         ("admin", generate_password_hash("admin123")),
@@ -230,13 +238,12 @@ def init_db():
             else: # PostgreSQL
                 cur.execute("SELECT id FROM admin WHERE username = 'admin'")
                 if not cur.fetchone():
-                    # Importa generate_password_hash localmente para evitar ciclo
-                    from werkzeug.security import generate_password_hash
                     cur.execute(
                         "INSERT INTO admin (username, password_hash) VALUES (%s, %s)",
                         ("admin", generate_password_hash("admin123")),
                     )
 
+            # Inserção de Mensagens padrão
             if db_type == "sqlite":
                 cur.execute(
                     "INSERT INTO config (key, value) VALUES ('welcome_message_bot',?) ON CONFLICT (key) DO NOTHING;",
@@ -258,16 +265,30 @@ def init_db():
 
             conn.commit()
             print("DEBUG DB INIT: Tabelas e dados padrão OK.")
+            return True # Retorna True em caso de sucesso
 
     except Exception as e:
-        print(f"ERRO DB INIT: {e}")
+        print(f"ERRO DB INIT: Falha na inicialização do banco de dados: {e}")
+        # traceback.print_exc() # Descomente para ver o traceback completo em caso de erro
         if conn:
             conn.rollback()
-        raise
+        return False # Retorna False em caso de erro
     finally:
         if conn:
             conn.close()
             print("Conexão com o banco de dados fechada após inicialização.")
 
 if __name__ == '__main__':
+    # Adicione os imports necessários para rodar localmente
+    import sys
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) # Ajusta o path para encontrar app.py ou outros módulos raiz
+    from dotenv import load_dotenv
+    load_dotenv() # Carrega variáveis do .env se existir
+
+    # Verifica se a conexão com psycopg2.extensions.connection é necessária (apenas para o teste)
+    try:
+        import psycopg2.extensions # Tenta importar para verificar o tipo de conexão
+    except ImportError:
+        pass # Não faz nada se psycopg2 não estiver instalado
+
     init_db()
