@@ -6,6 +6,8 @@ import traceback
 import time as time_module
 from datetime import datetime, timedelta, time
 from threading import Thread
+import sqlite3 # Importado para usar isinstance(conn, sqlite3.Connection)
+
 
 # Importações Flask e Werkzeug
 from flask import (
@@ -25,7 +27,7 @@ from database.db_init import init_db
 # Importa o módulo de pagamentos do Mercado Pago
 import pagamentos
 
-# Importações de handlers e blueprints
+# Importações de handlers e blueprints (seus módulos existentes do bot e web)
 from bot.utils.keyboards import confirm_18_keyboard, menu_principal
 from bot.handlers.chamadas import register_chamadas_handlers
 from bot.handlers.comunidades import register_comunidades_handlers
@@ -60,7 +62,6 @@ if not API_TOKEN:
 # ────────────────────────────────────────────────────────────────────
 # 2. FLASK & TELEBOT (Inicialização dos objetos principais)
 # ────────────────────────────────────────────────────────────────────
-# ATENÇÃO: template_folder APONTA PARA A PASTA 'templates' NA RAIZ DO PROJETO
 app = Flask(__name__, template_folder="templates", static_folder="web/static")
 app.secret_key = FLASK_SECRET_KEY
 bot = telebot.TeleBot(API_TOKEN, threaded=False, parse_mode="Markdown")
@@ -71,6 +72,7 @@ bot = telebot.TeleBot(API_TOKEN, threaded=False, parse_mode="Markdown")
 
 def get_or_register_user(user: types.User):
     conn = None
+    cur = None # Inicializa cur como None
     try:
         conn = get_db_connection()
         if conn is None:
@@ -78,35 +80,37 @@ def get_or_register_user(user: types.User):
             return 
             
         is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
+        cur = conn.cursor() # Obtenção do cursor sem 'with'
+        
+        if is_sqlite:
+            cur.execute("SELECT * FROM users WHERE id = ?", (user.id,))
+        else:
+            cur.execute("SELECT * FROM users WHERE id = %s", (user.id,))
+        
+        db_user = cur.fetchone()
+        if db_user is None:
+            data_registro = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             if is_sqlite:
-                cur.execute("SELECT * FROM users WHERE id = ?", (user.id,))
+                cur.execute("INSERT INTO users (id, username, first_name, last_name, data_registro, is_active) VALUES (?, ?, ?, ?, ?, ?)",
+                             (user.id, user.username, user.first_name, user.last_name, data_registro, True))
             else:
-                cur.execute("SELECT * FROM users WHERE id = %s", (user.id,))
-            
-            db_user = cur.fetchone()
-            if db_user is None:
-                data_registro = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                cur.execute("INSERT INTO users (id, username, first_name, last_name, data_registro, is_active) VALUES (%s, %s, %s, %s, %s, %s)",
+                             (user.id, user.username, user.first_name, user.last_name, data_registro, True))
+            conn.commit()
+        else:
+            if not db_user['is_active']:
                 if is_sqlite:
-                    cur.execute("INSERT INTO users (id, username, first_name, last_name, data_registro, is_active) VALUES (?, ?, ?, ?, ?, ?)",
-                                 (user.id, user.username, user.first_name, user.last_name, data_registro, True))
+                    cur.execute("UPDATE users SET is_active = ? WHERE id = ?", (True, user.id,))
                 else:
-                    cur.execute("INSERT INTO users (id, username, first_name, last_name, data_registro, is_active) VALUES (%s, %s, %s, %s, %s, %s)",
-                                 (user.id, user.username, user.first_name, user.last_name, data_registro, True))
+                    cur.execute("UPDATE users SET is_active = TRUE WHERE id = %s", (user.id,))
                 conn.commit()
-            else:
-                if not db_user['is_active']:
-                    if is_sqlite:
-                        cur.execute("UPDATE users SET is_active = ? WHERE id = ?", (True, user.id,))
-                    else:
-                        cur.execute("UPDATE users SET is_active = TRUE WHERE id = %s", (user.id,))
-                    conn.commit()
-                    print(f"DEBUG DB: Usuário {user.id} reativado.")
+                print(f"DEBUG DB: Usuário {user.id} reativado.")
     except Exception as e:
         print(f"ERRO DB: get_or_register_user falhou: {e}")
         traceback.print_exc()
         if conn and not conn.closed: conn.rollback()
     finally:
+        if cur: cur.close() # Fecha o cursor
         if conn: conn.close()
 
 def enviar_produto_telegram(user_id, nome_produto, link_produto):
@@ -123,6 +127,7 @@ def enviar_produto_telegram(user_id, nome_produto, link_produto):
 
 def mostrar_produtos_bot(chat_id): # Renomeada para evitar conflito com rota Flask
     conn = None
+    cur = None # Inicializa cur como None
     try:
         conn = get_db_connection()
         if conn is None:
@@ -130,31 +135,34 @@ def mostrar_produtos_bot(chat_id): # Renomeada para evitar conflito com rota Fla
             return
             
         is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute('SELECT * FROM produtos')
-            else:
-                cur.execute('SELECT * FROM produtos')
-            produtos = cur.fetchall()
-            if not produtos:
-                bot.send_message(chat_id, "Nenhum produto disponível.")
-                return
-            for produto in produtos:
-                markup = types.InlineKeyboardMarkup()
-                btn_comprar = types.InlineKeyboardButton(f"Comprar por R${produto['preco']:.2f}", callback_data=f"comprar_{produto['id']}")
-                markup.add(btn_comprar)
-                bot.send_message(chat_id, f"🛍 *{produto['nome']}*\n\nPreço: R${produto['preco']:.2f}", parse_mode='Markdown', reply_markup=markup)
+        cur = conn.cursor() # Obtenção do cursor sem 'with'
+        
+        if is_sqlite:
+            cur.execute('SELECT * FROM produtos')
+        else:
+            cur.execute('SELECT * FROM produtos')
+        produtos = cur.fetchall()
+        if not produtos:
+            bot.send_message(chat_id, "Nenhum produto disponível.")
+            return
+        for produto in produtos:
+            markup = types.InlineKeyboardMarkup()
+            btn_comprar = types.InlineKeyboardButton(f"Comprar por R${produto['preco']:.2f}", callback_data=f"comprar_{produto['id']}")
+            markup.add(btn_comprar)
+            bot.send_message(chat_id, f"🛍 *{produto['nome']}*\n\nPreço: R${produto['preco']:.2f}", parse_mode='Markdown', reply_markup=markup)
     except Exception as e:
         print(f"ERRO MOSTRAR PRODUTOS BOT: Falha ao mostrar produtos: {e}")
         traceback.print_exc()
         bot.send_message(chat_id, "Ocorreu um erro ao carregar os produtos.")
     finally:
+        if cur: cur.close() # Fecha o cursor
         if conn: conn.close()
 
 def generar_cobranca(call: types.CallbackQuery, produto_id: int):
     user_id, chat_id = call.from_user.id, call.message.chat.id
     conn = None
     venda_id = None
+    cur = None # Inicializa cur como None
     try:
         conn = get_db_connection()
         if conn is None:
@@ -162,52 +170,54 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
             return
             
         is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute('SELECT * FROM produtos WHERE id = ?', (produto_id,))
-            else:
-                cur.execute('SELECT * FROM produtos WHERE id = %s', (produto_id,))
-            produto = cur.fetchone()
+        cur = conn.cursor() # Obtenção do cursor sem 'with'
+        
+        if is_sqlite:
+            cur.execute('SELECT * FROM produtos WHERE id = ?', (produto_id,))
+        else:
+            cur.execute('SELECT * FROM produtos WHERE id = %s', (produto_id,))
+        produto = cur.fetchone()
 
-            if not produto:
-                bot.send_message(chat_id, "Produto não encontrado.")
-                return
+        if not produto:
+            bot.send_message(chat_id, "Produto não encontrado.")
+            return
 
-            data_venda = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            if is_sqlite:
-                cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (?, ?, ?, ?, ?) RETURNING id",
-                             (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
-            else:
-                cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                             (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
-            venda_id = cur.fetchone()[0]
-            conn.commit()
+        data_venda = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        if is_sqlite:
+            cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (?, ?, ?, ?, ?) RETURNING id",
+                         (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
+        else:
+            cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+                         (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
+        venda_id = cur.fetchone()[0]
+        conn.commit()
 
-            pagamento = pagamentos.criar_pagamento_pix(produto=produto, user=call.from_user, venda_id=venda_id)
+        pagamento = pagamentos.criar_pagamento_pix(produto=produto, user=call.from_user, venda_id=venda_id)
 
-            if pagamento and 'point_of_interaction' in pagamento:
-                qr_code_base64 = pagamento['point_of_interaction']['transaction_data']['qr_code_base64']
-                qr_code_data = pagamento['point_of_interaction']['transaction_data']['qr_code']
-                qr_code_image = base64.b64decode(qr_code_base64)
+        if pagamento and 'point_of_interaction' in pagamento:
+            qr_code_base64 = pagamento['point_of_interaction']['transaction_data']['qr_code_base64']
+            qr_code_data = pagamento['point_of_interaction']['transaction_data']['qr_code']
+            qr_code_image = base64.b64decode(qr_code_base64)
 
-                caption_text = (
-                    f"✅ PIX gerado para *{produto['nome']}*!\n\n"
-                    "Escaneie o QR Code acima ou copie o código completo na próxima mensagem."
-                )
-                bot.send_photo(chat_id, qr_code_image, caption=caption_text, parse_mode='Markdown')
+            caption_text = (
+                f"✅ PIX gerado para *{produto['nome']}*!\n\n"
+                "Escaneie o QR Code acima ou copie o código completo na próxima mensagem."
+            )
+            bot.send_photo(chat_id, qr_code_image, caption=caption_text, parse_mode='Markdown')
 
-                bot.send_message(chat_id, qr_code_data)
+            bot.send_message(chat_id, qr_code_data)
 
-                bot.send_message(chat_id, "Você receberá o produto aqui assim que o pagamento for confirmado.")
-            else:
-                bot.send_message(chat_id, "Ocorreu um erro ao gerar o PIX. Tente novamente.")
-                print(f"[ERRO] Falha ao gerar PIX. Resposta do MP: {pagamento}")
+            bot.send_message(chat_id, "Você receberá o produto aqui assim que o pagamento for confirmado.")
+        else:
+            bot.send_message(chat_id, "Ocorreu um erro ao gerar o PIX. Tente novamente.")
+            print(f"[ERRO] Falha ao gerar PIX. Resposta do MP: {pagamento}")
     except Exception as e:
         print(f"ERRO GENERAR COBRANCA: Falha ao gerar cobrança/PIX: {e}")
         traceback.print_exc()
         bot.send_message(chat_id, "Ocorreu um erro interno ao gerar sua cobrança. Tente novamente.")
         if conn and not conn.closed: conn.rollback()
     finally:
+        if cur: cur.close() # Fecha o cursor
         if conn: conn.close()
 
 
@@ -218,6 +228,7 @@ def scheduled_message_worker():
     print("DEBUG WORKER: iniciado …")
     while True:
         conn = None
+        cur = None # Inicializa cur como None
         try:
             conn = get_db_connection()
             if conn is None:
@@ -226,70 +237,73 @@ def scheduled_message_worker():
                 continue
 
             is_sqlite = 'sqlite3' in conn.__class__.__module__
-            with conn.cursor() as cur:
+            cur = conn.cursor() # Obtenção do cursor sem 'with'
+            
+            if is_sqlite:
+                cur.execute(
+                    "SELECT * FROM scheduled_messages WHERE status='pending' AND schedule_time<=datetime('now') ORDER BY schedule_time"
+                )
+            else:
+                cur.execute(
+                    "SELECT * FROM scheduled_messages WHERE status='pending' AND schedule_time<=NOW() AT TIME ZONE 'UTC' ORDER BY schedule_time"
+                )
+            rows = cur.fetchall()
+
+            for row in rows:
+                targets = []
+                if row["target_chat_id"]:
+                    targets.append(row["target_chat_id"])
+                else:
+                    if is_sqlite:
+                        cur.execute("SELECT id FROM users WHERE is_active=1")
+                    else:
+                        cur.execute("SELECT id FROM users WHERE is_active=TRUE")
+                    targets = [u["id"] for u in cur.fetchall()]
+                
+                delivered = False
+                for chat_id in targets:
+                    try:
+                        if row["image_url"]:
+                            bot.send_photo(chat_id, row["image_url"], caption=row["message_text"], parse_mode="Markdown")
+                        else:
+                            bot.send_message(chat_id, row["message_text"], parse_mode="Markdown")
+                        delivered = True
+                    except telebot.apihelper.ApiTelegramException as e:
+                        print(f"ERRO envio Telegram para {chat_id}:", e)
+                        if "blocked" in str(e).lower() or "not found" in str(e).lower() or "deactivated" in str(e).lower():
+                            print(f"AVISO: Usuário {chat_id} bloqueou/não encontrado. Inativando...")
+                            temp_conn = None
+                            temp_cur = None # Inicializa temp_cur como None
+                            try:
+                                temp_conn = get_db_connection()
+                                if temp_conn:
+                                    temp_is_sqlite = 'sqlite3' in temp_conn.__class__.__module__
+                                    temp_cur = temp_conn.cursor() # Obtenção do cursor sem 'with'
+                                    if temp_is_sqlite:
+                                        temp_cur.execute("UPDATE users SET is_active=0 WHERE id=?", (chat_id,))
+                                    else:
+                                        temp_cur.execute("UPDATE users SET is_active=FALSE WHERE id=%s", (chat_id,))
+                                    temp_conn.commit()
+                            except Exception as db_e:
+                                print(f"ERRO ao inativar usuário {chat_id}:", db_e)
+                                if temp_conn: temp_conn.rollback()
+                            finally:
+                                if temp_cur: temp_cur.close() # Fecha o cursor
+                                if temp_conn: temp_conn.close()
+                    except Exception as e:
+                        print("ERRO envio inesperado:", e)
+                        traceback.print_exc()
+                status = "sent" if delivered else "failed"
                 if is_sqlite:
                     cur.execute(
-                        "SELECT * FROM scheduled_messages WHERE status='pending' AND schedule_time<=datetime('now') ORDER BY schedule_time"
+                        "UPDATE scheduled_messages SET status=?, sent_at=CURRENT_TIMESTAMP WHERE id=?",
+                        (status, row["id"]),
                     )
                 else:
                     cur.execute(
-                        "SELECT * FROM scheduled_messages WHERE status='pending' AND schedule_time<=NOW() AT TIME ZONE 'UTC' ORDER BY schedule_time"
+                        "UPDATE scheduled_messages SET status=%s, sent_at=NOW() WHERE id=%s",
+                        (status, row["id"]),
                     )
-                rows = cur.fetchall()
-
-                for row in rows:
-                    targets = []
-                    if row["target_chat_id"]:
-                        targets.append(row["target_chat_id"])
-                    else:
-                        if is_sqlite:
-                            cur.execute("SELECT id FROM users WHERE is_active=1")
-                        else:
-                            cur.execute("SELECT id FROM users WHERE is_active=TRUE")
-                        targets = [u["id"] for u in cur.fetchall()]
-                    
-                    delivered = False
-                    for chat_id in targets:
-                        try:
-                            if row["image_url"]:
-                                bot.send_photo(chat_id, row["image_url"], caption=row["message_text"], parse_mode="Markdown")
-                            else:
-                                bot.send_message(chat_id, row["message_text"], parse_mode="Markdown")
-                            delivered = True
-                        except telebot.apihelper.ApiTelegramException as e:
-                            print(f"ERRO envio Telegram para {chat_id}:", e)
-                            if "blocked" in str(e).lower() or "not found" in str(e).lower() or "deactivated" in str(e).lower():
-                                print(f"AVISO: Usuário {chat_id} bloqueou/não encontrado. Inativando...")
-                                temp_conn = None
-                                try:
-                                    temp_conn = get_db_connection()
-                                    if temp_conn:
-                                        temp_is_sqlite = 'sqlite3' in temp_conn.__class__.__module__
-                                        with temp_conn.cursor() as temp_cur:
-                                            if temp_is_sqlite:
-                                                temp_cur.execute("UPDATE users SET is_active=0 WHERE id=?", (chat_id,))
-                                            else:
-                                                temp_cur.execute("UPDATE users SET is_active=FALSE WHERE id=%s", (chat_id,))
-                                            temp_conn.commit()
-                                except Exception as db_e:
-                                    print(f"ERRO ao inativar usuário {chat_id}:", db_e)
-                                    if temp_conn: temp_conn.rollback()
-                                finally:
-                                    if temp_conn: temp_conn.close()
-                        except Exception as e:
-                            print("ERRO envio inesperado:", e)
-                            traceback.print_exc()
-                    status = "sent" if delivered else "failed"
-                    if is_sqlite:
-                        cur.execute(
-                            "UPDATE scheduled_messages SET status=?, sent_at=CURRENT_TIMESTAMP WHERE id=?",
-                            (status, row["id"]),
-                        )
-                    else:
-                        cur.execute(
-                            "UPDATE scheduled_messages SET status=%s, sent_at=NOW() WHERE id=%s",
-                            (status, row["id"]),
-                        )
                 conn.commit()
         except Exception as e:
             print("ERRO WORKER PRINCIPAL:", e)
@@ -297,8 +311,8 @@ def scheduled_message_worker():
             if conn:
                 conn.rollback()
         finally:
-            if conn:
-                conn.close()
+            if cur: cur.close() # Fecha o cursor
+            if conn: conn.close()
         time_module.sleep(60)
 
 # ────────────────────────────────────────────────────────────────────
@@ -359,6 +373,7 @@ def webhook_mercado_pago():
 
         if payment_info and payment_info['status'] == 'approved':
             conn = None
+            cur = None # Inicializa cur como None
             try:
                 conn = get_db_connection()
                 if conn is None:
@@ -366,62 +381,64 @@ def webhook_mercado_pago():
                     return jsonify({'status': 'db_connection_error'}), 500
 
                 is_sqlite = 'sqlite3' in conn.__class__.__module__
-                with conn.cursor() as cur:
-                    venda_id = payment_info.get('external_reference')
-                    print(f"DEBUG WEBHOOK MP: Pagamento aprovado. Venda ID (external_reference): {venda_id}")
+                cur = conn.cursor() # Obtenção do cursor sem 'with'
+                
+                venda_id = payment_info.get('external_reference')
+                print(f"DEBUG WEBHOOK MP: Pagamento aprovado. Venda ID (external_reference): {venda_id}")
 
-                    if not venda_id:
-                        print("DEBUG WEBHOOK MP: external_reference não encontrado na notificação. Ignorando.")
-                        return jsonify({'status': 'ignored_no_external_ref'}), 200
+                if not venda_id:
+                    print("DEBUG WEBHOOK MP: external_reference não encontrado na notificação. Ignorando.")
+                    return jsonify({'status': 'ignored_no_external_ref'}), 200
 
-                    if is_sqlite:
-                         cur.execute('SELECT * FROM vendas WHERE id = ? AND status = ?', (venda_id, 'pendente'))
-                    else:
-                         cur.execute('SELECT * FROM vendas WHERE id = %s AND status = %s', (venda_id, 'pendente'))
-                    venda = cur.fetchone()
+                if is_sqlite:
+                     cur.execute('SELECT * FROM vendas WHERE id = ? AND status = ?', (venda_id, 'pendente'))
+                else:
+                     cur.execute('SELECT * FROM vendas WHERE id = %s AND status = %s', (venda_id, 'pendente'))
+                venda = cur.fetchone()
 
-                    if venda:
-                        print(f"DEBUG WEBHOOK MP: Venda {venda_id} encontrada no DB com status 'pendente'.")
-                        data_venda_dt = venda['data_venda'] if isinstance(venda['data_venda'], datetime) else datetime.strptime(str(venda['data_venda']), '%Y-%m-%d %H:%M:%S.%f')
-                        
-                        if datetime.now() > data_venda_dt + timedelta(hours=1):
-                            print(f"DEBUG WEBHOOK MP: Pagamento recebido para venda expirada (ID: {venda_id}). Ignorando entrega.")
-                            if is_sqlite:
-                                cur.execute('UPDATE vendas SET status = ? WHERE id = ?', ('expirado', venda_id))
-                            else:
-                                cur.execute('UPDATE vendas SET status = %s WHERE id = %s', ('expirado', venda_id))
-                            conn.commit()
-                            return jsonify({'status': 'expired_and_ignored'}), 200
-
-                        payer_info = payment_info.get('payer', {})
-                        payer_name = f"{payer_info.get('first_name', '')} {payer_info.get('last_name', '')}".strip()
-                        payer_email = payer_info.get('email')
+                if venda:
+                    print(f"DEBUG WEBHOOK MP: Venda {venda_id} encontrada no DB com status 'pendente'.")
+                    data_venda_dt = venda['data_venda'] if isinstance(venda['data_venda'], datetime) else datetime.strptime(str(venda['data_venda']), '%Y-%m-%d %H:%M:%S.%f')
+                    
+                    if datetime.now() > data_venda_dt + timedelta(hours=1):
+                        print(f"DEBUG WEBHOOK MP: Pagamento recebido para venda expirada (ID: {venda_id}). Ignorando entrega.")
                         if is_sqlite:
-                             cur.execute('UPDATE vendas SET status = ?, payment_id = ?, payer_name = ?, payer_email = ? WHERE id = ?',
-                                         ('aprovado', payment_id, payer_name, payer_email, venda_id))
+                            cur.execute('UPDATE vendas SET status = ? WHERE id = ?', ('expirado', venda_id))
                         else:
-                             cur.execute('UPDATE vendas SET status = %s, payment_id = %s, payer_name = %s, payer_email = %s WHERE id = %s',
-                                         ('aprovado', payment_id, payer_name, payer_email, venda_id))
+                            cur.execute('UPDATE vendas SET status = %s WHERE id = %s', ('expirado', venda_id))
                         conn.commit()
-                        if is_sqlite:
-                            cur.execute('SELECT * FROM produtos WHERE id = ?', (venda['produto_id'],))
-                        else:
-                            cur.execute('SELECT * FROM produtos WHERE id = %s', (venda['produto_id'],))
-                        produto = cur.fetchone()
-                        if produto:
-                            print(f"DEBUG WEBHOOK MP: Enviando produto {produto['nome']} para user {venda['user_id']}.")
-                            enviar_produto_telegram(venda['user_id'], produto['nome'], produto['link'])
-                        print(f"DEBUG WEBHOOK MP: Venda {venda_id} aprovada e entregue com sucesso.")
-                        return jsonify({'status': 'success'}), 200
+                        return jsonify({'status': 'expired_and_ignored'}), 200
+
+                    payer_info = payment_info.get('payer', {})
+                    payer_name = f"{payer_info.get('first_name', '')} {payer_info.get('last_name', '')}".strip()
+                    payer_email = payer_info.get('email')
+                    if is_sqlite:
+                         cur.execute('UPDATE vendas SET status = ?, payment_id = ?, payer_name = ?, payer_email = ? WHERE id = ?',
+                                     ('aprovado', payment_id, payer_name, payer_email, venda_id))
                     else:
-                        print(f"DEBUG WEBHOOK MP: Venda {venda_id} já processada ou não encontrada no DB como 'pendente'.")
-                        return jsonify({'status': 'already_processed_or_not_pending'}), 200
+                         cur.execute('UPDATE vendas SET status = %s, payment_id = %s, payer_name = %s, payer_email = %s WHERE id = %s',
+                                     ('aprovado', payment_id, payer_name, payer_email, venda_id))
+                    conn.commit()
+                    if is_sqlite:
+                        cur.execute('SELECT * FROM produtos WHERE id = ?', (venda['produto_id'],))
+                    else:
+                        cur.execute('SELECT * FROM produtos WHERE id = %s', (venda['produto_id'],))
+                    produto = cur.fetchone()
+                    if produto:
+                        print(f"DEBUG WEBHOOK MP: Enviando produto {produto['nome']} para user {venda['user_id']}.")
+                        enviar_produto_telegram(venda['user_id'], produto['nome'], produto['link'])
+                    print(f"DEBUG WEBHOOK MP: Venda {venda_id} aprovada e entregue com sucesso.")
+                    return jsonify({'status': 'success'}), 200
+                else:
+                    print(f"DEBUG WEBHOOK MP: Venda {venda_id} já processada ou não encontrada no DB como 'pendente'.")
+                    return jsonify({'status': 'already_processed_or_not_pending'}), 200
             except Exception as e:
                 print(f"ERRO WEBHOOK MP: Erro no processamento da notificação de pagamento: {e}")
                 traceback.print_exc()
                 if conn and not conn.closed: conn.rollback()
                 return jsonify({'status': 'error_processing_webhook'}), 500
             finally:
+                if cur: cur.close() # Fecha o cursor
                 if conn: conn.close()
         else:
             # CORREÇÃO DA LINHA 433: Removendo o caractere invisível e corrigindo aspas
@@ -441,6 +458,7 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         conn = None
+        cur = None # Inicializa cur como None
         try:
             conn = get_db_connection()
             if conn is None:
@@ -448,38 +466,40 @@ def login():
                 return render_template('login.html')
 
             is_sqlite = 'sqlite3' in conn.__class__.__module__
-            with conn.cursor() as cur:
-                if is_sqlite:
-                    cur.execute('SELECT * FROM admin WHERE username = ?', (username,))
-                else:
-                    cur.execute('SELECT * FROM admin WHERE username = %s', (username,))
-                admin_user = cur.fetchone()
+            cur = conn.cursor() # Obtenção do cursor sem 'with'
+            
+            if is_sqlite:
+                cur.execute('SELECT * FROM admin WHERE username = ?', (username,))
+            else:
+                cur.execute('SELECT * FROM admin WHERE username = %s', (username,))
+            admin_user = cur.fetchone()
 
-                if not admin_user:
-                    print(f"DEBUG LOGIN: Usuário '{username}' NÃO ENCONTRADO no banco de dados.")
-                    flash('Usuário ou senha inválidos.', 'danger')
-                    return render_template('login.html')
+            if not admin_user:
+                print(f"DEBUG LOGIN: Usuário '{username}' NÃO ENCONTRADO no banco de dados.")
+                flash('Usuário ou senha inválidos.', 'danger')
+                return render_template('login.html')
 
-                print(f"DEBUG LOGIN: Usuário '{username}' encontrado. Verificando a senha.")
-                print(f"DEBUG LOGIN: Hash no DB: {admin_user['password_hash']}")
+            print(f"DEBUG LOGIN: Usuário '{username}' encontrado. Verificando a senha.")
+            print(f"DEBUG LOGIN: Hash no DB: {admin_user['password_hash']}")
+            
+            is_password_correct = check_password_hash(admin_user['password_hash'], password)
+            
+            if is_password_correct:
+                session['logged_in'] = True
+                session['username'] = admin_user['username']
+                print(f"DEBUG LOGIN: Login BEM-SUCEDIDO para {session['username']}.")
+                return redirect(url_for('index'))
+            else:
+                print("DEBUG LOGIN: Senha INCORRETA.")
+                flash('Usuário ou senha inválidos.', 'danger')
                 
-                is_password_correct = check_password_hash(admin_user['password_hash'], password)
-                
-                if is_password_correct:
-                    session['logged_in'] = True
-                    session['username'] = admin_user['username']
-                    print(f"DEBUG LOGIN: Login BEM-SUCEDIDO para {session['username']}.")
-                    return redirect(url_for('index'))
-                else:
-                    print("DEBUG LOGIN: Senha INCORRETA.")
-                    flash('Usuário ou senha inválidos.', 'danger')
-                    
         except Exception as e:
             print(f"ERRO LOGIN: Falha no processo de login: {e}")
             traceback.print_exc()
             flash('Erro no servidor ao tentar login.', 'danger')
             if conn and not conn.closed: conn.rollback()
         finally:
+            if cur: cur.close() # Fecha o cursor
             if conn: conn.close()
 
     print("DEBUG LOGIN: Renderizando login.html.")
@@ -498,43 +518,46 @@ def reset_admin_password_route():
     
     hashed_password = generate_password_hash(NEW_PASSWORD)
     conn = None
+    cur = None # Inicializa cur como None
     try:
         conn = get_db_connection()
         if conn is None:
             return f"<h1>Erro</h1><p>Erro de conexão com o banco de dados.</p>", 500
 
         is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
+        cur = conn.cursor() # Obtenção do cursor sem 'with'
+        
+        if is_sqlite:
+            cur.execute("UPDATE admin SET password_hash = ? WHERE username = ?", (hashed_password, USERNAME_TO_RESET))
+        else:
+            cur.execute("UPDATE admin SET password_hash = %s WHERE username = %s", (hashed_password, USERNAME_TO_RESET))
+        
+        if cur.rowcount == 0:
+            print(f"DEBUG RESET: Usuário '{USERNAME_TO_RESET}' não encontrado para atualizar. Tentando criar...")
             if is_sqlite:
-                cur.execute("UPDATE admin SET password_hash = ? WHERE username = ?", (hashed_password, USERNAME_TO_RESET))
+                cur.execute("INSERT INTO admin (username, password_hash) VALUES (?, ?)", (USERNAME_TO_RESET, hashed_password))
             else:
-                cur.execute("UPDATE admin SET password_hash = %s WHERE username = %s", (hashed_password, USERNAME_TO_RESET))
-            
-            if cur.rowcount == 0:
-                print(f"DEBUG RESET: Usuário '{USERNAME_TO_RESET}' não encontrado para atualizar. Tentando criar...")
-                if is_sqlite:
-                    cur.execute("INSERT INTO admin (username, password_hash) VALUES (?, ?)", (USERNAME_TO_RESET, hashed_password))
-                else:
-                    cur.execute("INSERT INTO admin (username, password_hash) VALUES (%s, %s)", (USERNAME_TO_RESET, hashed_password))
-                conn.commit()
-                message = f"Usuário '{USERNAME_TO_RESET}' não encontrado. Um novo usuário foi criado com a senha definida. Por favor, remova esta rota agora."
-                print(f"[SUCESSO RESET] {message}")
-                return f"<h1>Sucesso</h1><p>{message}</p>", 200
-
+                cur.execute("INSERT INTO admin (username, password_hash) VALUES (%s, %s)", (USERNAME_TO_RESET, hashed_password))
             conn.commit()
-            message = f"A senha para o usuário '{USERNAME_TO_RESET}' foi resetada com sucesso. Por favor, remova esta rota de 'app.py' IMEDIATELY."
+            message = f"Usuário '{USERNAME_TO_RESET}' não encontrado. Um novo usuário foi criado com a senha definida. Por favor, remova esta rota agora."
             print(f"[SUCESSO RESET] {message}")
             return f"<h1>Sucesso</h1><p>{message}</p>", 200
+
+        conn.commit()
+        message = f"A senha para o usuário '{USERNAME_TO_RESET}' foi resetada com sucesso. Por favor, remova esta rota de 'app.py' IMEDIATELY."
+        print(f"[SUCESSO RESET] {message}")
+        return f"<h1>Sucesso</h1><p>{message}</p>", 200
 
     except Exception as e:
         error_message = f"Ocorreu um erro ao resetar a senha: {e}"
         print(f"ERRO RESET: {error_message}")
         traceback.print_exc()
-        if conn and not conn.closed: conn.rollback()
+        if conn:
+            conn.rollback()
         return f"<h1>Erro</h1><p>{error_message}</p>", 500
     finally:
-        if conn:
-            conn.close()
+        if cur: cur.close() # Fecha o cursor
+        if conn: conn.close()
 # ==============================================================================
 # !! FIM DA ROTA TEMPORÁRIA !!
 # ==============================================================================
@@ -556,6 +579,7 @@ def index():
         return redirect(url_for('login'))
 
     conn = None
+    cur = None # Inicializa cur como None
     try:
         conn = get_db_connection()
         if conn is None:
@@ -563,57 +587,59 @@ def index():
             return redirect(url_for('login'))
 
         is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
+        cur = conn.cursor() # Obtenção do cursor sem 'with'
+        
+        if is_sqlite:
+            cur.execute('SELECT COUNT(id) FROM users WHERE is_active = 1')
+        else:
+            cur.execute('SELECT COUNT(id) FROM users WHERE is_active = TRUE')
+        total_usuarios_row = cur.fetchone()
+        print(f"DEBUG INDEX: Resultado fetchone COUNT(users): {total_usuarios_row}")
+        total_usuarios = total_usuarios_row['count'] if total_usuarios_row and 'count' in total_usuarios_row and total_usuarios_row['count'] is not None else 0
+
+        cur.execute('SELECT COUNT(id) FROM produtos')
+        total_produtos_row = cur.fetchone()
+        print(f"DEBUG INDEX: Resultado fetchone COUNT(produtos): {total_produtos_row}")
+        total_produtos = total_produtos_row['count'] if total_produtos_row and 'count' in total_produtos_row and total_produtos_row['count'] is not None else 0
+
+        if is_sqlite:
+            cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = ?", ('aprovado',))
+        else:
+            cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s", ('aprovado',))
+        vendas_data_row = cur.fetchone()
+        print(f"DEBUG INDEX: Resultado fetchone COUNT/SUM(vendas): {vendas_data_row}")
+        total_vendas_aprovadas = vendas_data_row['count'] if vendas_data_row and 'count' in vendas_data_row and vendas_data_row['count'] is not None else 0
+        receita_total = vendas_data_row['sum'] if vendas_data_row and 'sum' in vendas_data_row and vendas_data_row['sum'] is not None else 0.0
+        print(f"DEBUG INDEX: total_vendas_aprovadas: {total_vendas_aprovadas}, receita_total: {receita_total}")
+
+        cur.execute("SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, p.id as produto_id, CASE WHEN v.status = 'aprovado' THEN 'aprovado' WHEN v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() - v.data_venda)) > 3600 THEN 'expirado' ELSE v.status END AS status FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id ORDER BY v.id DESC LIMIT 5")
+        vendas_recentes = cur.fetchall()
+
+        chart_labels, chart_data = [], []
+        today = datetime.now()
+        for i in range(6, -1, -1):
+            day = today - timedelta(days=i)
+            start_of_day, end_of_day = datetime.combine(day.date(), time.min), datetime.combine(day.date(), time.max)
+            chart_labels.append(day.strftime('%d/%m'))
+            
             if is_sqlite:
-                cur.execute('SELECT COUNT(id) FROM users WHERE is_active = 1')
+                cur.execute("SELECT SUM(preco) AS sum FROM vendas WHERE status = ? AND data_venda BETWEEN ? AND ?", ('aprovado', start_of_day, end_of_day))
             else:
-                cur.execute('SELECT COUNT(id) FROM users WHERE is_active = TRUE')
-            total_usuarios_row = cur.fetchone()
-            print(f"DEBUG INDEX: Resultado fetchone COUNT(users): {total_usuarios_row}")
-            total_usuarios = total_usuarios_row['count'] if total_usuarios_row and 'count' in total_usuarios_row and total_usuarios_row['count'] is not None else 0
+                cur.execute("SELECT SUM(preco) AS sum FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s", ('aprovado', start_of_day, end_of_day))
+            
+            daily_revenue_row = cur.fetchone()
+            daily_revenue = daily_revenue_row['sum'] if daily_revenue_row and 'sum' in daily_revenue_row and daily_revenue_row['sum'] is not None else 0
+            chart_data.append(daily_revenue)
 
-            cur.execute('SELECT COUNT(id) FROM produtos')
-            total_produtos_row = cur.fetchone()
-            print(f"DEBUG INDEX: Resultado fetchone COUNT(produtos): {total_produtos_row}")
-            total_produtos = total_produtos_row['count'] if total_produtos_row and 'count' in total_produtos_row and total_produtos_row['count'] is not None else 0
-
-            if is_sqlite:
-                cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = ?", ('aprovado',))
-            else:
-                cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s", ('aprovado',))
-            vendas_data_row = cur.fetchone()
-            print(f"DEBUG INDEX: Resultado fetchone COUNT/SUM(vendas): {vendas_data_row}")
-            total_vendas_aprovadas = vendas_data_row['count'] if vendas_data_row and 'count' in vendas_data_row and vendas_data_row['count'] is not None else 0
-            receita_total = vendas_data_row['sum'] if vendas_data_row and 'sum' in vendas_data_row and vendas_data_row['sum'] is not None else 0.0
-            print(f"DEBUG INDEX: total_vendas_aprovadas: {total_vendas_aprovadas}, receita_total: {receita_total}")
-
-            cur.execute("SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, p.id as produto_id, CASE WHEN v.status = 'aprovado' THEN 'aprovado' WHEN v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() - v.data_venda)) > 3600 THEN 'expirado' ELSE v.status END AS status FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id ORDER BY v.id DESC LIMIT 5")
-            vendas_recentes = cur.fetchall()
-
-            chart_labels, chart_data = [], []
-            today = datetime.now()
-            for i in range(6, -1, -1):
-                day = today - timedelta(days=i)
-                start_of_day, end_of_day = datetime.combine(day.date(), time.min), datetime.combine(day.date(), time.max)
-                chart_labels.append(day.strftime('%d/%m'))
-                
-                if is_sqlite:
-                    cur.execute("SELECT SUM(preco) AS sum FROM vendas WHERE status = ? AND data_venda BETWEEN ? AND ?", ('aprovado', start_of_day, end_of_day))
-                else:
-                    cur.execute("SELECT SUM(preco) AS sum FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s", ('aprovado', start_of_day, end_of_day))
-                
-                daily_revenue_row = cur.fetchone()
-                daily_revenue = daily_revenue_row['sum'] if daily_revenue_row and 'sum' in daily_revenue_row and daily_revenue_row['sum'] is not None else 0
-                chart_data.append(daily_revenue)
-
-            print("DEBUG INDEX: Renderizando index.html.")
-            return render_template('index.html', total_vendas=total_vendas_aprovadas, total_usuarios=total_usuarios, total_produtos=total_produtos, receita_total=receita_total, vendas_recentes=vendas_recentes, chart_labels=json.dumps(chart_labels), chart_data=json.dumps(chart_data))
+        print("DEBUG INDEX: Renderizando index.html.")
+        return render_template('index.html', total_vendas=total_vendas_aprovadas, total_usuarios=total_usuarios, total_produtos=total_produtos, receita_total=receita_total, vendas_recentes=vendas_recentes, chart_labels=json.dumps(chart_labels), chart_data=json.dumps(chart_data))
     except Exception as e:
         print(f"ERRO INDEX: Falha ao renderizar o dashboard: {e}")
         traceback.print_exc()
         flash('Erro ao carregar o dashboard.', 'danger')
         return redirect(url_for('login'))
     finally:
+        if cur: cur.close() # Fecha o cursor
         if conn: conn.close()
 
 # ----------------------------------------------------------------------
@@ -629,6 +655,7 @@ def produtos():
         return redirect(url_for('login'))
 
     conn = None
+    cur = None # Inicializa cur como None
     try:
         conn = get_db_connection()
         if conn is None:
@@ -636,13 +663,14 @@ def produtos():
             return redirect(url_for('index'))
 
         is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute('SELECT * FROM produtos ORDER BY nome ASC')
-            else:
-                cur.execute('SELECT * FROM produtos ORDER BY nome ASC')
-            produtos_lista = cur.fetchall()
-            print(f"DEBUG PRODUTOS: {len(produtos_lista)} produtos encontrados.")
+        cur = conn.cursor() # Obtenção do cursor sem 'with'
+        
+        if is_sqlite:
+            cur.execute('SELECT * FROM produtos ORDER BY nome ASC')
+        else:
+            cur.execute('SELECT * FROM produtos ORDER BY nome ASC')
+        produtos_lista = cur.fetchall()
+        print(f"DEBUG PRODUTOS: {len(produtos_lista)} produtos encontrados.")
 
         return render_template('produtos.html', produtos=produtos_lista)
 
@@ -652,8 +680,8 @@ def produtos():
         flash('Erro ao carregar os produtos.', 'danger')
         return redirect(url_for('index'))
     finally:
-        if conn:
-            conn.close()
+        if cur: cur.close() # Fecha o cursor
+        if conn: conn.close()
 
 @app.route('/adicionar_produto', methods=['GET', 'POST'])
 def adicionar_produto():
@@ -684,6 +712,7 @@ def adicionar_produto():
                                     nome_val=nome, preco_val=preco, link_val=link))
 
         conn = None
+        cur = None # Inicializa cur como None
         try:
             conn = get_db_connection()
             if conn is None:
@@ -691,12 +720,13 @@ def adicionar_produto():
                 return redirect(url_for('produtos', error='add_db_connection_error'))
 
             is_sqlite = 'sqlite3' in conn.__class__.__module__
-            with conn.cursor() as cur:
-                if is_sqlite:
-                    cur.execute("INSERT INTO produtos (nome, preco, link) VALUES (?, ?, ?)", (nome, preco, link))
-                else:
-                    cur.execute("INSERT INTO produtos (nome, preco, link) VALUES (%s, %s, %s)", (nome, preco, link))
-                conn.commit()
+            cur = conn.cursor() # Obtenção do cursor sem 'with'
+            
+            if is_sqlite:
+                cur.execute("INSERT INTO produtos (nome, preco, link) VALUES (?, ?, ?)", (nome, preco, link))
+            else:
+                cur.execute("INSERT INTO produtos (nome, preco, link) VALUES (%s, %s, %s)", (nome, preco, link))
+            conn.commit()
             print(f"DEBUG ADICIONAR_PRODUTO: Produto '{nome}' adicionado com sucesso.")
             flash('Produto adicionado com sucesso!', 'success')
             return redirect(url_for('produtos'))
@@ -708,6 +738,7 @@ def adicionar_produto():
             return redirect(url_for('produtos', error='add_db_error',
                                     nome_val=nome, preco_val=preco, link_val=link))
         finally:
+            if cur: cur.close() # Fecha o cursor
             if conn: conn.close()
     
     return redirect(url_for('produtos', add_new_product=True))
@@ -722,6 +753,7 @@ def editar_produto(produto_id):
         return redirect(url_for('login'))
 
     conn = None
+    cur = None # Inicializa cur como None
     try:
         conn = get_db_connection()
         if conn is None:
@@ -729,57 +761,58 @@ def editar_produto(produto_id):
             return redirect(url_for('produtos', error='edit_db_connection_error'))
 
         is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute('SELECT * FROM produtos WHERE id = ?', (produto_id,))
-            else:
-                cur.execute('SELECT * FROM produtos WHERE id = %s', (produto_id,))
-            produto = cur.fetchone()
+        cur = conn.cursor() # Obtenção do cursor sem 'with'
+        
+        if is_sqlite:
+            cur.execute('SELECT * FROM produtos WHERE id = ?', (produto_id,))
+        else:
+            cur.execute('SELECT * FROM produtos WHERE id = %s', (produto_id,))
+        produto = cur.fetchone()
 
-            if not produto:
-                flash('Produto não encontrado.', 'danger')
-                return redirect(url_for('produtos'))
+        if not produto:
+            flash('Produto não encontrado.', 'danger')
+            return redirect(url_for('produtos'))
 
-            if request.method == 'POST':
-                nome = request.form.get('nome')
-                preco = request.form.get('preco')
-                link = request.form.get('link')
+        if request.method == 'POST':
+            nome = request.form.get('nome')
+            preco = request.form.get('preco')
+            link = request.form.get('link')
 
-                if not nome or not preco or not link:
-                    flash('Todos os campos são obrigatórios!', 'danger')
-                    return redirect(url_for('produtos', edit_id=produto_id,
-                                            nome_val=nome, preco_val=preco, link_val=link))
-                
-                try:
-                    preco = float(preco)
-                    if preco <= 0:
-                        flash('Preço deve ser um valor positivo.', 'danger')
-                        return redirect(url_for('produtos', edit_id=produto_id,
-                                                nome_val=nome, preco_val=preco, link_val=link))
-                except ValueError:
-                    flash('Preço inválido. Use um número.', 'danger')
-                    return redirect(url_for('produtos', edit_id=produto_id,
-                                            nome_val=nome, preco_val=preco, link_val=link))
-
-                if is_sqlite:
-                    cur.execute(
-                        "UPDATE produtos SET nome = ?, preco = ?, link = ? WHERE id = ?",
-                        (nome, preco, link, produto_id)
-                    )
-                else:
-                    cur.execute(
-                        "UPDATE produtos SET nome = %s, preco = %s, link = %s WHERE id = %s",
-                        (nome, preco, link, produto_id)
-                    )
-                conn.commit()
-                print(f"DEBUG EDITAR_PRODUTO: Produto ID {produto_id} atualizado com sucesso.")
-                flash('Produto atualizado com sucesso!', 'success')
-                return redirect(url_for('produtos'))
+            if not nome or not preco or not link:
+                flash('Todos os campos são obrigatórios!', 'danger')
+                return redirect(url_for('produtos', edit_id=produto_id,
+                                        nome_val=nome, preco_val=preco, link_val=link))
             
-            return redirect(url_for('produtos', edit_id=produto_id,
-                                    nome_val=produto['nome'],
-                                    preco_val=f"{produto['preco']:.2f}",
-                                    link_val=produto['link']))
+            try:
+                preco = float(preco)
+                if preco <= 0:
+                    flash('Preço deve ser um valor positivo.', 'danger')
+                    return redirect(url_for('produtos', edit_id=produto_id,
+                                            nome_val=nome, preco_val=preco, link_val=link))
+            except ValueError:
+                flash('Preço inválido. Use um número.', 'danger')
+                return redirect(url_for('produtos', edit_id=produto_id,
+                                        nome_val=nome, preco_val=preco, link_val=link))
+
+            if is_sqlite:
+                cur.execute(
+                    "UPDATE produtos SET nome = ?, preco = ?, link = ? WHERE id = ?",
+                    (nome, preco, link, produto_id)
+                )
+            else:
+                cur.execute(
+                    "UPDATE produtos SET nome = %s, preco = %s, link = %s WHERE id = %s",
+                    (nome, preco, link, produto_id)
+                )
+            conn.commit()
+            print(f"DEBUG EDITAR_PRODUTO: Produto ID {produto_id} atualizado com sucesso.")
+            flash('Produto atualizado com sucesso!', 'success')
+            return redirect(url_for('produtos'))
+        
+        return redirect(url_for('produtos', edit_id=produto_id,
+                                nome_val=produto['nome'],
+                                preco_val=f"{produto['preco']:.2f}",
+                                link_val=produto['link']))
 
     except Exception as e:
         print(f"ERRO EDITAR_PRODUTO: Falha ao editar produto: {e}")
@@ -791,6 +824,7 @@ def editar_produto(produto_id):
                                 preco_val=request.form.get('preco', ''),
                                 link_val=request.form.get('link', '')))
     finally:
+        if cur: cur.close() # Fecha o cursor
         if conn: conn.close()
 
 @app.route('/deletar_produto/<int:produto_id>', methods=['POST'])
@@ -802,6 +836,7 @@ def deletar_produto(produto_id):
         return redirect(url_for('login'))
     
     conn = None
+    cur = None # Inicializa cur como None
     try:
         conn = get_db_connection()
         if conn is None:
@@ -809,23 +844,24 @@ def deletar_produto(produto_id):
             return redirect(url_for('produtos', error='delete_db_connection_error'))
 
         is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute('SELECT id FROM produtos WHERE id = ?', (produto_id,))
-            else:
-                cur.execute('SELECT id FROM produtos WHERE id = %s', (produto_id,))
-            if not cur.fetchone():
-                flash('Produto não encontrado.', 'danger')
-                return redirect(url_for('produtos'))
-            
-            if is_sqlite:
-                cur.execute('DELETE FROM produtos WHERE id = ?', (produto_id,))
-            else:
-                cur.execute('DELETE FROM produtos WHERE id = %s', (produto_id,))
-            conn.commit()
-            print(f"DEBUG DELETAR_PRODUTO: Produto ID {produto_id} deletado com sucesso.")
-            flash('Produto deletado com sucesso!', 'success')
+        cur = conn.cursor() # Obtenção do cursor sem 'with'
+        
+        if is_sqlite:
+            cur.execute('SELECT id FROM produtos WHERE id = ?', (produto_id,))
+        else:
+            cur.execute('SELECT id FROM produtos WHERE id = %s', (produto_id,))
+        if not cur.fetchone():
+            flash('Produto não encontrado.', 'danger')
             return redirect(url_for('produtos'))
+        
+        if is_sqlite:
+            cur.execute('DELETE FROM produtos WHERE id = ?', (produto_id,))
+        else:
+            cur.execute('DELETE FROM produtos WHERE id = %s', (produto_id,))
+        conn.commit()
+        print(f"DEBUG DELETAR_PRODUTO: Produto ID {produto_id} deletado com sucesso.")
+        flash('Produto deletado com sucesso!', 'success')
+        return redirect(url_for('produtos'))
     except Exception as e:
         print(f"ERRO DELETAR_PRODUTO: Falha ao deletar produto: {e}")
         traceback.print_exc()
@@ -833,6 +869,7 @@ def deletar_produto(produto_id):
         if conn and not conn.closed: conn.rollback()
         return redirect(url_for('produtos'))
     finally:
+        if cur: cur.close() # Fecha o cursor
         if conn: conn.close()
 
 @app.route('/vendas')
@@ -844,6 +881,7 @@ def vendas():
         return redirect(url_for('login'))
 
     conn = None
+    cur = None # Inicializa cur como None
     try:
         conn = get_db_connection()
         if conn is None:
@@ -851,45 +889,46 @@ def vendas():
             return redirect(url_for('index'))
 
         is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute("""
-                    SELECT 
-                        v.id, 
-                        u.username, 
-                        u.first_name, 
-                        p.nome AS nome_produto, 
-                        v.preco, 
-                        v.status, 
-                        v.data_venda,
-                        v.payment_id,
-                        v.payer_name,
-                        v.payer_email
-                    FROM vendas v
-                    JOIN users u ON v.user_id = u.id
-                    JOIN produtos p ON v.produto_id = p.id
-                    ORDER BY v.data_venda DESC
-                """)
-            else:
-                cur.execute("""
-                    SELECT 
-                        v.id, 
-                        u.username, 
-                        u.first_name, 
-                        p.nome AS nome_produto, 
-                        v.preco, 
-                        v.status, 
-                        v.data_venda,
-                        v.payment_id,
-                        v.payer_name,
-                        v.payer_email
-                    FROM vendas v
-                    JOIN users u ON v.user_id = u.id
-                    JOIN produtos p ON v.produto_id = p.id
-                    ORDER BY v.data_venda DESC
-                """)
-            vendas_lista = cur.fetchall()
-            print(f"DEBUG VENDAS: {len(vendas_lista)} vendas encontradas.")
+        cur = conn.cursor() # Obtenção do cursor sem 'with'
+        
+        if is_sqlite:
+            cur.execute("""
+                SELECT 
+                    v.id, 
+                    u.username, 
+                    u.first_name, 
+                    p.nome AS nome_produto, 
+                    v.preco, 
+                    v.status, 
+                    v.data_venda,
+                    v.payment_id,
+                    v.payer_name,
+                    v.payer_email
+                FROM vendas v
+                JOIN users u ON v.user_id = u.id
+                JOIN produtos p ON v.produto_id = p.id
+                ORDER BY v.data_venda DESC
+            """)
+        else:
+            cur.execute("""
+                SELECT 
+                    v.id, 
+                    u.username, 
+                    u.first_name, 
+                    p.nome AS nome_produto, 
+                    v.preco, 
+                    v.status, 
+                    v.data_venda,
+                    v.payment_id,
+                    v.payer_name,
+                    v.payer_email
+                FROM vendas v
+                JOIN users u ON v.user_id = u.id
+                JOIN produtos p ON v.produto_id = p.id
+                ORDER BY v.data_venda DESC
+            """)
+        vendas_lista = cur.fetchall()
+        print(f"DEBUG VENDAS: {len(vendas_lista)} vendas encontradas.")
 
         return render_template('vendas.html', vendas=vendas_lista)
 
@@ -899,8 +938,8 @@ def vendas():
         flash('Erro ao carregar as vendas.', 'danger')
         return redirect(url_for('index'))
     finally:
-        if conn:
-            conn.close()
+        if cur: cur.close() # Fecha o cursor
+        if conn: conn.close()
 
 @app.route('/usuarios')
 def usuarios():
@@ -911,6 +950,7 @@ def usuarios():
         return redirect(url_for('login'))
 
     conn = None
+    cur = None # Inicializa cur como None
     try:
         conn = get_db_connection()
         if conn is None:
@@ -918,13 +958,14 @@ def usuarios():
             return redirect(url_for('index'))
 
         is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute('SELECT * FROM users ORDER BY data_registro DESC')
-            else:
-                cur.execute('SELECT * FROM users ORDER BY data_registro DESC')
-            usuarios_lista = cur.fetchall()
-            print(f"DEBUG USUARIOS: {len(usuarios_lista)} usuários encontrados.")
+        cur = conn.cursor() # Obtenção do cursor sem 'with'
+        
+        if is_sqlite:
+            cur.execute('SELECT * FROM users ORDER BY data_registro DESC')
+        else:
+            cur.execute('SELECT * FROM users ORDER BY data_registro DESC')
+        usuarios_lista = cur.fetchall()
+        print(f"DEBUG USUARIOS: {len(usuarios_lista)} usuários encontrados.")
 
         return render_template('usuarios.html', usuarios=usuarios_lista)
 
@@ -934,8 +975,8 @@ def usuarios():
         flash('Erro ao carregar os usuários.', 'danger')
         return redirect(url_for('index'))
     finally:
-        if conn:
-            conn.close()
+        if cur: cur.close() # Fecha o cursor
+        if conn: conn.close()
 
 @app.route('/toggle_user_status/<int:user_id>', methods=['POST'])
 def toggle_user_status(user_id):
@@ -946,6 +987,7 @@ def toggle_user_status(user_id):
         return redirect(url_for('login'))
     
     conn = None
+    cur = None # Inicializa cur como None
     try:
         conn = get_db_connection()
         if conn is None:
@@ -953,28 +995,29 @@ def toggle_user_status(user_id):
             return redirect(url_for('usuarios', error='toggle_db_connection_error'))
 
         is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute('SELECT is_active FROM users WHERE id = ?', (user_id,))
-            else:
-                cur.execute('SELECT is_active FROM users WHERE id = %s', (user_id,))
-            user = cur.fetchone()
+        cur = conn.cursor() # Obtenção do cursor sem 'with'
+        
+        if is_sqlite:
+            cur.execute('SELECT is_active FROM users WHERE id = ?', (user_id,))
+        else:
+            cur.execute('SELECT is_active FROM users WHERE id = %s', (user_id,))
+        user = cur.fetchone()
 
-            if not user:
-                flash('Usuário não encontrado.', 'danger')
-                return redirect(url_for('usuarios'))
-            
-            new_status = not user['is_active']
-            if is_sqlite:
-                cur.execute('UPDATE users SET is_active = ? WHERE id = ?', (new_status, user_id))
-            else:
-                cur.execute('UPDATE users SET is_active = %s WHERE id = %s', (new_status, user_id))
-            conn.commit()
-            
-            status_text = "ativado" if new_status else "desativado"
-            print(f"DEBUG TOGGLE_USER_STATUS: Usuário {user_id} {status_text} com sucesso.")
-            flash(f'Usuário {user_id} {status_text} com sucesso!', 'success')
+        if not user:
+            flash('Usuário não encontrado.', 'danger')
             return redirect(url_for('usuarios'))
+        
+        new_status = not user['is_active']
+        if is_sqlite:
+            cur.execute('UPDATE users SET is_active = ? WHERE id = ?', (new_status, user_id))
+        else:
+            cur.execute('UPDATE users SET is_active = %s WHERE id = %s', (new_status, user_id))
+        conn.commit()
+        
+        status_text = "ativado" if new_status else "desativado"
+        print(f"DEBUG TOGGLE_USER_STATUS: Usuário {user_id} {status_text} com sucesso.")
+        flash(f'Usuário {user_id} {status_text} com sucesso!', 'success')
+        return redirect(url_for('usuarios'))
     except Exception as e:
         print(f"ERRO TOGGLE_USER_STATUS: Falha ao alterar status do usuário: {e}")
         traceback.print_exc()
@@ -982,6 +1025,7 @@ def toggle_user_status(user_id):
         if conn and not conn.closed: conn.rollback()
         return redirect(url_for('usuarios'))
     finally:
+        if cur: cur.close() # Fecha o cursor
         if conn: conn.close()
 
 @app.route('/scheduled_messages')
@@ -993,6 +1037,7 @@ def scheduled_messages():
         return redirect(url_for('login'))
 
     conn = None
+    cur = None # Inicializa cur como None
     try:
         conn = get_db_connection()
         if conn is None:
@@ -1000,41 +1045,42 @@ def scheduled_messages():
             return redirect(url_for('index'))
 
         is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute("""
-                    SELECT 
-                        sm.id,
-                        sm.message_text,
-                        sm.target_chat_id,
-                        sm.image_url,
-                        sm.schedule_time,
-                        sm.status,
-                        sm.created_at,
-                        sm.sent_at,
-                        COALESCE(u.username, 'Todos os usuários') AS target_username
-                    FROM scheduled_messages sm
-                    LEFT JOIN users u ON sm.target_chat_id = u.id
-                    ORDER BY sm.schedule_time DESC
-                """)
-            else:
-                cur.execute("""
-                    SELECT 
-                        sm.id,
-                        sm.message_text,
-                        sm.target_chat_id,
-                        sm.image_url,
-                        sm.schedule_time,
-                        sm.status,
-                        sm.created_at,
-                        sm.sent_at,
-                        COALESCE(u.username, 'Todos os usuários') AS target_username
-                    FROM scheduled_messages sm
-                    LEFT JOIN users u ON sm.target_chat_id = u.id
-                    ORDER BY sm.schedule_time DESC
-                """)
-            messages_list = cur.fetchall()
-            print(f"DEBUG SCHEDULED_MESSAGES: {len(messages_list)} mensagens agendadas encontradas.")
+        cur = conn.cursor() # Obtenção do cursor sem 'with'
+        
+        if is_sqlite:
+            cur.execute("""
+                SELECT 
+                    sm.id,
+                    sm.message_text,
+                    sm.target_chat_id,
+                    sm.image_url,
+                    sm.schedule_time,
+                    sm.status,
+                    sm.created_at,
+                    sm.sent_at,
+                    COALESCE(u.username, 'Todos os usuários') AS target_username
+                FROM scheduled_messages sm
+                LEFT JOIN users u ON sm.target_chat_id = u.id
+                ORDER BY sm.schedule_time DESC
+            """)
+        else:
+            cur.execute("""
+                SELECT 
+                    sm.id,
+                    sm.message_text,
+                    sm.target_chat_id,
+                    sm.image_url,
+                    sm.schedule_time,
+                    sm.status,
+                    sm.created_at,
+                    sm.sent_at,
+                    COALESCE(u.username, 'Todos os usuários') AS target_username
+                FROM scheduled_messages sm
+                LEFT JOIN users u ON sm.target_chat_id = u.id
+                ORDER BY sm.schedule_time DESC
+            """)
+        messages_list = cur.fetchall()
+        print(f"DEBUG SCHEDULED_MESSAGES: {len(messages_list)} mensagens agendadas encontradas.")
         
         return render_template('scheduled_messages.html', messages=messages_list)
     except Exception as e:
@@ -1043,6 +1089,7 @@ def scheduled_messages():
         flash('Erro ao carregar mensagens agendadas.', 'danger')
         return redirect(url_for('index'))
     finally:
+        if cur: cur.close() # Fecha o cursor
         if conn: conn.close()
 
 @app.route('/add_scheduled_message', methods=['GET', 'POST'])
@@ -1054,6 +1101,7 @@ def add_scheduled_message():
         return redirect(url_for('login'))
 
     conn = None
+    cur = None # Inicializa cur como None
     try:
         conn = get_db_connection()
         if conn is None:
@@ -1061,12 +1109,13 @@ def add_scheduled_message():
             return redirect(url_for('scheduled_messages', error='add_db_connection_error'))
 
         is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
-            else:
-                cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
-            users = cur.fetchall()
+        cur = conn.cursor() # Obtenção do cursor sem 'with'
+        
+        if is_sqlite:
+            cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
+        else:
+            cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
+        users = cur.fetchall()
 
         if request.method == 'POST':
             message_text = request.form.get('message_text')
@@ -1098,23 +1147,24 @@ def add_scheduled_message():
                     return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
 
             cur_conn = get_db_connection()
+            cur_inner = None # Inicializa cur_inner como None
             if cur_conn is None:
                 flash('Erro de conexão com o banco de dados.', 'danger')
                 return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
 
             try:
-                with cur_conn.cursor() as cur_inner:
-                    if is_sqlite:
-                        cur_inner.execute(
-                            "INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, schedule_time, status) VALUES (?, ?, ?, ?, ?)",
-                            (message_text, target_chat_id, image_url if image_url else None, schedule_time, 'pending')
-                        )
-                    else:
-                        cur_inner.execute(
-                            "INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, schedule_time, status) VALUES (%s, %s, %s, %s, %s)",
-                            (message_text, target_chat_id, image_url if image_url else None, schedule_time, 'pending')
-                        )
-                    cur_conn.commit()
+                cur_inner = cur_conn.cursor() # Obtenção do cursor sem 'with'
+                if is_sqlite:
+                    cur_inner.execute(
+                        "INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, schedule_time, status) VALUES (?, ?, ?, ?, ?)",
+                        (message_text, target_chat_id, image_url if image_url else None, schedule_time, 'pending')
+                    )
+                else:
+                    cur_inner.execute(
+                        "INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, schedule_time, status) VALUES (%s, %s, %s, %s, %s)",
+                        (message_text, target_chat_id, image_url if image_url else None, schedule_time, 'pending')
+                    )
+                cur_conn.commit()
                 flash('Mensagem agendada com sucesso!', 'success')
                 return redirect(url_for('scheduled_messages'))
             except Exception as e:
@@ -1124,6 +1174,7 @@ def add_scheduled_message():
                 if cur_conn and not cur_conn.closed: cur_conn.rollback()
                 return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
             finally:
+                if cur_inner: cur_inner.close() # Fecha o cursor
                 if cur_conn: cur_conn.close()
 
         return render_template('add_scheduled_message.html', users=users)
@@ -1134,6 +1185,7 @@ def add_scheduled_message():
         flash('Erro ao carregar o formulário de agendamento.', 'danger')
         return redirect(url_for('scheduled_messages'))
     finally:
+        if cur: cur.close() # Fecha o cursor
         if conn: conn.close()
 
 @app.route('/edit_scheduled_message/<int:message_id>', methods=['GET', 'POST'])
@@ -1145,6 +1197,7 @@ def edit_scheduled_message(message_id):
         return redirect(url_for('login'))
 
     conn = None
+    cur = None # Inicializa cur como None
     try:
         conn = get_db_connection()
         if conn is None:
@@ -1220,6 +1273,7 @@ def edit_scheduled_message(message_id):
         if conn and not conn.closed: conn.rollback()
         return redirect(url_for('scheduled_messages'))
     finally:
+        if cur: cur.close() # Fecha o cursor
         if conn: conn.close()
 
 @app.route('/delete_scheduled_message/<int:message_id>', methods=['POST'])
@@ -1231,6 +1285,7 @@ def delete_scheduled_message(message_id):
         return redirect(url_for('login'))
     
     conn = None
+    cur = None # Inicializa cur como None
     try:
         conn = get_db_connection()
         if conn is None:
@@ -1238,15 +1293,16 @@ def delete_scheduled_message(message_id):
             return redirect(url_for('scheduled_messages', error='delete_db_connection_error'))
 
         is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute('DELETE FROM scheduled_messages WHERE id = ?', (message_id,))
-            else:
-                cur.execute('DELETE FROM scheduled_messages WHERE id = %s', (message_id,))
-            conn.commit()
-            print(f"DEBUG DELETE_SCHEDULE_MESSAGE: Mensagem agendada ID {message_id} deletada com sucesso.")
-            flash('Mensagem agendada deletada com sucesso!', 'success')
-            return redirect(url_for('scheduled_messages'))
+        cur = conn.cursor() # Obtenção do cursor sem 'with'
+        
+        if is_sqlite:
+            cur.execute('DELETE FROM scheduled_messages WHERE id = ?', (message_id,))
+        else:
+            cur.execute('DELETE FROM scheduled_messages WHERE id = %s', (message_id,))
+        conn.commit()
+        print(f"DEBUG DELETE_SCHEDULE_MESSAGE: Mensagem agendada ID {message_id} deletada com sucesso.")
+        flash('Mensagem agendada deletada com sucesso!', 'success')
+        return redirect(url_for('scheduled_messages'))
     except Exception as e:
         print(f"ERRO DELETE_SCHEDULE_MESSAGE: Falha ao deletar mensagem agendada: {e}")
         traceback.print_exc()
@@ -1254,6 +1310,7 @@ def delete_scheduled_message(message_id):
         if conn and not conn.closed: conn.rollback()
         return redirect(url_for('scheduled_messages'))
     finally:
+        if cur: cur.close() # Fecha o cursor
         if conn: conn.close()
 
 @app.route('/send_broadcast', methods=['GET', 'POST'])
@@ -1265,6 +1322,7 @@ def send_broadcast():
         return redirect(url_for('login'))
 
     conn = None
+    cur = None # Inicializa cur como None
     try:
         conn = get_db_connection()
         if conn is None:
@@ -1272,12 +1330,13 @@ def send_broadcast():
             return redirect(url_for('index', error='broadcast_db_connection_error'))
 
         is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
-            else:
-                cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
-            active_users = cur.fetchall()
+        cur = conn.cursor() # Obtenção do cursor sem 'with'
+        
+        if is_sqlite:
+            cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
+        else:
+            cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
+        active_users = cur.fetchall()
 
         if request.method == 'POST':
             message_text = request.form.get('message_text')
@@ -1291,44 +1350,48 @@ def send_broadcast():
             failed_count = 0
             
             cur_conn_send = get_db_connection()
+            cur_send = None # Inicializa cur_send como None
             if cur_conn_send is None:
                 flash('Erro de conexão com o banco de dados.', 'danger')
                 return render_template('send_broadcast.html', active_users=active_users)
 
             try:
-                with cur_conn_send.cursor() as cur_send:
-                    if is_sqlite:
-                        cur_send.execute("SELECT id FROM users WHERE is_active = 1")
-                    else:
-                        cur_send.execute("SELECT id FROM users WHERE is_active = TRUE")
-                    users_to_send = cur_send.fetchall()
-                    
-                    for user_data in users_to_send:
-                        user_id = user_data['id']
-                        try:
-                            if image_url:
-                                bot.send_photo(user_id, image_url, caption=message_text, parse_mode="Markdown")
-                            else:
-                                bot.send_message(user_id, message_text, parse_mode="Markdown")
-                            delivered = True
+                cur_send = cur_conn_send.cursor() # Obtenção do cursor sem 'with'
+                if is_sqlite:
+                    cur_send.execute("SELECT id FROM users WHERE is_active = 1")
+                else:
+                    cur_send.execute("SELECT id FROM users WHERE is_active = TRUE")
+                users_to_send = cur_send.fetchall()
+                
+                for user_data in users_to_send:
+                    user_id = user_data['id']
+                    try:
+                        if image_url:
+                            bot.send_photo(user_id, image_url, caption=message_text, parse_mode="Markdown")
+                            sent_count += 1
+                        else:
+                            bot.send_message(user_id, message_text, parse_mode="Markdown")
+                            sent_count += 1
                         except telebot.apihelper.ApiTelegramException as e:
                             print(f"ERRO BROADCAST para {user_id}:", e)
                             if "blocked" in str(e).lower() or "not found" in str(e).lower() or "deactivated" in str(e).lower():
                                 print(f"AVISO: Usuário {user_id} bloqueou/não encontrado durante broadcast. Inativando...")
                                 cur_update_user = get_db_connection()
+                                cur_u = None # Inicializa cur_u como None
                                 if cur_update_user:
                                     temp_is_sqlite = 'sqlite3' in cur_update_user.__class__.__module__
                                     try:
-                                        with cur_update_user.cursor() as cur_u:
-                                            if temp_is_sqlite:
-                                                cur_u.execute("UPDATE users SET is_active=0 WHERE id=?", (user_id,))
-                                            else:
-                                                cur_u.execute("UPDATE users SET is_active=FALSE WHERE id=%s", (user_id,))
-                                            cur_update_user.commit()
+                                        cur_u = cur_update_user.cursor() # Obtenção do cursor sem 'with'
+                                        if temp_is_sqlite:
+                                            cur_u.execute("UPDATE users SET is_active=0 WHERE id=?", (user_id,))
+                                        else:
+                                            cur_u.execute("UPDATE users SET is_active=FALSE WHERE id=%s", (user_id,))
+                                        cur_update_user.commit()
                                     except Exception as db_e:
                                         print(f"ERRO ao inativar usuário {user_id} durante broadcast: {db_e}")
                                         if cur_update_user: cur_update_user.rollback()
                                     finally:
+                                        if cur_u: cur_u.close() # Fecha o cursor
                                         if cur_update_user: cur_update_user.close()
                             failed_count += 1
                         except Exception as e:
@@ -1344,6 +1407,7 @@ def send_broadcast():
                 flash('Ocorreu um erro ao tentar enviar o broadcast.', 'danger')
                 if cur_conn_send and not cur_conn_send.closed: cur_conn_send.rollback()
             finally:
+                if cur_send: cur_send.close() # Fecha o cursor
                 if cur_conn_send: cur_conn_send.close()
 
         return render_template('send_broadcast.html', active_users=active_users)
@@ -1354,6 +1418,7 @@ def send_broadcast():
         flash('Erro ao carregar a página de broadcast.', 'danger')
         return redirect(url_for('index'))
     finally:
+        if cur: cur.close() # Fecha o cursor
         if conn: conn.close()
 
 @app.route('/config_messages', methods=['GET', 'POST'])
@@ -1365,6 +1430,7 @@ def config_messages():
         return redirect(url_for('login'))
 
     conn = None
+    cur = None # Inicializa cur como None
     try:
         conn = get_db_connection()
         if conn is None:
@@ -1372,10 +1438,11 @@ def config_messages():
             return redirect(url_for('index'))
 
         is_sqlite = 'sqlite3' in conn.__class__.__module__
-        with conn.cursor() as cur:
-            if request.method == 'POST':
-                welcome_bot_message = request.form.get('welcome_message_bot')
-                welcome_community_message = request.form.get('welcome_message_community')
+        cur = conn.cursor() # Obtenção do cursor sem 'with'
+        
+        if request.method == 'POST':
+            welcome_bot_message = request.form.get('welcome_message_bot')
+            welcome_community_message = request.form.get('welcome_message_community')
 
                 if welcome_bot_message:
                     if is_sqlite:
