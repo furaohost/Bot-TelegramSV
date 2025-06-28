@@ -1,109 +1,104 @@
-{% extends "layout.html" %}
+{% extends 'base.html' %}
+{% from 'macros.html' import format_currency %} # Se você criar um macros.html para formatar moeda
 
-{% block title %}Dashboard{% endblock %}
+{% block title %}Dashboard - Painel Administrativo{% endblock %}
 
 {% block content %}
-<h1 class="text-2xl font-semibold text-gray-900">Dashboard</h1>
-<p class="mt-1 text-sm text-gray-600">Visão geral do seu bot de vendas.</p>
+<div class="bg-white p-6 rounded-lg shadow-md">
+    <h1 class="text-3xl font-semibold text-gray-800 mb-6">Bem-vindo(a) ao Painel Administrativo, {{ session.username | default('Usuário', true) }}!</h1>
+    
+    <p class="text-gray-700 mb-4">Este é o painel de controle do seu Bot TelegramSV. Use o menu acima para navegar pelas funcionalidades.</p>
 
-<!-- Cards de Métricas -->
-<div class="mt-6">
-    <dl class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
-            <dt class="truncate text-sm font-medium text-gray-500">Receita Total</dt>
-            <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900">R$ {{ "%.2f"|format(receita_total|float) }}</dd>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <!-- Cartão para Total de Usuários -->
+        <div class="p-6 bg-blue-50 rounded-lg shadow-sm">
+            <h2 class="text-xl font-semibold text-blue-800 mb-2">Total de Usuários</h2>
+            <p class="text-gray-700 text-3xl font-bold">{{ total_usuarios }}</p>
         </div>
-        <div class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
-            <dt class="truncate text-sm font-medium text-gray-500">Vendas Aprovadas</dt>
-            <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900">{{ total_vendas }}</dd>
-        </div>
-        <div class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
-            <dt class="truncate text-sm font-medium text-gray-500">Usuários Registrados</dt>
-            <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900">{{ total_usuarios }}</dd>
-        </div>
-        <div class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6">
-            <dt class="truncate text-sm font-medium text-gray-500">Produtos Ativos</dt>
-            <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900">{{ total_produtos }}</dd>
-        </div>
-    </dl>
-</div>
 
-<!-- Div escondida para armazenar os dados do gráfico -->
-<div id="chartData" 
-     data-labels='{{ chart_labels|safe }}' 
-     data-values='{{ chart_data|safe }}'
-     class="hidden">
-</div>
+        <!-- Cartão para Total de Produtos -->
+        <div class="p-6 bg-green-50 rounded-lg shadow-sm">
+            <h2 class="text-xl font-semibold text-green-800 mb-2">Total de Produtos</h2>
+            <p class="text-gray-700 text-3xl font-bold">{{ total_produtos }}</p>
+        </div>
 
-<!-- Seção do Gráfico de Vendas -->
-<div class="mt-8 bg-white p-6 rounded-lg shadow">
-    <h2 class="text-lg font-medium leading-6 text-gray-900">Receita nos Últimos 7 Dias</h2>
-    <div class="mt-4" style="height: 300px;">
-        <canvas id="salesChart"></canvas>
+        <!-- Cartão para Receita Total -->
+        <div class="p-6 bg-purple-50 rounded-lg shadow-sm">
+            <h2 class="text-xl font-semibold text-purple-800 mb-2">Receita Total (Aprovado)</h2>
+            <p class="text-gray-700 text-3xl font-bold">R$ {{ receita_total | round(2) }}</p>
+        </div>
     </div>
-</div>
 
-<!-- Tabela de Vendas Recentes ATUALIZADA -->
-<div class="mt-8">
-    <h2 class="text-lg font-medium leading-6 text-gray-900">Vendas Recentes</h2>
-    <div class="mt-4 overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
-        <div class="min-w-full overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-300">
-                <thead class="bg-gray-50">
-                <tr>
-                    <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Comprador</th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Produto</th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Valor</th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Data</th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
-                </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200 bg-white">
-                {% for venda in vendas_recentes %}
-                <tr>
-                    <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{{ venda.first_name or '' }} (@{{ venda.username or 'N/A' }})</td>
-                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ venda.nome }}</td>
-                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">R$ {{ "%.2f"|format(venda.preco) }}</td>
-                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ venda.data_venda }}</td>
-                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {% if venda.status == 'aprovado' %}
-                            <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">Aprovado</span>
-                        {% elif venda.status == 'expirado' %}
-                            <span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">Expirado</span>
-                        {% else %}
-                            <span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">Pendente</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="5" class="whitespace-nowrap px-3 py-4 text-sm text-center text-gray-500">Nenhuma venda registrada ainda.</td>
-                </tr>
-                {% endfor %}
-                </tbody>
-            </table>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Gráfico de Receita Diária -->
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Receita Diária (Últimos 7 Dias)</h2>
+            <canvas id="dailyRevenueChart"></canvas>
+        </div>
+
+        <!-- Vendas Recentes -->
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Vendas Recentes</h2>
+            {% if vendas_recentes %}
+            <div class="overflow-x-auto">
+                <table class="min-w-full bg-white border border-gray-200 rounded-lg">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="py-3 px-4 border-b text-left text-sm font-semibold text-gray-600">ID Venda</th>
+                            <th class="py-3 px-4 border-b text-left text-sm font-semibold text-gray-600">Comprador</th>
+                            <th class="py-3 px-4 border-b text-left text-sm font-semibold text-gray-600">Produto</th>
+                            <th class="py-3 px-4 border-b text-right text-sm font-semibold text-gray-600">Preço</th>
+                            <th class="py-3 px-4 border-b text-left text-sm font-semibold text-gray-600">Status</th>
+                            <th class="py-3 px-4 border-b text-left text-sm font-semibold text-gray-600">Data</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for venda in vendas_recentes %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="py-2 px-4 border-b text-sm text-gray-700">{{ venda.id }}</td>
+                            <td class="py-2 px-4 border-b text-sm text-gray-700">{{ venda.first_name | default(venda.username, true) }}</td>
+                            <td class="py-2 px-4 border-b text-sm text-gray-700">{{ venda.nome }}</td>
+                            <td class="py-2 px-4 border-b text-right text-sm text-gray-700">R$ {{ venda.preco | round(2) }}</td>
+                            <td class="py-2 px-4 border-b text-sm text-gray-700 capitalize">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                    {% if venda.status == 'aprovado' %}bg-green-100 text-green-800
+                                    {% elif venda.status == 'pendente' %}bg-yellow-100 text-yellow-800
+                                    {% elif venda.status == 'expirado' %}bg-gray-100 text-gray-800
+                                    {% else %}bg-red-100 text-red-800{% endif %}">
+                                    {{ venda.status }}
+                                </span>
+                            </td>
+                            <td class="py-2 px-4 border-b text-sm text-gray-700">{{ venda.data_venda | datetimeformat }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-gray-600">Nenhuma venda recente encontrada.</p>
+            {% endif %}
         </div>
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', (event) => {
-        const chartElement = document.getElementById('chartData');
-        const labels = JSON.parse(chartElement.dataset.labels);
-        const dataValues = JSON.parse(chartElement.dataset.values);
-        const ctx = document.getElementById('salesChart').getContext('2d');
-        const salesChart = new Chart(ctx, {
-            type: 'line',
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('dailyRevenueChart').getContext('2d');
+        // Alterado para usar JSON.parse() com template literals para evitar SyntaxError
+        const chartLabels = JSON.parse(`{{ chart_labels | safe }}`);
+        const chartData = JSON.parse(`{{ chart_data | safe }}`);
+
+        new Chart(ctx, {
+            type: 'bar',
             data: {
-                labels: labels,
+                labels: chartLabels,
                 datasets: [{
-                    label: 'Receita (R$)',
-                    data: dataValues,
-                    backgroundColor: 'rgba(79, 70, 229, 0.1)',
-                    borderColor: 'rgba(79, 70, 229, 1)',
-                    borderWidth: 2,
-                    tension: 0.3,
-                    fill: true,
+                    label: 'Receita Diária (R$)',
+                    data: chartData,
+                    backgroundColor: 'rgba(59, 130, 246, 0.6)', // blue-500
+                    borderColor: 'rgba(59, 130, 246, 1)',
+                    borderWidth: 1
                 }]
             },
             options: {
@@ -112,19 +107,32 @@
                 scales: {
                     y: {
                         beginAtZero: true,
-                        ticks: {
-                            callback: function(value, index, values) { return 'R$ ' + value.toFixed(2); }
+                        title: {
+                            display: true,
+                            text: 'Receita (R$)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Data'
                         }
                     }
                 },
                 plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                    },
                     tooltip: {
                         callbacks: {
                             label: function(context) {
                                 let label = context.dataset.label || '';
-                                if (label) { label += ': '; }
+                                if (label) {
+                                    label += ': ';
+                                }
                                 if (context.parsed.y !== null) {
-                                    label += new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(context.parsed.y);
+                                    label += 'R$ ' + context.parsed.y.toFixed(2);
                                 }
                                 return label;
                             }
@@ -135,5 +143,5 @@
         });
     });
 </script>
-
 {% endblock %}
+

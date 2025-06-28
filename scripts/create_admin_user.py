@@ -1,82 +1,73 @@
 import os
-# import sqlite3 # Não precisamos mais de sqlite3 aqui
-import getpass # Ainda útil para gerar senha localmente, mas não no deploy
-from werkzeug.security import generate_password_hash # Para criptografar a senha
-
-# Imports para PostgreSQL
 import psycopg2
-from psycopg2.extras import RealDictCursor # Para retornar linhas como dicionários
+from werkzeug.security import generate_password_hash # Para criptografar a senha
+from psycopg2.extras import RealDictCursor # Para acessar resultados por nome da coluna
 
-# --- CONFIGURAÇÃO: Lendo DATABASE_URL do ambiente ---
-# No Render, essa variável já está disponível no ambiente de execução.
-# Localmente, você pode definir em um arquivo .env ou no seu ambiente.
+# Importa dotenv para carregar variáveis de ambiente de um arquivo .env,
+# útil para rodar este script localmente em desenvolvimento.
+from dotenv import load_dotenv
+load_dotenv() # Carrega as variáveis do .env
+
+# IMPORTANTE: Use a mesma DATABASE_URL que está no seu ambiente de deploy (ex: Render)
+# ou no seu arquivo .env local.
 DATABASE_URL = os.getenv('DATABASE_URL') 
 
-# --- Importa dotenv para carregar variáveis LOCALMENTE (se for testar no PC) ---
-# No Render, esta parte será ignorada ou não fará diferença pois o ambiente já injeta as variáveis.
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-    if not DATABASE_URL: # Tenta carregar DATABASE_URL do .env se não veio do ambiente
-        DATABASE_URL = os.getenv('DATABASE_URL')
-except ImportError:
-    # dotenv não está instalada ou não é necessária (ex: no Render)
-    pass
+# Verifica se a DATABASE_URL foi definida
+if not DATABASE_URL:
+    print("ERRO: DATABASE_URL não definida. Defina no ambiente ou no .env para conectar ao PostgreSQL.")
+    exit(1) # Sai do script se a URL do DB não estiver configurada
 
+# --- Credenciais do NOVO ADMINISTRADOR ---
+# !!! ATENÇÃO !!!
+# TROQUE AQUI PELO USERNAME E SENHA DESEJADOS ANTES DE EXECUTAR EM PRODUÇÃO!
+USERNAME = "admin" # <<<<< TROQUE AQUI PELO USERNAME DESEJADO
+PASSWORD = "admin123"     # <<<<< TROQUE AQUI PELA SENHA DESEJADA
+# ----------------------------------------
 
-# --- Credenciais do ADMINISTRADOR (DEFINIDAS AQUI) ---
-# ESTES VALORES SERÃO USADOS PARA INSERIR O ADMIN NO DB
-ADMIN_USERNAME = "admin" # <<<<< USERNAME FIXO: admin
-ADMIN_PASSWORD = "admin123" # <<<<< SENHA FIXA: admin123
-# ---------------------------------------------------
-
-def create_admin_user():
-    print("--- Criação de Usuário Administrador para PostgreSQL ---")
-    
-    if not DATABASE_URL:
-        print("\n[ERRO FATAL] A variável de ambiente DATABASE_URL não está definida.")
-        print("Certifique-se de que ela está configurada no Render ou no seu arquivo .env local.")
-        return
-
+def create_admin():
+    """
+    Script para criar ou verificar a existência de um usuário administrador padrão
+    no banco de dados PostgreSQL.
+    Este script pode ser executado uma vez no deploy para garantir que o admin exista.
+    """
     conn = None
     cur = None
     try:
         # Conecta ao banco de dados PostgreSQL
+        # cursor_factory=RealDictCursor permite acessar colunas como dicionário (ex: row['username'])
+        # sslmode='require' é importante para segurança em ambientes de produção.
         conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor, sslmode='require')
         cur = conn.cursor()
 
-        # Criptografa a senha (usando o método recomendado 'pbkdf2:sha256')
-        hashed_password = generate_password_hash(ADMIN_PASSWORD, method='pbkdf2:sha256')
+        # Criptografa a senha usando werkzeug.security
+        password_hash = generate_password_hash(PASSWORD)
 
-        # Insere o novo administrador. ON CONFLICT (username) DO NOTHING evita erro se já existir.
-        cur.execute(
-            "INSERT INTO admin (username, password_hash) VALUES (%s, %s) ON CONFLICT (username) DO NOTHING;",
-            (ADMIN_USERNAME, hashed_password)
-        )
-        
-        # Confirma as alterações
-        conn.commit()
+        # Insere o usuário admin na tabela 'admin'.
+        # 'ON CONFLICT (username) DO NOTHING;' evita erro se o usuário já existir.
+        cur.execute("INSERT INTO admin (username, password_hash) VALUES (%s, %s) ON CONFLICT (username) DO NOTHING;",
+                    (USERNAME, password_hash))
+        conn.commit() # Confirma a transação
 
-        # Verifica se o usuário foi realmente inserido (ou já existia)
-        cur.execute("SELECT * FROM admin WHERE username = %s;", (ADMIN_USERNAME,))
+        # Verifica se o usuário foi realmente inserido ou já existia
+        cur.execute("SELECT * FROM admin WHERE username = %s;", (USERNAME,))
         admin_user = cur.fetchone()
 
         if admin_user:
-            print(f"\n[SUCESSO] Usuário administrador '{ADMIN_USERNAME}' criado/verificado com sucesso no PostgreSQL!")
-            print("Você pode tentar logar no painel agora.")
+            print(f"Usuário administrador '{USERNAME}' criado/verificado com sucesso!")
         else:
-            print(f"\n[AVISO] Usuário '{ADMIN_USERNAME}' já existia ou ocorreu um problema na inserção (mas o ON CONFLICT deveria ter lidado com isso).")
+            # Esta mensagem pode aparecer se o usuário já existia e 'DO NOTHING' foi ativado.
+            print(f"Aviso: Usuário '{USERNAME}' já existia ou ocorreu um problema na inserção.")
 
-    except psycopg2.Error as e:
-        print(f"\n[ERRO DB PostgreSQL] Ocorreu um erro de banco de dados: {e.pgcode} - {e.pgerror}")
+    except Exception as e:
+        print(f"ERRO: Falha ao criar usuário administrador: {e}")
+        # import traceback; traceback.exc_info() # Descomente para ver o stack trace completo
         if conn:
             conn.rollback() # Reverte a transação em caso de erro
-    except Exception as e:
-        print(f"\n[ERRO GERAL] Ocorreu um erro inesperado ao criar admin: {e}")
     finally:
-        # Garante que a conexão com o banco de dados seja sempre fechada
+        # Garante que o cursor e a conexão sejam sempre fechados
         if cur: cur.close()
         if conn: conn.close()
 
 if __name__ == '__main__':
-    create_admin_user()
+    # Este bloco é executado apenas quando o script é rodado diretamente.
+    create_admin()

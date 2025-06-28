@@ -13,6 +13,11 @@ def ensure_column(cursor, table, col_def, db_type):
     """
     Verifica se uma coluna existe em uma tabela e a adiciona se não existir.
     Compatível com SQLite e PostgreSQL.
+    Args:
+        cursor: Objeto cursor do banco de dados.
+        table (str): Nome da tabela.
+        col_def (str): Definição da coluna (ex: "chat_id BIGINT").
+        db_type (str): Tipo do banco de dados ("sqlite" ou "postgresql").
     """
     col_name = col_def.split()[0]
     try:
@@ -46,14 +51,19 @@ def ensure_column(cursor, table, col_def, db_type):
 # Função principal de inicialização do DB
 # ------------------------------------------------------------------
 def init_db():
+    """
+    Inicializa o esquema do banco de dados (cria tabelas se não existirem)
+    e insere dados padrão (ex: usuário admin, mensagens de boas-vindas).
+    Compatível com SQLite e PostgreSQL, adaptando as sintaxes SQL.
+    """
     conn = None
     try:
-        conn = get_db_connection()
+        conn = get_db_connection() # Obtém a conexão usando a função centralizada
         if conn is None:
-            print("ERRO: Não foi possível obter uma conexão com o banco de dados.")
+            print("ERRO: Não foi possível obter uma conexão com o banco de dados para inicialização.")
             return
 
-        # Detecta o tipo de banco de dados para comandos específicos
+        # Detecta o tipo de banco de dados para comandos específicos SQL
         db_type = "postgresql" if isinstance(conn, psycopg2.extensions.connection) else "sqlite"
         print(f"Inicializando banco de dados ({db_type})...")
 
@@ -245,6 +255,8 @@ def init_db():
                 "status TEXT DEFAULT 'ativa'",
                 "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
             ]:
+                # Para PostgreSQL, certifique-se de que o tipo BIGINT é compatível se a coluna já existia como INTEGER
+                # Ou ajuste a definição da coluna para o tipo correto para migração.
                 ensure_column(cur, "comunidades", definition, db_type)
 
             # ------------------------------------------------------------------
