@@ -157,7 +157,7 @@ def init_db():
                 );
                 """
             )
-            print("DEBUG DB INIT: Tabela 'admin' criada ou já existe.")
+            print("DEBUG DB INIT: Tabela 'admin' criada ou ou já existe.")
 
 
             # CONFIG
@@ -226,7 +226,7 @@ def init_db():
                         traceback.print_exc()
                         raise
                 else:
-                    print(f"DEBUG DB INIT: Coluna '{col_name}' já existe em 'comunidades'.")
+                    print(f"DEBUG DB INIT: Coluna 'is_active' já existe em 'users'.")
             print("DEBUG DB INIT: Tabela 'comunidades' criada ou já existe.")
 
 
@@ -738,7 +738,6 @@ def produtos():
     """
     print("DEBUG PRODUTOS: Requisição para /produtos.")
 
-    # Verifica se o usuário está logado antes de permitir o acesso
     if not session.get('logged_in'):
         print("DEBUG PRODUTOS: Usuário não logado. Redirecionando para login.")
         flash('Por favor, faça login para acessar esta página.', 'warning')
@@ -1267,11 +1266,11 @@ def delete_scheduled_message(message_id):
         with conn.cursor() as cur:
             cur.execute('DELETE FROM scheduled_messages WHERE id = %s', (message_id,))
             conn.commit()
-            print(f"DEBUG DELETE_SCHEDULED_MESSAGE: Mensagem agendada ID {message_id} deletada com sucesso.")
+            print(f"DEBUG DELETE_SCHEDULE_MESSAGE: Mensagem agendada ID {message_id} deletada com sucesso.")
             flash('Mensagem agendada deletada com sucesso!', 'success')
             return redirect(url_for('scheduled_messages'))
     except Exception as e:
-        print(f"ERRO DELETE_SCHEDULED_MESSAGE: Falha ao deletar mensagem agendada: {e}")
+        print(f"ERRO DELETE_SCHEDULE_MESSAGE: Falha ao deletar mensagem agendada: {e}")
         traceback.print_exc()
         flash('Erro ao deletar mensagem agendada.', 'danger')
         if conn and not conn.closed: conn.rollback()
@@ -1366,6 +1365,64 @@ def send_broadcast():
         return redirect(url_for('index'))
     finally:
         if conn: conn.close()
+
+@app.route('/config_messages', methods=['GET', 'POST'])
+def config_messages():
+    """
+    Rota para configurar mensagens de boas-vindas e outras mensagens customizáveis.
+    Requer que o usuário esteja logado.
+    """
+    print(f"DEBUG CONFIG_MESSAGES: Requisição para /config_messages. Method: {request.method}")
+
+    if not session.get('logged_in'):
+        flash('Por favor, faça login para acessar esta página.', 'warning')
+        return redirect(url_for('login'))
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            if request.method == 'POST':
+                welcome_bot_message = request.form.get('welcome_message_bot')
+                welcome_community_message = request.form.get('welcome_message_community')
+
+                if welcome_bot_message:
+                    cur.execute(
+                        "INSERT INTO config (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;",
+                        ('welcome_message_bot', welcome_bot_message)
+                    )
+                if welcome_community_message:
+                    cur.execute(
+                        "INSERT INTO config (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;",
+                        ('welcome_message_community', welcome_community_message)
+                    )
+                conn.commit()
+                flash('Configurações de mensagens atualizadas com sucesso!', 'success')
+                return redirect(url_for('config_messages'))
+            
+            # GET request: Carrega as mensagens atuais
+            cur.execute("SELECT key, value FROM config WHERE key IN ('welcome_message_bot', 'welcome_message_community')")
+            configs_raw = cur.fetchall()
+            configs = {row['key']: row['value'] for row in configs_raw}
+            
+            welcome_message_bot = configs.get('welcome_message_bot', 'Olá, {first_name}! Bem-vindo(a) ao bot!')
+            welcome_message_community = configs.get('welcome_message_community', 'Bem-vindo(a) à nossa comunidade, {first_name}!')
+
+            return render_template(
+                'config_messages.html',
+                welcome_message_bot=welcome_message_bot,
+                welcome_message_community=welcome_message_community
+            )
+
+    except Exception as e:
+        print(f"ERRO CONFIG_MESSAGES: Falha ao carregar/salvar configurações de mensagens: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar/salvar configurações de mensagens.', 'danger')
+        if conn and not conn.closed: conn.rollback()
+        return redirect(url_for('index'))
+    finally:
+        if conn: conn.close()
+
 
 if __name__ == '__main__':
     # Inicializa o banco de dados e cria tabelas se não existirem
