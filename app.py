@@ -9,6 +9,9 @@ import time as time_module # Usado para time.sleep
 from datetime import datetime, timedelta, time
 from threading import Thread
 import sqlite3 # Importado aqui para isinstance checks para SQLite
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
 
 # Importações Flask e Werkzeug (para segurança e hashing de senha)
 from flask import (
