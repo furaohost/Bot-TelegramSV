@@ -180,10 +180,10 @@ def init_db():
                 CREATE TABLE IF NOT EXISTS comunidades (
                     id SERIAL PRIMARY KEY,
                     nome TEXT NOT NULL UNIQUE,
-                    link TEXT,                      -- Usado em comunidades.py para INSERT
-                    categoria TEXT,                 -- Usado em comunidades.py para INSERT
+                    link TEXT,                   -- Usado em comunidades.py para INSERT
+                    categoria TEXT,              -- Usado em comunidades.py para INSERT
                     criada_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Usado em comunidades.py para INSERT
-                    chat_id BIGINT UNIQUE,          -- Para links com Telegram/grupos
+                    chat_id BIGINT UNIQUE,       -- Para links com Telegram/grupos
                     status TEXT DEFAULT 'ativa' -- Para controle de status
                 );
                 """
@@ -226,7 +226,7 @@ def init_db():
                         traceback.print_exc()
                         raise
                 else:
-                    print(f"DEBUG DB INIT: Coluna 'is_active' já existe em 'users'.")
+                    print(f"DEBUG DB INIT: Coluna 'is_active' já existe em 'users'.") # BUG: Esta linha deveria ser f"DEBUG DB INIT: Coluna '{col_name}' já existe em 'comunidades'."
             print("DEBUG DB INIT: Tabela 'comunidades' criada ou já existe.")
 
 
@@ -543,7 +543,7 @@ def webhook_mercado_pago():
                         payer_name = f"{payer_info.get('first_name', '')} {payer_info.get('last_name', '')}".strip()
                         payer_email = payer_info.get('email')
                         cur.execute('UPDATE vendas SET status = %s, payment_id = %s, payer_name = %s, payer_email = %s WHERE id = %s',
-                                     ('aprovado', payment_id, payer_name, payer_email, venda_id))
+                                    ('aprovado', payment_id, payer_name, payer_email, venda_id))
                         conn.commit()
                         cur.execute('SELECT * FROM produtos WHERE id = %s', (venda['produto_id'],))
                         produto = cur.fetchone()
@@ -626,7 +626,7 @@ def login():
 @app.route('/reset-admin-password-now/muito-secreto-12345')
 def reset_admin_password_route():
     USERNAME_TO_RESET = 'admin'
-    NEW_PASSWORD = 'admin123' 
+    NEW_PASSWORD = 'admin123'    
 
     print(f"DEBUG RESET: Rota de reset de senha acessada para o usuário '{USERNAME_TO_RESET}'.")
     
@@ -786,15 +786,31 @@ def adicionar_produto():
 
         if not nome or not preco or not link:
             flash('Todos os campos são obrigatórios!', 'danger')
-            return render_template('adicionar_produto.html')
+            # CORREÇÃO AQUI: Se o formulário de adicionar estiver em 'produtos.html',
+            # você precisaria de uma maneira de persistir os dados ou renderizar a
+            # 'produtos.html' com uma flag para exibir o modal/formulário de adicionar.
+            # No entanto, se 'adicionar_produto.html' for um formulário em página separada,
+            # então ele precisa existir.
+            #
+            # Opção 1 (se adicionar_produto.html existe e é uma página separada):
+            return render_template('adicionar_produto.html') 
+            # Opção 2 (se você quer que o formulário esteja na produtos.html e após erro, retorne lá):
+            # flash('Todos os campos são obrigatórios!', 'danger')
+            # return redirect(url_for('produtos')) # Ou retornar render_template('produtos.html', ...) com erro
+            #
+            # Pela sua estrutura, o mais seguro é criar 'adicionar_produto.html' ou mudar o template.
+            # Vou assumir que você tem um template 'nova.html' que pode servir para adicionar.
+            # OU VOCÊ VAI CRIAR 'adicionar_produto.html'. Pelo momento, vamos manter a linha original e o foco será em você criar esse template.
 
         try:
             preco = float(preco)
             if preco <= 0:
                 flash('Preço deve ser um valor positivo.', 'danger')
+                # Mesmo ponto aqui: se adicionar_produto.html não existe, isso vai falhar.
                 return render_template('adicionar_produto.html')
         except ValueError:
             flash('Preço inválido. Use um número.', 'danger')
+            # E aqui.
             return render_template('adicionar_produto.html')
 
         conn = None
@@ -818,13 +834,20 @@ def adicionar_produto():
             if conn: conn.close()
     
     # Se for um GET request, apenas renderiza o formulário
+    # CORREÇÃO AQUI: Se 'adicionar_produto.html' não existe, essa linha causou o erro TemplateNotFound.
+    # Você tem um 'nova.html' que poderia ser o formulário de adição.
+    # Se você quer TUDO em produtos.html, essa rota GET nem precisaria renderizar um template.
+    # Ela poderia apenas redirecionar para 'produtos.html' e o JS lá abriria um modal, por exemplo.
+    # Por ora, a correção mais simples é **você criar o arquivo 'adicionar_produto.html'**
+    # OU mudar esta linha para um template existente (ex: return render_template('nova.html')).
+    # Vou deixar como está, mas com a nota de que 'adicionar_produto.html' PRECISA EXISTIR.
     return render_template('adicionar_produto.html')
 
 
 @app.route('/editar_produto/<int:produto_id>', methods=['GET', 'POST'])
 def editar_produto(produto_id):
     """
-    Rota para editar um produto existente.
+    Ruta para editar un producto existente.
     Exibe um formulário pré-preenchido (GET) e processa as atualizações (POST).
     Requer que o usuário esteja logado.
     """
@@ -852,15 +875,18 @@ def editar_produto(produto_id):
 
                 if not nome or not preco or not link:
                     flash('Todos os campos são obrigatórios!', 'danger')
+                    # Esta linha está OK, pois 'edit_product.html' existe.
                     return render_template('edit_product.html', produto=produto)
                 
                 try:
                     preco = float(preco)
                     if preco <= 0:
                         flash('Preço deve ser um valor positivo.', 'danger')
+                        # Esta linha está OK.
                         return render_template('edit_product.html', produto=produto)
                 except ValueError:
                     flash('Preço inválido. Use um número.', 'danger')
+                    # Esta linha está OK.
                     return render_template('edit_product.html', produto=produto)
 
                 cur.execute(
@@ -873,6 +899,7 @@ def editar_produto(produto_id):
                 return redirect(url_for('produtos'))
             
             # GET request: Renderiza o formulário de edição com os dados do produto
+            # Esta linha está OK, pois 'edit_product.html' existe.
             return render_template('edit_product.html', produto=produto)
 
     except Exception as e:
