@@ -1,56 +1,46 @@
 {% extends "layout.html" %}
 
+{% block title %}
+Enviar Broadcast
+{% endblock %}
+
 {% block content %}
-<div class="px-4 py-6 sm:px-0">
-    <h1 class="text-3xl font-bold text-gray-900 mb-6">Enviar Mensagem em Massa (Broadcast)</h1>
+<div class="max-w-md mx-auto py-6 sm:px-6 lg:px-8">
+    <div class="px-4 py-6 sm:px-0">
+        <h1 class="text-3xl font-bold text-gray-900 mb-6">Enviar Mensagem de Broadcast</h1>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-    {% for category, message in messages %}
-    <div class="mb-4 rounded-lg p-4 {{ 'bg-green-100 text-green-800' if category == 'success' else 'bg-red-100 text-red-800' }}" role="alert">
-        <p>{{ message }}</p>
-    </div>
-    {% endfor %}
-    {% endif %}
-    {% endwith %}
-
-    <div class="bg-white shadow overflow-hidden sm:rounded-lg p-6">
-        <form action="{{ url_for('send_broadcast') }}" method="POST">
-            <div class="grid grid-cols-1 gap-y-6 sm:grid-cols-2 sm:gap-x-8">
-                <div class="sm:col-span-2">
-                    <label for="message_text" class="block text-sm font-medium text-gray-700">Texto da Mensagem:</label>
-                    <div class="mt-1">
-                        <textarea id="message_text" name="message_text" rows="5" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2" placeholder="Sua mensagem para todos os usuários..." required>{{ request.form.get('message_text', '') }}</textarea>
-                    </div>
-                    <p class="mt-2 text-sm text-gray-500">Esta mensagem será enviada para todos os usuários que iniciaram uma conversa com o seu bot, ou para o ID de chat/grupo especificado.</p>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-4">
+                    {% for category, message in messages %}
+                        <div class="p-3 mb-2 rounded-md {{ 'bg-green-100 text-green-800' if category == 'success' else ('bg-red-100 text-red-800' if category == 'danger' else 'bg-blue-100 text-blue-800') }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
                 </div>
+            {% endif %}
+        {% endwith %}
 
-                <div class="sm:col-span-2">
-                    <label for="image_url" class="block text-sm font-medium text-gray-700">URL da Imagem ou Vídeo (Opcional):</label>
-                    <div class="mt-1">
-                        <input type="url" id="image_url" name="image_url" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2" placeholder="https://exemplo.com/sua-imagem-ou-video.jpg" value="{{ request.form.get('image_url', '') }}">
-                    </div>
-                    <p class="mt-2 text-sm text-gray-500">Insira uma URL direta para a imagem ou vídeo (o Telegram pode converter vídeos curtos para GIFs).</p>
+        <div class="bg-white shadow sm:rounded-lg p-6">
+            <form method="POST" action="{{ url_for('send_broadcast') }}">
+                <div class="mb-4">
+                    <label for="message_text" class="block text-sm font-medium text-gray-700">Texto da Mensagem</label>
+                    <textarea name="message_text" id="message_text" rows="5" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
                 </div>
-
-                <div class="sm:col-span-2">
-                    <label for="target_chat_id" class="block text-sm font-medium text-gray-700">ID do Chat/Grupo Específico (Opcional):</label>
-                    <div class="mt-1">
-                        <input type="text" id="target_chat_id" name="target_chat_id" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2" placeholder="-1001234567890 (para grupos) ou ID de usuário" value="{{ request.form.get('target_chat_id', '') }}">
-                    </div>
-                    <p class="mt-2 text-sm text-gray-500">Deixe em branco para enviar para todos os usuários ativos do bot (broadcast). Preencha com o ID de um chat/grupo (começa com '-') ou de um usuário específico para enviar apenas para ele.</p>
+                <div class="mb-6">
+                    <label for="image_url" class="block text-sm font-medium text-gray-700">URL da Imagem (Opcional)</label>
+                    <input type="url" name="image_url" id="image_url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                 </div>
-            </div>
-
-            <div class="mt-8 flex justify-end space-x-3">
-                <button type="button" onclick="window.history.back()" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 ease-in-out">
-                    Cancelar
-                </button>
-                <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 ease-in-out">
-                    Enviar Broadcast
-                </button>
-            </div>
-        </form>
+                <div class="flex justify-end">
+                    <a href="{{ url_for('index') }}" class="mr-3 inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Cancelar
+                    </a>
+                    <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Enviar Broadcast
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 {% endblock %}
