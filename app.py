@@ -37,8 +37,10 @@ import pagamentos
 from bot.utils.keyboards import confirm_18_keyboard, menu_principal
 from bot.handlers.chamadas import register_chamadas_handlers
 from bot.handlers.comunidades import register_comunidades_handlers
-from bot.handlers.ofertas import register_ofertas_handlers
+# Se 'ofertas.py' ainda existe para outras funcionalidades:
+from bot.handlers.ofertas import register_ofertas_handlers # Se ainda tiver o arquivo 'ofertas.py' original
 from bot.handlers.conteudos import register_conteudos_handlers
+from bot.handlers.produtos import register_produtos_handlers # <<== ESTE É O NOVO IMPORT para o seu 'produtos.py'
 from web.routes.comunidades import create_comunidades_blueprint
 
 
