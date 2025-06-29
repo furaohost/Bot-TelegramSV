@@ -10,7 +10,11 @@ import sqlite3
 import base64
 import json
 
+#importe datetime
+
+
 # Importações Flask e Werkzeug
+from datetime import datetime
 from flask import (
     Flask, render_template, request, redirect,
     url_for, session, flash, jsonify
@@ -24,7 +28,7 @@ load_dotenv()
 # Importa as funções centralizadas de conexão e inicialização do banco de dados
 from database import get_db_connection
 from database.db_init import init_db
-from datetime import datetime
+
 
 # Importa o módulo de pagamentos do Mercado Pago
 import pagamentos
@@ -69,6 +73,12 @@ if not API_TOKEN:
 app = Flask(__name__, template_folder='web/templates', static_folder='web/static')
 app.secret_key = FLASK_SECRET_KEY
 bot = telebot.TeleBot(API_TOKEN, threaded=False, parse_mode='Markdown')
+
+# Adicione este bloco:
+@app.context_processor
+def inject_datetime():
+    """Injeta o objeto datetime em todos os contextos de template."""
+    return {'datetime': datetime}
 
 # ────────────────────────────────────────────────────────────────────
 # 3. FUNÇÕES DE UTILIDADE DE BASE DE DADOS
