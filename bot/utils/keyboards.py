@@ -17,7 +17,7 @@ def menu_principal() -> types.InlineKeyboardMarkup:
         types.InlineKeyboardButton("🔞 Conteúdo", callback_data="menu_conteudo"),
     )
     kb.row(
-        types.InlineKeyboardButton("🎁 Ofertas",   callback_data="menu_ofertas"),
+        types.InlineKeyboardButton("🎁 Produtos",   callback_data="produtos"),
         types.InlineKeyboardButton("👥 Comunidades", callback_data="menu_comunidades"),
     )
     return kb
