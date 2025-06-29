@@ -10,9 +10,6 @@ import sqlite3
 import base64
 import json
 
-#importe datetime
-
-
 # Importações Flask e Werkzeug
 from datetime import datetime
 from flask import (
@@ -103,7 +100,7 @@ def get_or_register_user(user: types.User):
 
             if db_user is None:
                 cur.execute("INSERT INTO users (id, username, first_name, last_name, is_active) VALUES (%s, %s, %s, %s, %s)" if not is_sqlite else "INSERT INTO users (id, username, first_name, last_name, is_active) VALUES (?, ?, ?, ?, ?)",
-                                (user.id, user.username, user.first_name, user.last_name, True))
+                                 (user.id, user.username, user.first_name, user.last_name, True))
                 print(f"DEBUG DB: Novo utilizador registado: {user.username or user.first_name} (ID: {user.id})")
             else:
                 if not db_user['is_active']:
@@ -186,12 +183,12 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
             data_venda = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             if is_sqlite:
                 cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (?, ?, ?, ?, ?)",
-                                (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
+                                 (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
                 cur.execute("SELECT last_insert_rowid()")
                 venda_id = cur.fetchone()[0]
             else:
                 cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                                (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
+                                 (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
                 venda_id = cur.fetchone()[0]
 
             pagamento = pagamentos.criar_pagamento_pix(produto=produto, user=call.from_user, venda_id=venda_id)
@@ -256,6 +253,8 @@ register_chamadas_handlers(bot, get_db_connection)
 register_comunidades_handlers(bot, get_db_connection)
 
 register_conteudos_handlers(bot, get_db_connection)
+# Adicione a linha abaixo para registrar os handlers de produtos, se existirem no bot.handlers.produtos
+register_produtos_handlers(bot, get_db_connection) # Certifique-se que esta função existe em bot/handlers/produtos.py
 
 app.register_blueprint(create_comunidades_blueprint(get_db_connection))
 
@@ -357,7 +356,7 @@ def webhook_mercado_pago():
                         payer_name = f"{payer_info.get('first_name', '')} {payer_info.get('last_name', '')}".strip()
                         payer_email = payer_info.get('email')
                         cur.execute('UPDATE vendas SET status = %s, payment_id = %s, payer_name = %s, payer_email = %s WHERE id = %s' if not is_sqlite else 'UPDATE vendas SET status = ?, payment_id = ?, payer_name = ?, payer_email = ? WHERE id = ?',
-                                        ('aprovado', payment_id, payer_name, payer_email, venda_id))
+                                         ('aprovado', payment_id, payer_name, payer_email, venda_id))
 
                         cur.execute('SELECT * FROM produtos WHERE id = %s' if not is_sqlite else 'SELECT * FROM produtos WHERE id = ?', (venda['produto_id'],))
                         produto = cur.fetchone()
@@ -726,10 +725,10 @@ def editar_produto(produto_id):
                     return redirect(url_for('produtos'))
 
                 return render_template('edit_product.html',
-                                        produto=produto,
-                                        nome_val=produto['nome'],
-                                        preco_val=f"{produto['preco']:.2f}",
-                                        link_val=produto['link'])
+                                         produto=produto,
+                                         nome_val=produto['nome'],
+                                         preco_val=f"{produto['preco']:.2f}",
+                                         link_val=produto['link'])
 
     except Exception as e:
         print(f"ERRO EDIT PRODUTO: Falha ao editar produto: {e}")
@@ -1475,7 +1474,7 @@ def scheduled_message_worker():
                                         if temp_conn_for_user_update: temp_conn_for_user_update.close()
                             failed_count += 1
                         except Exception as e:
-                            print(f"ERRO WORKER: Failed to send message {row['id']} to {chat_id}: {e}")
+                            print(f"ERRO UNEXPECTED BROADCAST to {user_id}: {e}")
                             traceback.print_exc()
 
                     status_to_update = "sent" if delivered_to_any_user else "failed"
@@ -1576,3 +1575,4 @@ else:
     print("DEBUG: Scheduled message worker started in background (local mode).")
 
     app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5000)))
+    

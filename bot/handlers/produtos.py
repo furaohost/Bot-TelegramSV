@@ -1,9 +1,11 @@
 # bot/handlers/produtos.py
 import telebot
 from telebot import types
+from telebot.types import Message # <<< CORREÇÃO: Adicionada esta importação
 import traceback
 import base64
 import sqlite3 # Importar para a verificação de tipo de conexão
+from datetime import datetime # CORREÇÃO: Adicionada a importação de datetime
 
 # Importa o módulo de pagamentos do Mercado Pago (se ele for usado aqui)
 # Certifique-se de que o 'pagamentos' está acessível no sys.path ou mova-o
@@ -86,6 +88,7 @@ def register_produtos_handlers(bot: telebot.TeleBot, get_db_connection):
             with conn:
                 cur = conn.cursor()
                 placeholder = "%s" if not is_sqlite else "?"
+                # Correção na sintaxe da f-string para evitar Warning/erro com %s
                 cur.execute(f'SELECT * FROM produtos WHERE id = {placeholder}', (produto_id,))
                 produto = cur.fetchone()
 
@@ -96,12 +99,12 @@ def register_produtos_handlers(bot: telebot.TeleBot, get_db_connection):
                 data_venda = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 if is_sqlite:
                     cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (?, ?, ?, ?, ?)",
-                                    (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
+                                         (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
                     cur.execute("SELECT last_insert_rowid()")
                     venda_id = cur.fetchone()[0]
                 else:
                     cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                                    (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
+                                         (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
                     venda_id = cur.fetchone()[0]
 
                 # pagamentos.criar_pagamento_pix precisa do MERCADOPAGO_ACCESS_TOKEN.
@@ -137,7 +140,7 @@ def register_produtos_handlers(bot: telebot.TeleBot, get_db_connection):
 
     # Handler para o botão "Ofertas" (ou "Produtos", "Comprar") do teclado principal
     @bot.message_handler(func=lambda message: message.text == "Ofertas") # Mantenha "Ofertas" ou mude para o texto exato do seu botão
-    def handle_show_products(message: Message):
+    def handle_show_products(message: Message): # A anotação de tipo 'Message' agora está disponível
         mostrar_produtos_bot(message.chat.id)
 
     # Handler para o callback de "comprar" (botão inline)
