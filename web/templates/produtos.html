@@ -31,7 +31,7 @@ Gerenciar Produtos
 
         <div id="addProductForm" class="bg-white shadow overflow-hidden sm:rounded-lg p-6 mb-6" style="display: none;">
             <h2 class="text-2xl font-bold text-gray-900 mb-4">Adicionar Novo Produto</h2>
-            <form action="{{ url_for('adicionar_produto') }}" method="POST" class="space-y-4">
+            <form action="/adicionar_produto" method="POST" class="space-y-4"> {# AGORA APONTA DIRETAMENTE PARA A URL #}
                 <div>
                     <label for="add_nome" class="block text-sm font-medium text-gray-700">Nome do Produto</label>
                     <input type="text" name="nome" id="add_nome" required
@@ -228,7 +228,7 @@ Gerenciar Produtos
                 editLinkInput.value = produtoLink;
 
                 // Define a action do formulário para o ID correto
-                editProductActualForm.action = `{{ url_for('editar_produto', produto_id=0) }}`.replace('/0', `/${produtoId}`);
+                editProductActualForm.action = `/editar_produto/${produtoId}`; // USANDO URL ABSOLUTA
 
                 showForm(editProductForm);
             });
@@ -253,7 +253,7 @@ Gerenciar Produtos
                 editNomeInput.value = nomeVal || '';
                 editPrecoInput.value = precoVal || '';
                 editLinkInput.value = linkVal || '';
-                editProductActualForm.action = `{{ url_for('editar_produto', produto_id=0) }}`.replace('/0', `/${editId}`);
+                editProductActualForm.action = `/editar_produto/${editId}`; // USANDO URL ABSOLUTA
                 showForm(editProductForm);
             } else if (addNewProduct) { // Erro na adição, re-preenche o formulário de adição
                 addNomeInput.value = nomeVal || '';
@@ -262,21 +262,12 @@ Gerenciar Produtos
                 showForm(addProductForm);
             }
         } else if (editId) { // Redirecionamento bem-sucedido de GET /editar_produto/<id> para exibir form de edição
-             // Se não houve erro, mas a URL tem edit_id (vindo de um GET para /editar_produto/<id>)
-             // É necessário buscar os dados do produto para preencher o formulário.
-             // Para evitar uma nova requisição ao DB, poderíamos ter passado os dados completos na query param,
-             // mas URLs longas não são ideais. A melhor forma aqui seria uma API endpoint RESTful.
-             // POR ENQUANTO: Se for um GET limpo sem erro, assumimos que o clique "Editar" da tabela já pré-preencheu.
-             // Se o fluxo é que o GET da rota /editar_produto/ID sempre redireciona para /produtos?edit_id=ID&...
-             // E esse GET já passa os 'nome_val', 'preco_val', 'link_val' como parâmetros de query.
-             // Isso já está implementado no app.py e nas linhas acima que usam `request.args.get()`.
-             // Então, apenas mostrar o formulário.
-            editProdutoIdInput.value = editId;
-            editNomeInput.value = nomeVal || '';
-            editPrecoInput.value = precoVal || '';
-            editLinkInput.value = linkVal || '';
-            editProductActualForm.action = `{{ url_for('editar_produto', produto_id=0) }}`.replace('/0', `/${editId}`);
-            showForm(editProductForm);
+             editProdutoIdInput.value = editId;
+             editNomeInput.value = nomeVal || '';
+             editPrecoInput.value = precoVal || '';
+             editLinkInput.value = linkVal || '';
+             editProductActualForm.action = `/editar_produto/${editId}`; // USANDO URL ABSOLUTA
+             showForm(editProductForm);
 
         } else if (addNewProduct) { // Redirecionamento bem-sucedido de GET /adicionar_produto
              showForm(addProductForm); // Apenas mostra o formulário (campos estarão vazios se não houver erro)
