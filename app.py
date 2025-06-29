@@ -38,7 +38,7 @@ from bot.utils.keyboards import confirm_18_keyboard, menu_principal
 from bot.handlers.chamadas import register_chamadas_handlers
 from bot.handlers.comunidades import register_comunidades_handlers
 # Se 'ofertas.py' ainda existe para outras funcionalidades:
-from bot.handlers.ofertas import register_ofertas_handlers # Se ainda tiver o arquivo 'ofertas.py' original
+ 
 from bot.handlers.conteudos import register_conteudos_handlers
 from bot.handlers.produtos import register_produtos_handlers # <<== ESTE É O NOVO IMPORT para o seu 'produtos.py'
 from web.routes.comunidades import create_comunidades_blueprint
@@ -254,7 +254,7 @@ app.jinja_env.filters['datetimeformat'] = format_datetime
 # ────────────────────────────────────────────────────────────────────
 register_chamadas_handlers(bot, get_db_connection)
 register_comunidades_handlers(bot, get_db_connection)
-register_ofertas_handlers(bot, get_db_connection)
+
 register_conteudos_handlers(bot, get_db_connection)
 
 app.register_blueprint(create_comunidades_blueprint(get_db_connection))
