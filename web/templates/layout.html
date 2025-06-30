@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="pt-br" class="h-full bg-gray-100">
+<html lang="pt-br" class="h-full bg-gray-900"> {# Cor de fundo principal alterada para um roxo escuro #}
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Painel{% endblock %} - Bot Vendas</title>
     
-    {# Tailwind CSS via CDN - Remova esta linha se optar por compilação local #}
+    {# Tailwind CSS via CDN - Mantido para simplificar o deploy #}
     <script src="https://cdn.tailwindcss.com"></script>
     
     {# Chart.js para gráficos #}
@@ -16,11 +16,34 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    {# Font Awesome para ícones #}
+    {# Font Awesome para ícones - Essencial para os novos ícones e animação #}
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body { 
+            font-family: 'Inter', sans-serif; 
+        }
+
+        /* Cores personalizadas para o tema roxo escuro */
+        /* Você pode adicionar estas cores ao seu tailwind.config.js se usar compilação local */
+        .bg-dark-purple-900 { background-color: #1a0a2e; } /* Roxo muito escuro, quase preto */
+        .bg-dark-purple-800 { background-color: #2b0e4a; } /* Roxo escuro um pouco mais claro */
+        .text-light-purple-300 { color: #d0b8f0; } /* Roxo claro para texto */
+        .hover\:bg-dark-purple-700:hover { background-color: #3c1366; } /* Hover para itens de menu */
+
+        /* Animação para o ícone do título */
+        @keyframes bounce-and-spin {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            25% { transform: translateY(-5px) rotate(90deg); }
+            50% { transform: translateY(0) rotate(180deg); }
+            75% { transform: translateY(-5px) rotate(270deg); }
+        }
+        .animate-bounce-spin {
+            animation: bounce-and-spin 4s ease-in-out infinite; /* Animação mais complexa */
+        }
+        .animate-bounce-spin-hover:hover {
+            animation: bounce-and-spin 1s ease-in-out infinite; /* Mais rápida no hover */
+        }
 
         /* Estilo para a sidebar em telas menores, hidden por padrão */
         @media (max-width: 767px) {
@@ -53,108 +76,111 @@
     </style>
 </head>
 <body class="h-full">
-    <div class="min-h-full">
+    <div class="min-h-full flex"> {# Usar flex para organizar sidebar e conteúdo principal #}
         {# Overlay para o menu mobile #}
         <div id="sidebar-overlay" class="overlay md:hidden"></div>
 
         {# Sidebar (Menu Lateral) #}
-        <div id="sidebar" class="fixed inset-y-0 flex w-64 flex-col bg-gray-900 sidebar-mobile-hidden sidebar-transition z-50">
+        <div id="sidebar" class="fixed inset-y-0 left-0 flex w-64 flex-col bg-dark-purple-900 sidebar-mobile-hidden sidebar-transition z-50 shadow-xl md:relative md:translate-x-0"> {# Cor de fundo alterada #}
             <div class="flex min-h-0 flex-1 flex-col">
-                {# Título da Sidebar #}
-                <div class="flex h-16 flex-shrink-0 items-center bg-gray-900 px-4">
-                    <h1 class="text-xl font-bold text-white">🤖 Painel do Bot</h1>
+                {# Título da Sidebar com Ícone e Animação #}
+                <div class="flex h-16 flex-shrink-0 items-center bg-dark-purple-800 px-4 border-b border-purple-700"> {# Fundo ligeiramente diferente e borda #}
+                    <i class="fas fa-robot text-light-purple-300 text-2xl mr-3 animate-bounce-spin animate-bounce-spin-hover"></i> {# Ícone de robô com animação #}
+                    <h1 class="text-xl font-bold text-white">Painel do Bot</h1>
                 </div>
                 {# Itens de Navegação #}
                 <div class="flex flex-1 flex-col overflow-y-auto">
                     <nav class="flex-1 space-y-1 px-2 py-4">
                         {# Dashboard Link #}
                         <a href="{{ url_for('index') }}" 
-                           class="{{ 'bg-gray-800 text-white' if request.endpoint == 'index' else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
-                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h7.5" /></svg>
+                           class="{{ 'bg-dark-purple-700 text-white shadow-md' if request.endpoint == 'index' else 'text-light-purple-300 hover:bg-dark-purple-700 hover:text-white' }} group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200 ease-in-out"> {# Estilos mais polidos #}
+                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-light-purple-300 group-hover:text-white transition-colors duration-200 ease-in-out" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h7.5" /></svg>
                             Dashboard
                         </a>
                         {# Produtos Link #}
                         <a href="{{ url_for('produtos') }}" 
-                           class="{{ 'bg-gray-800 text-white' if request.endpoint == 'produtos' or 'edit_product' in request.endpoint else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
-                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" /></svg>
+                           class="{{ 'bg-dark-purple-700 text-white shadow-md' if request.endpoint == 'produtos' or 'edit_product' in request.endpoint else 'text-light-purple-300 hover:bg-dark-purple-700 hover:text-white' }} group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200 ease-in-out">
+                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-light-purple-300 group-hover:text-white transition-colors duration-200 ease-in-out" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" /></svg>
                             Produtos
                         </a>
                         {# Vendas Link #}
                         <a href="{{ url_for('vendas') }}" 
-                           class="{{ 'bg-gray-800 text-white' if request.endpoint == 'vendas' else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
-                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414-.336.75-.75.75h-.75m0-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" /></svg>
+                           class="{{ 'bg-dark-purple-700 text-white shadow-md' if request.endpoint == 'vendas' else 'text-light-purple-300 hover:bg-dark-purple-700 hover:text-white' }} group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200 ease-in-out">
+                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-light-purple-300 group-hover:text-white transition-colors duration-200 ease-in-out" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414-.336.75-.75.75h-.75m0-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" /></svg>
                             Vendas
                         </a>
                         {# Usuários Link #}
                         <a href="{{ url_for('usuarios') }}" 
-                           class="{{ 'bg-gray-800 text-white' if request.endpoint == 'usuarios' else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
-                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-4.67c.12-.313.25-.624.39-1.458m-11.964-.75a6.375 6.375 0 016.374-6.374 6.375 6.375 0 016.374 6.374m-12.748 0L3 16.5" /></svg>
+                           class="{{ 'bg-dark-purple-700 text-white shadow-md' if request.endpoint == 'usuarios' else 'text-light-purple-300 hover:bg-dark-purple-700 hover:text-white' }} group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200 ease-in-out">
+                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-light-purple-300 group-hover:text-white transition-colors duration-200 ease-in-out" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-4.67c.12-.313.25-.624.39-1.458m-11.964-.75a6.375 6.375 0 016.374-6.374 6.375 6.375 0 016.374 6.374m-12.748 0L3 16.5" /></svg>
                             Usuários
                         </a>
                         {# NOVO ITEM DE MENU: COMUNIDADES #}
                         <a href="{{ url_for('comunidades.comunidades') }}" 
-                           class="{{ 'bg-gray-800 text-white' if request.endpoint.startswith('comunidades') else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
-                            <i class="fas fa-users mr-3 h-6 w-6 flex-shrink-0 text-gray-400"></i> {# Ícone de comunidades do Font Awesome #}
+                           class="{{ 'bg-dark-purple-700 text-white shadow-md' if request.endpoint.startswith('comunidades') else 'text-light-purple-300 hover:bg-dark-purple-700 hover:text-white' }} group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200 ease-in-out">
+                            <i class="fas fa-users mr-3 h-6 w-6 flex-shrink-0 text-light-purple-300 group-hover:text-white transition-colors duration-200 ease-in-out"></i> {# Ícone de comunidades do Font Awesome #}
                             Comunidades
                         </a>
                         {# Mensagens Agendadas Link #}
                         <a href="{{ url_for('scheduled_messages') }}" 
-                           class="{{ 'bg-gray-800 text-white' if request.endpoint.startswith('scheduled_messages') or request.endpoint.startswith('add_scheduled_message') or request.endpoint.startswith('edit_scheduled_message') else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
-                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-16.5-7.5h1.5m-1.5 3h1.5m-1.5 3h1.5" /></svg>
+                           class="{{ 'bg-dark-purple-700 text-white shadow-md' if request.endpoint.startswith('scheduled_messages') or request.endpoint.startswith('add_scheduled_message') or request.endpoint.startswith('edit_scheduled_message') else 'text-light-purple-300 hover:bg-dark-purple-700 hover:text-white' }} group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200 ease-in-out">
+                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-light-purple-300 group-hover:text-white transition-colors duration-200 ease-in-out" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-16.5-7.5h1.5m-1.5 3h1.5m-1.5 3h1.5" /></svg>
                             Mensagens Agendadas
                         </a>
                         {# NOVO ITEM DE MENU: ENVIAR BROADCAST #}
                         <a href="{{ url_for('send_broadcast') }}" 
-                           class="{{ 'bg-gray-800 text-white' if request.endpoint == 'send_broadcast' else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
-                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.688c0-.864.933-1.405 1.683-.977l7.108 4.062a1.125 1.125 0 010 1.953l-7.108 4.062A1.125 1.125 0 013 16.813V8.688zM12.75 8.688v7.424" /></svg>
+                           class="{{ 'bg-dark-purple-700 text-white shadow-md' if request.endpoint == 'send_broadcast' else 'text-light-purple-300 hover:bg-dark-purple-700 hover:text-white' }} group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200 ease-in-out">
+                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-light-purple-300 group-hover:text-white transition-colors duration-200 ease-in-out" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.688c0-.864.933-1.405 1.683-.977l7.108 4.062a1.125 1.125 0 010 1.953l-7.108 4.062A1.125 1.125 0 013 16.813V8.688zM12.75 8.688v7.424" /></svg>
                             Enviar Broadcast
                         </a>
                         {# Configurações de Mensagens Link #}
                         <a href="{{ url_for('config_messages') }}" 
-                           class="{{ 'bg-gray-800 text-white' if request.endpoint == 'config_messages' else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
-                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.545 1.05 2.875 2.5 3.14M5.25 18.75h13.5c.621 0 1.125-.504 1.125-1.125v-9c0-.621-.504-1.125-1.125-1.125H5.25c-.621 0-1.125.504-1.125 1.125v9c0 .621.504 1.125 1.125 1.125z" /></svg>
+                           class="{{ 'bg-dark-purple-700 text-white shadow-md' if request.endpoint == 'config_messages' else 'text-light-purple-300 hover:bg-dark-purple-700 hover:text-white' }} group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200 ease-in-out">
+                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-light-purple-300 group-hover:text-white transition-colors duration-200 ease-in-out" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.545 1.05 2.875 2.5 3.14M5.25 18.75h13.5c.621 0 1.125-.504 1.125-1.125v-9c0-.621-.504-1.125-1.125-1.125H5.25c-.621 0-1.125.504-1.125 1.125v9c0 .621.504 1.125 1.125 1.125z" /></svg>
                             Configurações de Mensagens
                         </a>
                     </nav>
                 </div>
                 {# Seção de Usuário Logado #}
-                <div class="flex flex-shrink-0 border-t border-gray-700 p-4">
+                <div class="flex flex-shrink-0 border-t border-dark-purple-700 p-4"> {# Borda com cor do tema #}
                     <div class="flex-shrink-0 w-full">
                         <div class="flex items-center">
                             <div>
                                 <p class="text-sm font-medium text-white">{{ session.username }}</p>
                             </div>
                         </div>
-                        <a href="{{ url_for('logout') }}" class="mt-2 block w-full text-center text-sm font-medium text-gray-400 hover:text-white">Sair</a>
+                        <a href="{{ url_for('logout') }}" class="mt-2 block w-full text-center text-sm font-medium text-light-purple-300 hover:text-white">Sair</a>
                     </div>
                 </div>
             </div>
         </div>
 
         {# Área de Conteúdo Principal #}
-        <div class="flex flex-1 flex-col md:ml-64">
+        <div class="flex flex-1 flex-col md:ml-64 bg-gray-100"> {# Fundo cinza para a área de conteúdo #}
             {# Cabeçalho Mobile (exibido apenas em telas pequenas) #}
-            <div class="md:hidden sticky top-0 z-10 flex h-16 flex-shrink-0 items-center bg-white shadow-sm">
-                <button type="button" id="mobile-menu-button" class="px-4 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500">
+            <div class="md:hidden sticky top-0 z-10 flex h-16 flex-shrink-0 items-center bg-dark-purple-800 shadow-md border-b border-dark-purple-700"> {# Cor de fundo e borda do tema #}
+                <button type="button" id="mobile-menu-button" class="px-4 text-light-purple-300 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"> {# Cor do botão #}
                     <span class="sr-only">Abrir menu lateral</span>
                     <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
                     </svg>
                 </button>
-                <h1 class="text-xl font-bold text-gray-900 ml-4">Painel do Bot</h1>
+                <h1 class="text-xl font-bold text-white ml-4">Painel do Bot</h1>
             </div>
 
-            <main class="flex-1">
+            <main class="flex-1 overflow-y-auto"> {# Adicionado overflow-y-auto para a rolagem de conteúdo #}
                 <div class="py-6">
                     {# Área para mensagens flash (sucesso/erro) #}
                     <div class="mx-auto max-w-7xl px-4 sm:px-6 md:px-8">
                         {% with messages = get_flashed_messages(with_categories=true) %}
                           {% if messages %}
+                            <div class="mb-6 space-y-3"> {# Espaçamento melhor para múltiplas mensagens #}
                             {% for category, message in messages %}
-                              <div class="mb-4 rounded-md p-4 {{ 'bg-green-100 text-green-800' if category == 'success' else 'bg-red-100 text-red-800' }}" role="alert">
+                              <div class="rounded-md p-4 text-sm {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}" role="alert">
                                 <p>{{ message }}</p>
                               </div>
                             {% endfor %}
+                            </div>
                           {% endif %}
                         {% endwith %}
                         {# Bloco onde o conteúdo de cada página individual será injetado #}
