@@ -5,7 +5,7 @@ from telebot import types
 import traceback
 import time as time_module
 from datetime import datetime, timedelta, time
-from threading import Thread # <-- ESSA LINHA É CRÍTICA PARA RESOLVER O ERRO
+from threading import Thread 
 import sqlite3
 import base64
 import json
@@ -33,12 +33,11 @@ import pagamentos
 # Importa os módulos de handlers e blueprints
 from bot.utils.keyboards import confirm_18_keyboard, menu_principal
 from bot.handlers.chamadas import register_chamadas_handlers
-from bot.handlers.comunidades import register_comunidades_handlers
+from bot.handlers.comunidades import register_comunidades_handlers 
 
 from bot.handlers.conteudos import register_conteudos_handlers
 from bot.handlers.produtos import register_produtos_handlers 
-# Importa o blueprint de comunidades que está em web/routes/comunidades.py
-from web.routes.comunidades import comunidades_bp # <-- Linha corrigida para importar diretamente o blueprint
+from web.routes.comunidades import comunidades_bp 
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -60,7 +59,6 @@ print(f"DEBUG: DATABASE_URL lida: {'***' if DATABASE_URL else 'NULO (usando SQLi
 print(f"DEBUG: MERCADOPAGO_ACCESS_TOKEN lido: {'***' if MERCADOPAGO_ACCESS_TOKEN else 'NULO'}")
 
 
-# Verifica se o API_TOKEN está configurado
 if not API_TOKEN:
     print("ERRO: A variável de ambiente 'API_TOKEN' não está definida. O bot não pode funcionar.")
     raise RuntimeError("API_TOKEN não configurado. O bot não pode funcionar.")
@@ -73,7 +71,6 @@ app = Flask(__name__, template_folder='web/templates', static_folder='web/static
 app.secret_key = FLASK_SECRET_KEY
 bot = telebot.TeleBot(API_TOKEN, threaded=False, parse_mode='Markdown')
 
-# Adicione este bloco:
 @app.context_processor
 def inject_datetime():
     """Injeta o objeto datetime em todos os contextos de template."""
@@ -91,10 +88,9 @@ def get_or_register_user(user: types.User):
             return
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn: # Use 'with conn' for transaction management and auto-closing
+        with conn: 
             cur = conn.cursor()
 
-            # Verifica se o utilizador já existe
             cur.execute("SELECT id, is_active FROM users WHERE id = %s" if not is_sqlite else "SELECT id, is_active FROM users WHERE id = ?", (user.id,))
             db_user = cur.fetchone()
 
@@ -163,7 +159,7 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
     venda_id = None
     try:
         conn = get_db_connection()
-        if conn is None: # CORREÇÃO: Usando 'is None' ao invés de '==='
+        if conn is None: 
             bot.send_message(chat_id, "Ocorreu um erro interno ao conectar ao banco de dados para gerar cobrança.")
             return
 
@@ -255,8 +251,7 @@ register_comunidades_handlers(bot, get_db_connection)
 register_conteudos_handlers(bot, get_db_connection)
 register_produtos_handlers(bot, get_db_connection) 
 
-# Registra o blueprint de comunidades diretamente
-app.register_blueprint(comunidades_bp, url_prefix='/') # <-- Linha de registro do blueprint corrigida
+app.register_blueprint(comunidades_bp, url_prefix='/') 
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -268,23 +263,14 @@ def require_login():
     Middleware that checks if the user is logged in before accessing certain routes.
     Redirects to the login page if not authenticated.
     """
-    # Adicionado 'comunidades' para permitir acesso a rotas do blueprint comunidades sem login,
-    # SE alguma delas fosse pública. No entanto, se todas exigem login,
-    # a verificação abaixo da sessão será suficiente.
-    # A lista de endpoints aqui são exceções ao requisito de login.
     if request.endpoint in ['login', 'static', 'telegram_webhook', 'health_check', 'webhook_mercado_pago', 'reset_admin_password_route', None, 'get_sales_data']:
         return
     
-    # Se o endpoint faz parte de um blueprint, ele pode ser acessado via 'blueprint_name.endpoint_function_name'
-    # Exemplo: 'comunidades.comunidades', 'comunidades.adicionar_comunidade', etc.
-    # Podemos verificar se o endpoint começa com 'comunidades.'
     if request.endpoint and request.endpoint.startswith('comunidades') and not session.get('logged_in'):
-        # Se for uma rota de comunidades, mas não está logado, redireciona
         print(f"DEBUG AUTH: Unauthorized access to '{request.path}' (Comunidades). Redirecting to login.")
         flash('Por favor, faça login para acessar esta página.', 'warning')
         return redirect(url_for('login'))
 
-    # Se não for uma rota pública e não estiver logado, redireciona
     if not session.get('logged_in'):
         print(f"DEBUG AUTH: Unauthorized access to '{request.path}'. Redirecting to login.")
         flash('Por favor, faça login para acessar esta página.', 'warning')
@@ -487,10 +473,6 @@ def reset_admin_password_route():
     finally:
         if conn:
             conn.close()
-# ==============================================================================
-# !! END OF TEMPORARY ROUTE !!
-# ==============================================================================
-
 
 @app.route('/logout')
 def logout():
@@ -526,7 +508,7 @@ def index():
             # Inicializa as variáveis com valores padrão
             total_usuarios = 0
             total_produtos = 0
-            receita_total = 0.0 # Receita total geral
+            receita_total = 0.0 
             vendas_recentes = []
             chart_labels = []
             chart_data_receita = [] 
@@ -535,25 +517,22 @@ def index():
             # --- Métricas de Período Atual e Período Anterior ---
             today = datetime.now()
             
-            # Período Atual: Mês corrente (do dia 1 até o último dia do mês corrente)
             start_of_current_month = datetime(today.year, today.month, 1)
             next_month = start_of_current_month.replace(day=28) + timedelta(days=4) 
             end_of_current_month = next_month - timedelta(days=next_month.day) 
             end_of_current_month = datetime.combine(end_of_current_month.date(), time.max) 
 
-            # Período Anterior: Mês anterior (do dia 1 do mês anterior até o último dia do mês anterior)
             start_of_previous_month = start_of_current_month - timedelta(days=1) 
             start_of_previous_month = datetime(start_of_previous_month.year, start_of_previous_month.month, 1)
             end_of_previous_month = start_of_current_month - timedelta(microseconds=1) 
             
-            # Função auxiliar para buscar dados de vendas para um período
             def get_sales_data_for_period_internal(start_dt, end_dt, cursor, is_sqlite_db):
                 if is_sqlite_db:
                     cursor.execute(
                         "SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = 'aprovado' AND data_venda BETWEEN ? AND ?",
                         (start_dt.isoformat(), end_dt.isoformat())
                     )
-                else: # PostgreSQL
+                else: 
                     cursor.execute(
                         "SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s",
                         ('aprovado', start_dt, end_dt)
@@ -563,45 +542,36 @@ def index():
                 total_sum = float(row['sum']) if row and 'sum' in row and row['sum'] is not None else 0.0
                 return count, total_sum
 
-            # Dados do Período Atual
             periodo_atual_vendas_quantidade, periodo_atual_vendas_valor = get_sales_data_for_period_internal(start_of_current_month, end_of_current_month, cur, is_sqlite)
             
-            # Dados do Período Anterior
             periodo_anterior_vendas_quantidade, periodo_anterior_vendas_valor = get_sales_data_for_period_internal(start_of_previous_month, end_of_previous_month, cur, is_sqlite)
 
-            # Cálculo das porcentagens de variação
-            # Vendas (Quantidade)
             if periodo_anterior_vendas_quantidade > 0:
                 variacao_vendas_quantidade = ((periodo_atual_vendas_quantidade - periodo_anterior_vendas_quantidade) / periodo_anterior_vendas_quantidade) * 100
             else:
                 variacao_vendas_quantidade = 100.0 if periodo_atual_vendas_quantidade > 0 else 0.0
             
-            # Vendas (Valor)
             if periodo_anterior_vendas_valor > 0:
                 variacao_vendas_valor = ((periodo_atual_vendas_valor - periodo_anterior_vendas_valor) / periodo_anterior_vendas_valor) * 100
             else:
                 variacao_vendas_valor = 100.0 if periodo_atual_vendas_valor > 0 else 0.0
 
 
-            # Total users (ativos)
             cur.execute('SELECT COUNT(id) AS count FROM users WHERE is_active = TRUE' if not is_sqlite else 'SELECT COUNT(id) AS count FROM users WHERE is_active = 1')
             total_usuarios_row = cur.fetchone()
             if total_usuarios_row and 'count' in total_usuarios_row and total_usuarios_row['count'] is not None:
                 total_usuarios = total_usuarios_row['count']
 
-            # Total products
             cur.execute('SELECT COUNT(id) AS count FROM produtos')
             total_produtos_row = cur.fetchone()
             if total_produtos_row and 'count' in total_produtos_row and total_produtos_row['count'] is not None:
                 total_produtos = total_produtos_row['count']
 
-            # Approved sales and total revenue (geral, desde o início)
             cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s" if not is_sqlite else "SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = ?", ('aprovado',))
             vendas_data_row_geral = cur.fetchone()
             if vendas_data_row_geral and 'sum' in vendas_data_row_geral and vendas_data_row_geral['sum'] is not None:
                 receita_total = float(vendas_data_row_geral['sum'])
             
-            # Recent sales (LIMIT 5)
             if is_sqlite:
                 cur.execute("""
                     SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, p.id AS produto_id,
@@ -612,7 +582,7 @@ def index():
                     FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id
                     ORDER BY v.id DESC LIMIT 5
                 """)
-            else: # PostgreSQL
+            else: 
                 cur.execute("""
                     SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, p.id AS produto_id,
                     CASE WHEN v.status = 'aprovado' THEN 'aprovado'
@@ -624,9 +594,8 @@ def index():
                 """)
             vendas_recentes = cur.fetchall()
 
-            # Data for daily revenue and quantity chart (last 7 days - default for initial load)
             today_date_chart = datetime.now().date()
-            for i in range(6, -1, -1): # Ultimos 7 dias
+            for i in range(6, -1, -1): 
                 day = today_date_chart - timedelta(days=i)
                 start_of_day = datetime.combine(day, time.min)
                 end_of_day = datetime.combine(day, time.max)
@@ -637,7 +606,7 @@ def index():
                         "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = ? AND data_venda BETWEEN ? AND ?",
                         ('aprovado', start_of_day.isoformat(), end_of_day.isoformat())
                     )
-                else: # PostgreSQL
+                else: 
                     cur.execute(
                         "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s",
                         ('aprovado', start_of_day, end_of_day)
@@ -649,19 +618,21 @@ def index():
 
                 chart_data_receita.append(daily_revenue)
                 chart_data_quantidade.append(daily_quantity)
-            
+                
+                # 'current_day' is only used in the API route, not here.
+                # The issue was that 'current_day' was defined inside a loop in the API route, and if the loop didn't run, it was unbound.
+                # In this loop (for 'index' route), 'day' is the iterating variable.
+
             print("DEBUG INDEX: Rendering index.html with dashboard data.")
             return render_template(
                 'index.html',
                 total_usuarios=total_usuarios,
                 total_produtos=total_produtos,
                 receita_total=receita_total,
-                # Novas variáveis para os blocos de "Período Atual" e "Período Anterior"
                 periodo_atual_vendas_quantidade=periodo_atual_vendas_quantidade,
                 periodo_atual_vendas_valor=periodo_atual_vendas_valor,
                 variacao_vendas_quantidade=f"{variacao_vendas_quantidade:.1f}", 
                 variacao_vendas_valor=f"{variacao_vendas_valor:.1f}",
-                # Periodo anterior
                 periodo_anterior_vendas_quantidade=periodo_anterior_vendas_quantidade,
                 periodo_anterior_vendas_valor=periodo_anterior_vendas_valor,
                 
@@ -670,7 +641,6 @@ def index():
                 chart_data_receita=json.dumps(chart_data_receita), 
                 chart_data_quantidade=json.dumps(chart_data_quantidade), 
                 current_year=datetime.now().year,
-                # Passa as datas dos períodos para serem exibidas no frontend
                 data_inicio_periodo_atual=start_of_current_month.strftime('%d/%m/%Y'),
                 data_fim_periodo_atual=today.strftime('%d/%m/%Y') 
             )
@@ -683,7 +653,6 @@ def index():
         if conn:
             conn.close()
 
-# 1.2. Nova Rota API para Dados de Gráfico Dinâmico (por período)
 @app.route('/api/sales_data', methods=['GET'])
 def get_sales_data():
     conn = None
@@ -694,11 +663,9 @@ def get_sales_data():
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         
-        # Receber parâmetros de data do frontend
         start_date_str = request.args.get('start_date')
         end_date_str = request.args.get('end_date')
 
-        # Default para últimos 7 dias se não forem fornecidos
         if not start_date_str or not end_date_str:
             end_date = datetime.now().date()
             start_date = end_date - timedelta(days=6)
@@ -713,10 +680,20 @@ def get_sales_data():
         chart_data_receita = []
         chart_data_quantidade = []
 
-        current_day = start_date
+        # Adicionando depuração para start_date e end_date
+        print(f"DEBUG API SALES DATA: start_date={start_date}, end_date={end_date}")
+
+        current_day = start_date # Garante que current_day sempre terá um valor aqui
+        
+        # Se a data de início for posterior à data de fim, o loop não rodará. 
+        # Isso é um cenário válido, e current_day não será acessado após o loop se ele nunca iniciar.
+        # O erro UnboundLocalError sugere que current_day += ... foi chamado quando current_day não estava definido.
+        # A única forma para isso acontecer é se o 'current_day = start_date' falhasse, o que não parece ser o caso.
+        # Ou se a versão do código no Render for mais antiga.
+        
         with conn: 
             cur = conn.cursor()
-            while current_day <= end_date:
+            while current_day <= end_date: 
                 chart_labels.append(current_day.strftime('%d/%m')) 
                 start_of_day_dt = datetime.combine(current_day, time.min)
                 end_of_day_dt = datetime.combine(current_day, time.max)
@@ -726,7 +703,7 @@ def get_sales_data():
                         "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = ? AND data_venda BETWEEN ? AND ?",
                         ('aprovado', start_of_day_dt.isoformat(), end_of_day_dt.isoformat())
                     )
-                else: # PostgreSQL
+                else: 
                     cur.execute(
                         "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s",
                         ('aprovado', start_of_day_dt, end_of_day_dt)
@@ -738,8 +715,8 @@ def get_sales_data():
                 chart_data_receita.append(daily_revenue)
                 chart_data_quantidade.append(daily_quantity)
                 
-                current_day += timedelta(days=1)
-
+                current_day += timedelta(days=1) # Linha 626 no seu log
+                
         return jsonify({
             'labels': chart_labels,
             'data_receita': chart_data_receita,
@@ -1027,6 +1004,8 @@ def venda_detalhes(id):
     Route to get details of a specific sale via API (JSON).
     Accessible only to logged-in users.
     """
+    print("DEBUG VENDA DETALHES: Requisição para /venda_detalhes.") # Adicionado log
+
     conn = None
     try:
         conn = get_db_connection()
@@ -1245,18 +1224,17 @@ def add_scheduled_message():
             with conn:
                 insert_cur = conn.cursor()
                 if is_sqlite:
-                    insert_cur.execute(
+                    cur.execute(
                         "INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, schedule_time, status) VALUES (?, ?, ?, ?, ?)",
                         (message_text, target_chat_id_db, image_url if image_url else None, schedule_time, 'pending')
                     )
                 else:
-                    insert_cur.execute(
+                    cur.execute(
                         "INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, schedule_time, status) VALUES (%s, %s, %s, %s, %s)",
                         (message_text, target_chat_id_db, image_url if image_url else None, schedule_time, 'pending')
                     )
                 flash('Mensagem agendada com sucesso!', 'success')
                 return redirect(url_for('scheduled_messages'))
-        # GET request for the form
         return render_template('add_scheduled_message.html', users=users)
 
     except Exception as e:
@@ -1338,7 +1316,6 @@ def edit_scheduled_message(message_id):
                 flash('Mensagem agendada atualizada com sucesso!', 'success')
                 return redirect(url_for('scheduled_messages'))
 
-            # For GET request, format the schedule_time for the form
             message['schedule_time_formatted'] = message['schedule_time'].strftime('%Y-%m-%dT%H:%M') if message['schedule_time'] else ''
             message['target_chat_id_selected'] = message['target_chat_id'] if message['target_chat_id'] is not None else 'all_users'
             return render_template('edit_scheduled_message.html', message=message, users=users)
@@ -1395,9 +1372,9 @@ def send_broadcast():
         with conn:
             cur = conn.cursor()
             if is_sqlite:
-                cur.execute('SELECT id, username, first_name FROM users WHERE is_active = 1 ORDER BY username ASC')
+                cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
             else:
-                cur.execute('SELECT id, username, first_name FROM users WHERE is_active = TRUE ORDER BY username ASC')
+                cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
             active_users = cur.fetchall()
 
         if request.method == 'POST':
@@ -1452,7 +1429,7 @@ def send_broadcast():
                                     finally:
                                         if temp_conn_update: temp_conn_update.close()
                         except Exception as e:
-                            print(f"ERRO UNEXPECTED BROADCAST to {user_id}: {e}") 
+                            print(f"ERRO UNEXPECTED BROADCAST to {user_id}: {e}")
                             traceback.print_exc()
                             failed_count += 1 
 
@@ -1519,7 +1496,6 @@ def config_messages():
                 flash('Configurações de mensagens atualizadas com sucesso!', 'success')
                 return redirect(url_for('config_messages'))
 
-            # For GET request, fetch current configurations
             if is_sqlite:
                 cur.execute("SELECT key, value FROM config WHERE key IN (?, ?)", ('welcome_message_bot', 'welcome_message_community'))
             else:
@@ -1581,9 +1557,9 @@ def scheduled_message_worker():
                         targets.append(row["target_chat_id"])
                     else:
                         if is_sqlite:
-                            cur.execute("SELECT id FROM users WHERE is_active=1")
+                            cur.execute("SELECT id FROM users WHERE is_active = 1")
                         else:
-                            cur.execute("SELECT id FROM users WHERE is_active=TRUE")
+                            cur.execute("SELECT id FROM users WHERE is_active = TRUE")
                         targets = [u["id"] for u in cur.fetchall()]
 
                     delivered_to_any_user = False
@@ -1598,36 +1574,37 @@ def scheduled_message_worker():
                         except telebot.apihelper.ApiTelegramException as e:
                             print(f"ERRO Telegram API for chat_id {chat_id}: {e}")
                             if "blocked" in str(e).lower() or "not found" in str(e).lower() or "deactivated" in str(e).lower():
-                                print(f"AVISO: User {chat_id} blocked/not found. Deactivating...")
-                                temp_conn_for_user_update = get_db_connection()
-                                if temp_conn_for_user_update:
-                                    temp_is_sqlite_for_user_update = isinstance(temp_conn_for_user_update, sqlite3.Connection)
+                                print(f"AVISO: Usuário {chat_id} blocked/not found. Deactivating...")
+                                temp_conn_update = get_db_connection()
+                                if temp_conn_update:
+                                    temp_is_sqlite = isinstance(temp_conn_update, sqlite3.Connection)
                                     try:
-                                        with temp_conn_for_user_update:
-                                            temp_cur_user_update = temp_conn_for_user_update.cursor()
-                                            if temp_is_sqlite_for_user_update:
-                                                temp_cur_user_update.execute("UPDATE users SET is_active=0 WHERE id=?", (chat_id,))
+                                        with temp_conn_update:
+                                            cur_u = temp_conn_update.cursor()
+                                            if temp_is_sqlite:
+                                                cur_u.execute("UPDATE users SET is_active=0 WHERE id=?", (chat_id,))
                                             else:
-                                                temp_cur_user_update.execute("UPDATE users SET is_active=FALSE WHERE id=%s", (chat_id,))
+                                                cur_u.execute("UPDATE users SET is_active=FALSE WHERE id=%s", (chat_id,))
                                     except Exception as db_e:
-                                        print(f"ERRO updating user {chat_id} status during worker run: {db_e}")
+                                        print(f"ERRO inactivating user {chat_id} during worker run: {db_e}")
                                     finally:
-                                        if temp_conn_for_user_update: temp_conn_for_user_update.close()
+                                        if temp_conn_update: temp_conn_update.close()
                         except Exception as e:
                             print(f"ERRO UNEXPECTED BROADCAST to {chat_id}: {e}")
                             traceback.print_exc()
+                            failed_count += 1 
 
-                    status_to_update = "sent" if delivered_to_any_user else "failed"
-                    if is_sqlite:
-                        cur.execute(
-                            "UPDATE scheduled_messages SET status=?, sent_at=? WHERE id=?",
-                            (status_to_update, datetime.now().isoformat(), row["id"]),
-                        )
-                    else:
-                        cur.execute(
-                            "UPDATE scheduled_messages SET status=%s, sent_at=NOW() AT TIME ZONE 'UTC' WHERE id=%s",
-                            (status_to_update, row["id"]),
-                        )
+                status_to_update = "sent" if delivered_to_any_user else "failed"
+                if is_sqlite:
+                    cur.execute(
+                        "UPDATE scheduled_messages SET status=?, sent_at=? WHERE id=?",
+                        (status_to_update, datetime.now().isoformat(), row["id"]),
+                    )
+                else:
+                    cur.execute(
+                        "UPDATE scheduled_messages SET status=%s, sent_at=NOW() AT TIME ZONE 'UTC' WHERE id=%s",
+                        (status_to_update, row["id"]),
+                    )
 
         except Exception as e:
             print(f"ERRO WORKER Main Loop: {e}")
@@ -1649,7 +1626,6 @@ def send_welcome(message):
     """
     get_or_register_user(message.from_user)
 
-    # Fetch welcome message from config
     conn = None
     welcome_message_text = "Olá, {first_name}! Bem-vindo(a) ao bot!"
     try:
@@ -1678,17 +1654,12 @@ def send_welcome(message):
     )
     bot.reply_to(message, formatted_message, reply_markup=menu_principal())
 
-# Condition for execution in production environment (Render) or locally
 if __name__ != '__main__':
-    # This part is executed when the application is imported by a WSGI server (e.g., gunicorn on Render)
     print("DEBUG: Running in production mode (gunicorn/Render).")
     try:
-        init_db() # Initialize the database (create tables if they don't exist)
-
-        # Initialize Mercado Pago SDK
+        init_db() 
         pagamentos.init_mercadopago_sdk()
 
-        # Configure Telegram webhook
         if API_TOKEN and BASE_URL:
             webhook_url = f"{BASE_URL}/{API_TOKEN}"
             bot.set_webhook(url=webhook_url)
@@ -1702,11 +1673,8 @@ if __name__ != '__main__':
         traceback.print_exc()
 
 else:
-    # This part is executed when the script is run directly (local development)
     print("DEBUG: Running in local development mode (python app.py).")
-    init_db() # Initialize the database (create tables if they don't exist)
-
-    # Initialize Mercado Pago SDK (for local testing)
+    init_db() 
     pagamentos.init_mercadopago_sdk()
     
     worker_thread = Thread(target=scheduled_message_worker)
