@@ -1,10 +1,9 @@
 # bot/services/comunidades.py
+import sqlite3 # Adicionado para verificar tipo de conexão
+import traceback # Para depuração de erros em serviços
 
-# Importações necessárias. Geralmente aqui você importaria a conexão com o banco de dados
-# e qualquer outra utilidade que a classe ComunidadeService precise.
-# Por exemplo, se você tem um módulo de conexão de DB:
-# from database import get_db_connection 
-# ou se a conexão é passada externamente, como temos no seu caso: get_db_connection_func
+# A classe ComunidadeService não importa a si mesma.
+# Ela depende de get_db_connection_func que é passada no construtor.
 
 class ComunidadeService:
     def __init__(self, get_db_connection_func):
