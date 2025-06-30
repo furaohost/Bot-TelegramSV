@@ -1,119 +1,138 @@
-# -*- coding: utf-8 -*-
-"""
-Blueprint de Comunidades para o painel Flask.
-Caminho base: /comunidades
-"""
+# web/routes/comunidades.py
 from flask import Blueprint, render_template, request, redirect, url_for, flash
-# Importa o serviço de comunidades (ajustado para a nova estrutura)
+from database import get_db_connection
 from bot.services.comunidades import ComunidadeService 
 
-def create_comunidades_blueprint(get_db_connection_func):
-    """
-    Cria e configura o Blueprint Flask para as rotas de gerenciamento de comunidades.
-    Args:
-        get_db_connection_func (function): Função para obter a conexão do DB.
-    Returns:
-        Blueprint: O Blueprint configurado.
-    """
-    # Define o Blueprint com um prefixo de URL para todas as rotas
-    bp = Blueprint("comunidades", __name__, url_prefix="/comunidades")
-    
-    # Inicializa o serviço de comunidades com a função de conexão do DB
-    svc = ComunidadeService(get_db_connection_func)
+# Cria o Blueprint com o nome 'comunidades'
+# A variável que define o Blueprint deve ser 'comunidades_bp' e estar no nível superior do arquivo.
+comunidades_bp = Blueprint('comunidades', __name__, template_folder='../templates')
 
-    # ------------------------------------------------------------------
-    # LISTAR Comunidades (GET /comunidades/)
-    # ------------------------------------------------------------------
-    @bp.route("/", methods=["GET"])
-    def lista():
-        """
-        Exibe a lista de todas as comunidades ativas.
-        """
-        comunidades = svc.listar()
-        return render_template("comunidades/lista.html", comunidades=comunidades)
+@comunidades_bp.route('/comunidades')
+def comunidades(): # <-- Endpoint: 'comunidades.comunidades'
+    conn = None
+    comunidades_list = []
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return render_template('comunidades.html', comunidades=[])
 
-    # ------------------------------------------------------------------
-    # FORMULARIO NOVA Comunidade / CRIAR (GET /comunidades/nova, POST /comunidades/nova)
-    # ------------------------------------------------------------------
-    @bp.route("/nova", methods=["GET", "POST"])
-    def nova():
-        """
-        Exibe o formulário para criar uma nova comunidade (GET)
-        ou processa a submissão do formulário para criar a comunidade (POST).
-        """
-        if request.method == "POST":
-            nome = request.form["nome"].strip()
-            descricao = request.form.get("descricao", "").strip() # Pega a descrição, pode ser vazia
-            
-            if not nome:
-                flash("O nome da comunidade é obrigatório.", "error")
-                return render_template("comunidades/nova.html", nome=nome, descricao=descricao)
+        comunidade_service = ComunidadeService(get_db_connection)
+        comunidades_list = comunidade_service.listar()
 
-            # Aqui você pode adicionar validações adicionais, como chat_id se necessário na web
-            # Por enquanto, chat_id é opcional e pode ser definido pelo bot.
+    except Exception as e:
+        print(f"ERRO ao carregar comunidades: {e}")
+        flash('Erro ao carregar comunidades.', 'danger')
+    finally:
+        if conn:
+            conn.close()
+    return render_template('comunidades.html', comunidades=comunidades_list)
 
-            nova_comunidade = svc.criar(nome, descricao)
+@comunidades_bp.route('/comunidades/adicionar', methods=['POST'])
+def adicionar_comunidade(): # <-- Endpoint: 'comunidades.adicionar_comunidade'
+    if request.method == 'POST':
+        nome = request.form['nome'].strip()
+        descricao = request.form.get('descricao', '').strip()
+        chat_id = request.form.get('chat_id', '').strip() or None 
+        
+        if chat_id:
+            try:
+                chat_id = int(chat_id)
+            except ValueError:
+                flash('ID do Chat/Grupo inválido. Deve ser um número.', 'danger')
+                return redirect(url_for('comunidades.comunidades'))
+
+        conn = None
+        try:
+            conn = get_db_connection()
+            if conn is None:
+                flash('Erro de conexão com o banco de dados.', 'danger')
+                return redirect(url_for('comunidades.comunidades'))
+
+            comunidade_service = ComunidadeService(get_db_connection)
+            nova_comunidade = comunidade_service.criar(nome=nome, descricao=descricao, chat_id=chat_id)
             if nova_comunidade:
-                flash(f"Comunidade '{nova_comunidade['nome']}' criada com sucesso!", "success")
-                return redirect(url_for("comunidades.lista"))
+                flash('Comunidade adicionada com sucesso!', 'success')
             else:
-                flash("Erro ao criar a comunidade. Tente novamente.", "error")
-        
-        # Renderiza o formulário para GET requests ou POST com erro
-        return render_template("comunidades/nova.html")
+                flash('Falha ao adicionar comunidade.', 'danger')
+        except Exception as e:
+            print(f"ERRO ao adicionar comunidade: {e}")
+            flash('Erro ao adicionar comunidade.', 'danger')
+        finally:
+            if conn:
+                conn.close()
+    return redirect(url_for('comunidades.comunidades'))
 
-    # ------------------------------------------------------------------
-    # EDITAR Comunidade (GET /comunidades/<id>/editar, POST /comunidades/<id>/editar)
-    # ------------------------------------------------------------------
-    @bp.route("/<int:cid>/editar", methods=["GET", "POST"])
-    def editar(cid):
-        """
-        Exibe o formulário para editar uma comunidade existente (GET)
-        ou processa a submissão do formulário para atualizar a comunidade (POST).
-        Args:
-            cid (int): O ID da comunidade a ser editada.
-        """
-        comunidade = svc.obter(cid)
+@comunidades_bp.route('/comunidades/editar/<int:id>', methods=['GET', 'POST'])
+def editar_comunidade(id): # <-- Endpoint: 'comunidades.editar_comunidade'
+    conn = None
+    comunidade = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('comunidades.comunidades'))
+        
+        comunidade_service = ComunidadeService(get_db_connection)
+        comunidade = comunidade_service.obter(id)
+
         if not comunidade:
-            flash("Comunidade não encontrada.", "error")
-            return redirect(url_for("comunidades.lista"))
+            flash('Comunidade não encontrada.', 'danger')
+            return redirect(url_for('comunidades.comunidades'))
 
-        if request.method == "POST":
-            novo_nome = request.form["nome"].strip()
-            nova_descricao = request.form.get("descricao", "").strip()
+        if request.method == 'POST':
+            nome = request.form['nome'].strip()
+            descricao = request.form.get('descricao', '').strip()
+            chat_id = request.form.get('chat_id', '').strip() or None
 
-            if not novo_nome:
-                flash("O nome da comunidade é obrigatório.", "error")
-                return render_template("comunidades/editar.html", comunidade=comunidade) # Permanece na página de edição com erro
+            if chat_id:
+                try:
+                    chat_id = int(chat_id)
+                except ValueError:
+                    flash('ID do Chat/Grupo inválido. Deve ser um número.', 'danger')
+                    return render_template('editar_comunidade.html', comunidade=comunidade, nome_val=nome, descricao_val=descricao, chat_id_val=chat_id)
 
-            sucesso = svc.editar(cid, novo_nome, nova_descricao)
+            sucesso = comunidade_service.editar(id, nome, descricao, chat_id)
             if sucesso:
-                flash(f"Comunidade '{novo_nome}' atualizada com sucesso!", "success")
-                return redirect(url_for("comunidades.lista"))
+                flash('Comunidade atualizada com sucesso!', 'success')
+                return redirect(url_for('comunidades.comunidades'))
             else:
-                flash("Erro ao atualizar a comunidade. Tente novamente.", "error")
+                flash('Falha ao atualizar comunidade.', 'danger')
+
+    except Exception as e:
+        print(f"ERRO ao editar comunidade: {e}")
+        flash('Erro ao editar comunidade.', 'danger')
+    finally:
+        if conn:
+            conn.close()
+    return render_template('editar_comunidade.html', comunidade=comunidade, 
+                           nome_val=comunidade['nome'], 
+                           descricao_val=comunidade['descricao'], 
+                           chat_id_val=comunidade['chat_id'])
+
+
+@comunidades_bp.route('/comunidades/deletar/<int:id>', methods=['POST'])
+def deletar_comunidade(id): # <-- Endpoint: 'comunidades.deletar_comunidade'
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('comunidades.comunidades'))
         
-        # Renderiza o formulário para GET requests ou POST com erro
-        return render_template("comunidades/editar.html", comunidade=comunidade)
-    
-    # ------------------------------------------------------------------
-    # DELETAR Comunidade (POST /comunidades/<id>/deletar)
-    # Esta rota é para exclusão lógica (muda o status para 'inativa')
-    # ------------------------------------------------------------------
-    @bp.route("/<int:cid>/deletar", methods=["POST"])
-    def deletar(cid):
-        """
-        Processa a requisição para "deletar" (desativar) uma comunidade.
-        Args:
-            cid (int): O ID da comunidade a ser desativada.
-        """
-        sucesso = svc.deletar(cid)
+        comunidade_service = ComunidadeService(get_db_connection)
+        sucesso = comunidade_service.deletar(id)
         if sucesso:
-            flash("Comunidade desativada com sucesso!", "success")
+            flash('Comunidade deletada com sucesso!', 'success')
         else:
-            flash("Erro ao desativar a comunidade.", "error")
-        return redirect(url_for("comunidades.lista"))
+            flash('Falha ao deletar comunidade.', 'danger')
+    except Exception as e:
+        print(f"ERRO ao deletar comunidade: {e}")
+        flash('Erro ao deletar comunidade.', 'danger')
+    finally:
+        if conn:
+            conn.close()
+    return redirect(url_for('comunidades.comunidades'))
 
-
-    return bp
-
+# REMOVIDA: A função create_comunidades_blueprint foi removida,
+# pois o app.py agora importa 'comunidades_bp' diretamente.
