@@ -5,7 +5,7 @@ from telebot import types
 import traceback
 import time as time_module
 from datetime import datetime, timedelta, time
-from threading import Thread
+from threading import Thread # <-- ESSA LINHA É CRÍTICA PARA RESOLVER O ERRO
 import sqlite3
 import base64
 import json
@@ -34,11 +34,11 @@ import pagamentos
 from bot.utils.keyboards import confirm_18_keyboard, menu_principal
 from bot.handlers.chamadas import register_chamadas_handlers
 from bot.handlers.comunidades import register_comunidades_handlers
-# Se 'ofertas.py' ainda existe para outras funcionalidades:
- 
+
 from bot.handlers.conteudos import register_conteudos_handlers
-from bot.handlers.produtos import register_produtos_handlers # <<== ESTE É O NOVO IMPORT para o seu 'produtos.py'
-from web.routes.comunidades import create_comunidades_blueprint
+from bot.handlers.produtos import register_produtos_handlers 
+# Importa o blueprint de comunidades que está em web/routes/comunidades.py
+from web.routes.comunidades import comunidades_bp # <-- Linha corrigida para importar diretamente o blueprint
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -163,8 +163,7 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
     venda_id = None
     try:
         conn = get_db_connection()
-        # CORREÇÃO: Usando 'is None' ao invés de '==='
-        if conn is None: 
+        if conn is None: # CORREÇÃO: Usando 'is None' ao invés de '==='
             bot.send_message(chat_id, "Ocorreu um erro interno ao conectar ao banco de dados para gerar cobrança.")
             return
 
@@ -254,10 +253,10 @@ register_chamadas_handlers(bot, get_db_connection)
 register_comunidades_handlers(bot, get_db_connection)
 
 register_conteudos_handlers(bot, get_db_connection)
-# Adicione a linha abaixo para registrar os handlers de produtos, se existirem no bot.handlers.produtos
-register_produtos_handlers(bot, get_db_connection) # Certifique-se que esta função existe em bot/handlers/produtos.py
+register_produtos_handlers(bot, get_db_connection) 
 
-app.register_blueprint(create_comunidades_blueprint(get_db_connection))
+# Registra o blueprint de comunidades diretamente
+app.register_blueprint(comunidades_bp, url_prefix='/') # <-- Linha de registro do blueprint corrigida
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -269,9 +268,23 @@ def require_login():
     Middleware that checks if the user is logged in before accessing certain routes.
     Redirects to the login page if not authenticated.
     """
+    # Adicionado 'comunidades' para permitir acesso a rotas do blueprint comunidades sem login,
+    # SE alguma delas fosse pública. No entanto, se todas exigem login,
+    # a verificação abaixo da sessão será suficiente.
+    # A lista de endpoints aqui são exceções ao requisito de login.
     if request.endpoint in ['login', 'static', 'telegram_webhook', 'health_check', 'webhook_mercado_pago', 'reset_admin_password_route', None, 'get_sales_data']:
         return
+    
+    # Se o endpoint faz parte de um blueprint, ele pode ser acessado via 'blueprint_name.endpoint_function_name'
+    # Exemplo: 'comunidades.comunidades', 'comunidades.adicionar_comunidade', etc.
+    # Podemos verificar se o endpoint começa com 'comunidades.'
+    if request.endpoint and request.endpoint.startswith('comunidades') and not session.get('logged_in'):
+        # Se for uma rota de comunidades, mas não está logado, redireciona
+        print(f"DEBUG AUTH: Unauthorized access to '{request.path}' (Comunidades). Redirecting to login.")
+        flash('Por favor, faça login para acessar esta página.', 'warning')
+        return redirect(url_for('login'))
 
+    # Se não for uma rota pública e não estiver logado, redireciona
     if not session.get('logged_in'):
         print(f"DEBUG AUTH: Unauthorized access to '{request.path}'. Redirecting to login.")
         flash('Por favor, faça login para acessar esta página.', 'warning')
@@ -379,7 +392,7 @@ def webhook_mercado_pago():
             print(f"DEBUG WEBHOOK MP: Pagamento {payment_id} não aprovado ou info inválida. Status: {payment_info.get('status') if payment_info else 'N/A'}")
             return jsonify({'status': 'payment_not_approved'}), 200
 
-    print("DEBUG WEBHOOK MP: Notificação ignorada (não é tipo 'payment' ou JSON inválido).")
+    print("DEBUG WEBHOOK MP: Notificação ignorada (não é tipo 'payment' ou JSON inválvido).")
     return jsonify({'status': 'ignored_general'}), 200
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -524,15 +537,14 @@ def index():
             
             # Período Atual: Mês corrente (do dia 1 até o último dia do mês corrente)
             start_of_current_month = datetime(today.year, today.month, 1)
-            # Para pegar o final do mês corrente: Adiciona 1 mês ao início do mês e subtrai 1 microsegundo
-            next_month = start_of_current_month.replace(day=28) + timedelta(days=4) # Garante que avance para o próximo mês
+            next_month = start_of_current_month.replace(day=28) + timedelta(days=4) 
             end_of_current_month = next_month - timedelta(days=next_month.day) 
-            end_of_current_month = datetime.combine(end_of_current_month.date(), time.max) # Define para o final do dia
+            end_of_current_month = datetime.combine(end_of_current_month.date(), time.max) 
 
             # Período Anterior: Mês anterior (do dia 1 do mês anterior até o último dia do mês anterior)
-            start_of_previous_month = start_of_current_month - timedelta(days=1) # Vai para o último dia do mês anterior
+            start_of_previous_month = start_of_current_month - timedelta(days=1) 
             start_of_previous_month = datetime(start_of_previous_month.year, start_of_previous_month.month, 1)
-            end_of_previous_month = start_of_current_month - timedelta(microseconds=1) # Vai para o último microsegundo do mês anterior
+            end_of_previous_month = start_of_current_month - timedelta(microseconds=1) 
             
             # Função auxiliar para buscar dados de vendas para um período
             def get_sales_data_for_period_internal(start_dt, end_dt, cursor, is_sqlite_db):
@@ -647,7 +659,7 @@ def index():
                 # Novas variáveis para os blocos de "Período Atual" e "Período Anterior"
                 periodo_atual_vendas_quantidade=periodo_atual_vendas_quantidade,
                 periodo_atual_vendas_valor=periodo_atual_vendas_valor,
-                variacao_vendas_quantidade=f"{variacao_vendas_quantidade:.1f}", # Formata para uma casa decimal
+                variacao_vendas_quantidade=f"{variacao_vendas_quantidade:.1f}", 
                 variacao_vendas_valor=f"{variacao_vendas_valor:.1f}",
                 # Periodo anterior
                 periodo_anterior_vendas_quantidade=periodo_anterior_vendas_quantidade,
@@ -660,7 +672,7 @@ def index():
                 current_year=datetime.now().year,
                 # Passa as datas dos períodos para serem exibidas no frontend
                 data_inicio_periodo_atual=start_of_current_month.strftime('%d/%m/%Y'),
-                data_fim_periodo_atual=today.strftime('%d/%m/%Y') # Usar a data de hoje para o fim do período atual, pois o mês ainda não terminou.
+                data_fim_periodo_atual=today.strftime('%d/%m/%Y') 
             )
     except Exception as e:
         print(f"ERRO INDEX: Falha ao renderizar o dashboard: {e}")
@@ -672,7 +684,6 @@ def index():
             conn.close()
 
 # 1.2. Nova Rota API para Dados de Gráfico Dinâmico (por período)
-# Isso permitirá que o frontend peça dados para períodos diferentes sem recarregar a página.
 @app.route('/api/sales_data', methods=['GET'])
 def get_sales_data():
     conn = None
@@ -696,18 +707,17 @@ def get_sales_data():
                 start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
                 end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
             except ValueError:
-                return jsonify({'error': 'Formato de data inválido. Use YYYY-MM-DD.'}), 400
+                return jsonify({'error': 'Formato de data inválido. UsebeginPath-MM-DD.'}), 400
         
         chart_labels = []
         chart_data_receita = []
         chart_data_quantidade = []
 
         current_day = start_date
-        # Abre a conexão com o banco de dados uma vez para o loop
         with conn: 
             cur = conn.cursor()
             while current_day <= end_date:
-                chart_labels.append(current_day.strftime('%d/%m')) # Formato DD/MM
+                chart_labels.append(current_day.strftime('%d/%m')) 
                 start_of_day_dt = datetime.combine(current_day, time.min)
                 end_of_day_dt = datetime.combine(current_day, time.max)
 
@@ -1441,11 +1451,10 @@ def send_broadcast():
                                         print(f"ERRO inactivating user {user_id} during broadcast: {db_e}")
                                     finally:
                                         if temp_conn_update: temp_conn_update.close()
-                            # failed_count += 1 # Removido para não duplicar se já foi pego na linha seguinte
                         except Exception as e:
-                            print(f"ERRO UNEXPECTED BROADCAST to {user_id}: {e}") # Adicionado user_id aqui
+                            print(f"ERRO UNEXPECTED BROADCAST to {user_id}: {e}") 
                             traceback.print_exc()
-                            failed_count += 1 # Adicionado aqui, pois pode ser um erro diferente dos acima
+                            failed_count += 1 
 
                 flash(f'Broadcast enviado com sucesso para {sent_count} usuários. Falha em {failed_count} usuários.', 'success')
                 return redirect(url_for('index'))
