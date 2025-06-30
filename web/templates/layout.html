@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-br" class="h-full bg-gray-900"> {# Cor de fundo principal alterada para um roxo escuro #}
+<html lang="pt-br" class="h-full bg-dark-purple-900"> {# Cor de fundo principal alterada para um roxo escuro #}
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -156,7 +156,7 @@
         </div>
 
         {# Área de Conteúdo Principal #}
-        <div class="flex flex-1 flex-col md:ml-64 bg-gray-100"> {# Fundo cinza para a área de conteúdo #}
+        <div class="flex flex-1 flex-col md:ml-64 bg-dark-purple-800 rounded-l-lg shadow-inner"> {# Cor de fundo da área de conteúdo e arredondamento #}
             {# Cabeçalho Mobile (exibido apenas em telas pequenas) #}
             <div class="md:hidden sticky top-0 z-10 flex h-16 flex-shrink-0 items-center bg-dark-purple-800 shadow-md border-b border-dark-purple-700"> {# Cor de fundo e borda do tema #}
                 <button type="button" id="mobile-menu-button" class="px-4 text-light-purple-300 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"> {# Cor do botão #}
@@ -169,23 +169,21 @@
             </div>
 
             <main class="flex-1 overflow-y-auto"> {# Adicionado overflow-y-auto para a rolagem de conteúdo #}
-                <div class="py-6">
+                <div class="py-6 px-4 sm:px-6 md:px-8"> {# Adicionado padding aqui também para o conteúdo #}
                     {# Área para mensagens flash (sucesso/erro) #}
-                    <div class="mx-auto max-w-7xl px-4 sm:px-6 md:px-8">
-                        {% with messages = get_flashed_messages(with_categories=true) %}
-                          {% if messages %}
-                            <div class="mb-6 space-y-3"> {# Espaçamento melhor para múltiplas mensagens #}
-                            {% for category, message in messages %}
-                              <div class="rounded-md p-4 text-sm {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}" role="alert">
-                                <p>{{ message }}</p>
-                              </div>
-                            {% endfor %}
-                            </div>
-                          {% endif %}
-                        {% endwith %}
-                        {# Bloco onde o conteúdo de cada página individual será injetado #}
-                        {% block content %}{% endblock %}
-                    </div>
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                      {% if messages %}
+                        <div class="mb-6 space-y-3"> {# Espaçamento melhor para múltiplas mensagens #}
+                        {% for category, message in messages %}
+                          <div class="rounded-md p-4 text-sm {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}" role="alert">
+                            <p>{{ message }}</p>
+                          </div>
+                        {% endfor %}
+                        </div>
+                      {% endif %}
+                    {% endwith %}
+                    {# Bloco onde o conteúdo de cada página individual será injetado #}
+                    {% block content %}{% endblock %}
                 </div>
             </main>
         </div>
