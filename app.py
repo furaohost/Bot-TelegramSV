@@ -100,7 +100,7 @@ def get_or_register_user(user: types.User):
 
             if db_user is None:
                 cur.execute("INSERT INTO users (id, username, first_name, last_name, is_active) VALUES (%s, %s, %s, %s, %s)" if not is_sqlite else "INSERT INTO users (id, username, first_name, last_name, is_active) VALUES (?, ?, ?, ?, ?)",
-                                 (user.id, user.username, user.first_name, user.last_name, True))
+                             (user.id, user.username, user.first_name, user.last_name, True))
                 print(f"DEBUG DB: Novo utilizador registado: {user.username or user.first_name} (ID: {user.id})")
             else:
                 if not db_user['is_active']:
@@ -163,7 +163,8 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
     venda_id = None
     try:
         conn = get_db_connection()
-        if conn is None:
+        # CORREÇÃO: Usando 'is None' ao invés de '==='
+        if conn is None: 
             bot.send_message(chat_id, "Ocorreu um erro interno ao conectar ao banco de dados para gerar cobrança.")
             return
 
@@ -183,12 +184,12 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
             data_venda = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             if is_sqlite:
                 cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (?, ?, ?, ?, ?)",
-                                 (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
+                             (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
                 cur.execute("SELECT last_insert_rowid()")
                 venda_id = cur.fetchone()[0]
             else:
                 cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                                 (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
+                             (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
                 venda_id = cur.fetchone()[0]
 
             pagamento = pagamentos.criar_pagamento_pix(produto=produto, user=call.from_user, venda_id=venda_id)
@@ -268,7 +269,7 @@ def require_login():
     Middleware that checks if the user is logged in before accessing certain routes.
     Redirects to the login page if not authenticated.
     """
-    if request.endpoint in ['login', 'static', 'telegram_webhook', 'health_check', 'webhook_mercado_pago', 'reset_admin_password_route', None]:
+    if request.endpoint in ['login', 'static', 'telegram_webhook', 'health_check', 'webhook_mercado_pago', 'reset_admin_password_route', None, 'get_sales_data']:
         return
 
     if not session.get('logged_in'):
@@ -356,7 +357,7 @@ def webhook_mercado_pago():
                         payer_name = f"{payer_info.get('first_name', '')} {payer_info.get('last_name', '')}".strip()
                         payer_email = payer_info.get('email')
                         cur.execute('UPDATE vendas SET status = %s, payment_id = %s, payer_name = %s, payer_email = %s WHERE id = %s' if not is_sqlite else 'UPDATE vendas SET status = ?, payment_id = ?, payer_name = ?, payer_email = ? WHERE id = ?',
-                                         ('aprovado', payment_id, payer_name, payer_email, venda_id))
+                                     ('aprovado', payment_id, payer_name, payer_email, venda_id))
 
                         cur.execute('SELECT * FROM produtos WHERE id = %s' if not is_sqlite else 'SELECT * FROM produtos WHERE id = ?', (venda['produto_id'],))
                         produto = cur.fetchone()
@@ -509,16 +510,68 @@ def index():
         with conn:
             cur = conn.cursor()
 
-            # **CORREÇÃO:** Inicializa as variáveis com valores padrão aqui
+            # Inicializa as variáveis com valores padrão
             total_usuarios = 0
             total_produtos = 0
-            total_vendas_aprovadas = 0
-            receita_total = 0.0
+            receita_total = 0.0 # Receita total geral
             vendas_recentes = []
             chart_labels = []
-            chart_data = []
+            chart_data_receita = [] 
+            chart_data_quantidade = []
 
-            # Total users
+            # --- Métricas de Período Atual e Período Anterior ---
+            today = datetime.now()
+            
+            # Período Atual: Mês corrente (do dia 1 até o último dia do mês corrente)
+            start_of_current_month = datetime(today.year, today.month, 1)
+            # Para pegar o final do mês corrente: Adiciona 1 mês ao início do mês e subtrai 1 microsegundo
+            next_month = start_of_current_month.replace(day=28) + timedelta(days=4) # Garante que avance para o próximo mês
+            end_of_current_month = next_month - timedelta(days=next_month.day) 
+            end_of_current_month = datetime.combine(end_of_current_month.date(), time.max) # Define para o final do dia
+
+            # Período Anterior: Mês anterior (do dia 1 do mês anterior até o último dia do mês anterior)
+            start_of_previous_month = start_of_current_month - timedelta(days=1) # Vai para o último dia do mês anterior
+            start_of_previous_month = datetime(start_of_previous_month.year, start_of_previous_month.month, 1)
+            end_of_previous_month = start_of_current_month - timedelta(microseconds=1) # Vai para o último microsegundo do mês anterior
+            
+            # Função auxiliar para buscar dados de vendas para um período
+            def get_sales_data_for_period_internal(start_dt, end_dt, cursor, is_sqlite_db):
+                if is_sqlite_db:
+                    cursor.execute(
+                        "SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = 'aprovado' AND data_venda BETWEEN ? AND ?",
+                        (start_dt.isoformat(), end_dt.isoformat())
+                    )
+                else: # PostgreSQL
+                    cursor.execute(
+                        "SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s",
+                        ('aprovado', start_dt, end_dt)
+                    )
+                row = cursor.fetchone()
+                count = row['count'] if row and 'count' in row and row['count'] is not None else 0
+                total_sum = float(row['sum']) if row and 'sum' in row and row['sum'] is not None else 0.0
+                return count, total_sum
+
+            # Dados do Período Atual
+            periodo_atual_vendas_quantidade, periodo_atual_vendas_valor = get_sales_data_for_period_internal(start_of_current_month, end_of_current_month, cur, is_sqlite)
+            
+            # Dados do Período Anterior
+            periodo_anterior_vendas_quantidade, periodo_anterior_vendas_valor = get_sales_data_for_period_internal(start_of_previous_month, end_of_previous_month, cur, is_sqlite)
+
+            # Cálculo das porcentagens de variação
+            # Vendas (Quantidade)
+            if periodo_anterior_vendas_quantidade > 0:
+                variacao_vendas_quantidade = ((periodo_atual_vendas_quantidade - periodo_anterior_vendas_quantidade) / periodo_anterior_vendas_quantidade) * 100
+            else:
+                variacao_vendas_quantidade = 100.0 if periodo_atual_vendas_quantidade > 0 else 0.0
+            
+            # Vendas (Valor)
+            if periodo_anterior_vendas_valor > 0:
+                variacao_vendas_valor = ((periodo_atual_vendas_valor - periodo_anterior_vendas_valor) / periodo_anterior_vendas_valor) * 100
+            else:
+                variacao_vendas_valor = 100.0 if periodo_atual_vendas_valor > 0 else 0.0
+
+
+            # Total users (ativos)
             cur.execute('SELECT COUNT(id) AS count FROM users WHERE is_active = TRUE' if not is_sqlite else 'SELECT COUNT(id) AS count FROM users WHERE is_active = 1')
             total_usuarios_row = cur.fetchone()
             if total_usuarios_row and 'count' in total_usuarios_row and total_usuarios_row['count'] is not None:
@@ -530,19 +583,12 @@ def index():
             if total_produtos_row and 'count' in total_produtos_row and total_produtos_row['count'] is not None:
                 total_produtos = total_produtos_row['count']
 
-            # Approved sales and total revenue
+            # Approved sales and total revenue (geral, desde o início)
             cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s" if not is_sqlite else "SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = ?", ('aprovado',))
-            vendas_data_row = cur.fetchone()
+            vendas_data_row_geral = cur.fetchone()
+            if vendas_data_row_geral and 'sum' in vendas_data_row_geral and vendas_data_row_geral['sum'] is not None:
+                receita_total = float(vendas_data_row_geral['sum'])
             
-            # **CORREÇÃO:** Atribui os valores após a consulta, sobrescrevendo os padrões
-            if vendas_data_row: # Verifica se a linha retornada não é None
-                if 'count' in vendas_data_row and vendas_data_row['count'] is not None:
-                    total_vendas_aprovadas = vendas_data_row['count']
-                if 'sum' in vendas_data_row and vendas_data_row['sum'] is not None:
-                    receita_total = float(vendas_data_row['sum'])
-            
-            print(f"DEBUG INDEX: total_vendas_aprovadas: {total_vendas_aprovadas}, receita_total: {receita_total}")
-
             # Recent sales (LIMIT 5)
             if is_sqlite:
                 cur.execute("""
@@ -566,40 +612,55 @@ def index():
                 """)
             vendas_recentes = cur.fetchall()
 
-            # Data for daily revenue chart (last 7 days)
-            today_date = datetime.now().date()
-            for i in range(6, -1, -1):
-                day = today_date - timedelta(days=i)
+            # Data for daily revenue and quantity chart (last 7 days - default for initial load)
+            today_date_chart = datetime.now().date()
+            for i in range(6, -1, -1): # Ultimos 7 dias
+                day = today_date_chart - timedelta(days=i)
                 start_of_day = datetime.combine(day, time.min)
                 end_of_day = datetime.combine(day, time.max)
                 chart_labels.append(day.strftime('%d/%m'))
 
                 if is_sqlite:
                     cur.execute(
-                        "SELECT SUM(preco) AS sum FROM vendas WHERE status = ? AND data_venda BETWEEN ? AND ?",
+                        "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = ? AND data_venda BETWEEN ? AND ?",
                         ('aprovado', start_of_day.isoformat(), end_of_day.isoformat())
                     )
                 else: # PostgreSQL
                     cur.execute(
-                        "SELECT SUM(preco) AS sum FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s",
+                        "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s",
                         ('aprovado', start_of_day, end_of_day)
                     )
 
-                daily_revenue_row = cur.fetchone()
-                daily_revenue = float(daily_revenue_row['sum']) if daily_revenue_row and 'sum' in daily_revenue_row and daily_revenue_row['sum'] is not None else 0
-                chart_data.append(daily_revenue)
+                daily_data_row = cur.fetchone()
+                daily_revenue = float(daily_data_row['sum']) if daily_data_row and 'sum' in daily_data_row and daily_data_row['sum'] is not None else 0
+                daily_quantity = int(daily_data_row['count']) if daily_data_row and 'count' in daily_data_row and daily_data_row['count'] is not None else 0
 
+                chart_data_receita.append(daily_revenue)
+                chart_data_quantidade.append(daily_quantity)
+            
             print("DEBUG INDEX: Rendering index.html with dashboard data.")
             return render_template(
                 'index.html',
-                total_vendas=total_vendas_aprovadas,
                 total_usuarios=total_usuarios,
                 total_produtos=total_produtos,
                 receita_total=receita_total,
+                # Novas variáveis para os blocos de "Período Atual" e "Período Anterior"
+                periodo_atual_vendas_quantidade=periodo_atual_vendas_quantidade,
+                periodo_atual_vendas_valor=periodo_atual_vendas_valor,
+                variacao_vendas_quantidade=f"{variacao_vendas_quantidade:.1f}", # Formata para uma casa decimal
+                variacao_vendas_valor=f"{variacao_vendas_valor:.1f}",
+                # Periodo anterior
+                periodo_anterior_vendas_quantidade=periodo_anterior_vendas_quantidade,
+                periodo_anterior_vendas_valor=periodo_anterior_vendas_valor,
+                
                 vendas_recentes=vendas_recentes,
                 chart_labels=json.dumps(chart_labels),
-                chart_data=json.dumps(chart_data),
-                current_year=datetime.now().year
+                chart_data_receita=json.dumps(chart_data_receita), 
+                chart_data_quantidade=json.dumps(chart_data_quantidade), 
+                current_year=datetime.now().year,
+                # Passa as datas dos períodos para serem exibidas no frontend
+                data_inicio_periodo_atual=start_of_current_month.strftime('%d/%m/%Y'),
+                data_fim_periodo_atual=today.strftime('%d/%m/%Y') # Usar a data de hoje para o fim do período atual, pois o mês ainda não terminou.
             )
     except Exception as e:
         print(f"ERRO INDEX: Falha ao renderizar o dashboard: {e}")
@@ -609,6 +670,77 @@ def index():
     finally:
         if conn:
             conn.close()
+
+# 1.2. Nova Rota API para Dados de Gráfico Dinâmico (por período)
+# Isso permitirá que o frontend peça dados para períodos diferentes sem recarregar a página.
+@app.route('/api/sales_data', methods=['GET'])
+def get_sales_data():
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({'error': 'Erro de conexão com o banco de dados'}), 500
+
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        
+        # Receber parâmetros de data do frontend
+        start_date_str = request.args.get('start_date')
+        end_date_str = request.args.get('end_date')
+
+        # Default para últimos 7 dias se não forem fornecidos
+        if not start_date_str or not end_date_str:
+            end_date = datetime.now().date()
+            start_date = end_date - timedelta(days=6)
+        else:
+            try:
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return jsonify({'error': 'Formato de data inválido. Use YYYY-MM-DD.'}), 400
+        
+        chart_labels = []
+        chart_data_receita = []
+        chart_data_quantidade = []
+
+        current_day = start_date
+        # Abre a conexão com o banco de dados uma vez para o loop
+        with conn: 
+            cur = conn.cursor()
+            while current_day <= end_date:
+                chart_labels.append(current_day.strftime('%d/%m')) # Formato DD/MM
+                start_of_day_dt = datetime.combine(current_day, time.min)
+                end_of_day_dt = datetime.combine(current_day, time.max)
+
+                if is_sqlite:
+                    cur.execute(
+                        "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = ? AND data_venda BETWEEN ? AND ?",
+                        ('aprovado', start_of_day_dt.isoformat(), end_of_day_dt.isoformat())
+                    )
+                else: # PostgreSQL
+                    cur.execute(
+                        "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s",
+                        ('aprovado', start_of_day_dt, end_of_day_dt)
+                    )
+                daily_data_row = cur.fetchone()
+                daily_revenue = float(daily_data_row['sum']) if daily_data_row and 'sum' in daily_data_row and daily_data_row['sum'] is not None else 0
+                daily_quantity = int(daily_data_row['count']) if daily_data_row and 'count' in daily_data_row and daily_data_row['count'] is not None else 0
+
+                chart_data_receita.append(daily_revenue)
+                chart_data_quantidade.append(daily_quantity)
+                
+                current_day += timedelta(days=1)
+
+        return jsonify({
+            'labels': chart_labels,
+            'data_receita': chart_data_receita,
+            'data_quantidade': chart_data_quantidade
+        }), 200
+    except Exception as e:
+        print(f"ERRO API SALES DATA: Falha ao obter dados de vendas: {e}")
+        traceback.print_exc()
+        return jsonify({'error': 'Erro interno do servidor'}), 500
+    finally:
+        if conn: conn.close()
 
 
 @app.route('/produtos', methods=['GET', 'POST'])
@@ -1309,11 +1441,11 @@ def send_broadcast():
                                         print(f"ERRO inactivating user {user_id} during broadcast: {db_e}")
                                     finally:
                                         if temp_conn_update: temp_conn_update.close()
-                            failed_count += 1
+                            # failed_count += 1 # Removido para não duplicar se já foi pego na linha seguinte
                         except Exception as e:
-                            print(f"ERRO UNEXPECTED BROADCAST to {user_id}: {e}")
+                            print(f"ERRO UNEXPECTED BROADCAST to {user_id}: {e}") # Adicionado user_id aqui
                             traceback.print_exc()
-                            failed_count += 1
+                            failed_count += 1 # Adicionado aqui, pois pode ser um erro diferente dos acima
 
                 flash(f'Broadcast enviado com sucesso para {sent_count} usuários. Falha em {failed_count} usuários.', 'success')
                 return redirect(url_for('index'))
@@ -1472,9 +1604,8 @@ def scheduled_message_worker():
                                         print(f"ERRO updating user {chat_id} status during worker run: {db_e}")
                                     finally:
                                         if temp_conn_for_user_update: temp_conn_for_user_update.close()
-                            failed_count += 1
                         except Exception as e:
-                            print(f"ERRO UNEXPECTED BROADCAST to  {e}")
+                            print(f"ERRO UNEXPECTED BROADCAST to {chat_id}: {e}")
                             traceback.print_exc()
 
                     status_to_update = "sent" if delivered_to_any_user else "failed"
@@ -1575,4 +1706,3 @@ else:
     print("DEBUG: Scheduled message worker started in background (local mode).")
 
     app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5000)))
-    
