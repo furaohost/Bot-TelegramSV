@@ -6,7 +6,7 @@
     <title>{% block title %}Painel{% endblock %} - SvBOT | Gestão de Vendas</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"> 
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
         :root {
             /* Cores light mode */
@@ -21,6 +21,7 @@
             --success: #10B981;
             --warning: #F59E0B;
             --shadow: 0 1px 3px rgba(0,0,0,0.1);
+            --danger: #EF4444; /* Adicionado para mensagens de erro */
         }
 
         /* Dark mode colors */
@@ -36,6 +37,7 @@
             --success: #34D399;
             --warning: #FBBF24;
             --shadow: 0 1px 3px rgba(0,0,0,0.3);
+            --danger: #DC2626; /* Cor do danger para dark mode */
         }
 
         * {
@@ -73,7 +75,6 @@
             animation: bounce-and-spin 1s ease-in-out infinite; /* Animação mais rápida ao passar o mouse */
         }
 
-
         /* Layout */
         .dashboard {
             display: grid;
@@ -87,6 +88,9 @@
             box-shadow: 1px 0 10px rgba(0,0,0,0.05);
             padding: 1.5rem;
             transition: all 0.3s ease;
+            display: flex; /* Adicionado flexbox */
+            flex-direction: column; /* Para empilhar itens verticalmente */
+            justify-content: space-between; /* Para empurrar user-info para o final */
         }
 
         .logo {
@@ -109,6 +113,7 @@
 
         .nav-menu {
             list-style: none;
+            flex-grow: 1; /* Permite que o menu ocupe o espaço restante */
         }
 
         .nav-item {
@@ -132,6 +137,19 @@
         }
         .nav-link.active .material-icons, .nav-link.active .fas { /* Ícones ativos */
             color: var(--primary);
+        }
+
+        /* User Info na Sidebar */
+        .user-info {
+            margin-top: auto; /* Empurra para o fundo da flex container */
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            font-size: 0.875rem;
+            color: var(--text-light);
+        }
+        .user-info p:last-child {
+            margin-top: 0.25rem;
         }
 
         /* Main Content */
@@ -308,6 +326,64 @@
             }
         }
     </style>
+    <script>
+        // Função para aplicar o tema
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            const iconSpan = document.querySelector('#themeToggle .theme-icon');
+            if (iconSpan) {
+                iconSpan.textContent = theme === 'dark' ? 'dark_mode' : 'light_mode';
+            }
+        }
+
+        // Ao carregar a página:
+        // 1. Tenta carregar o tema do localStorage
+        // 2. Se não houver, verifica a preferência do sistema
+        // 3. Caso contrário, assume 'dark' como padrão (ou 'light' se preferir)
+        document.addEventListener('DOMContentLoaded', () => {
+            const storedTheme = localStorage.getItem('theme');
+            if (storedTheme) {
+                applyTheme(storedTheme);
+            } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                applyTheme('dark'); // Padrão do sistema
+            } else {
+                applyTheme('dark'); // Seu padrão se não houver preferência ou se for light do sistema
+            }
+
+            // Modo Escuro/Claro Toggle
+            const themeToggle = document.getElementById('themeToggle');
+            if (themeToggle) {
+                themeToggle.addEventListener('click', () => {
+                    const currentTheme = document.documentElement.getAttribute('data-theme');
+                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                    applyTheme(newTheme);
+                    localStorage.setItem('theme', newTheme); // Salva a preferência
+                });
+            }
+
+            // Menu Mobile Toggle
+            const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+            const sidebar = document.getElementById('sidebar');
+
+            if (mobileMenuBtn && sidebar) {
+                mobileMenuBtn.addEventListener('click', () => {
+                    sidebar.classList.toggle('active');
+                });
+            }
+
+            // Fechar menu ao clicar em um link (mobile)
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.addEventListener('click', () => {
+                    // Adicione um pequeno atraso para permitir a navegação antes de fechar a sidebar em mobile
+                    setTimeout(() => {
+                        if (window.innerWidth <= 768) {
+                            sidebar.classList.remove('active');
+                        }
+                    }, 150); // Ajuste o tempo conforme necessário
+                });
+            });
+        });
+    </script>
 </head>
 <body>
     <div class="dashboard">
@@ -327,8 +403,8 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="{{ url_for('produtos') }}" class="nav-link {% if request.endpoint == 'produtos' or request.endpoint == 'editar_produto' %}active{% endif %}">
-                        <span class="material-icons">inventory</span> {# Ícone para Produtos #}
+                    <a href="{{ url_for('produtos') }}" class="nav-link {% if request.endpoint == 'produtos' or request.endpoint == 'editar_produto' or request.endpoint == 'adicionar_produto' %}active{% endif %}"> {# Adicionado 'adicionar_produto' #}
+                        <span class="material-icons">inventory</span>
                         Produtos
                     </a>
                 </li>
@@ -345,21 +421,20 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    {# Comunidades - Assumindo que o endpoint é 'comunidades.comunidades' #}
                     <a href="{{ url_for('comunidades.comunidades') }}" class="nav-link {% if request.endpoint.startswith('comunidades') %}active{% endif %}">
-                        <span class="material-icons">groups</span> {# Ícone para Comunidades #}
+                        <span class="material-icons">groups</span>
                         Comunidades
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="{{ url_for('scheduled_messages') }}" class="nav-link {% if request.endpoint.startswith('scheduled_messages') or request.endpoint.startswith('add_scheduled_message') or request.endpoint.startswith('edit_scheduled_message') %}active{% endif %}">
-                        <span class="material-icons">schedule</span> {# Ícone para Mensagens Agendadas #}
+                    <a href="{{ url_for('scheduled_messages') }}" class="nav-link {% if request.endpoint.startswith('scheduled_messages') or request.endpoint == 'add_scheduled_message' or request.endpoint == 'edit_scheduled_message' %}active{% endif %}">
+                        <span class="material-icons">schedule</span>
                         Mensagens Agendadas
                     </a>
                 </li>
                 <li class="nav-item">
                     <a href="{{ url_for('send_broadcast') }}" class="nav-link {% if request.endpoint == 'send_broadcast' %}active{% endif %}">
-                        <span class="material-icons">campaign</span> {# Ícone para Enviar Broadcast #}
+                        <span class="material-icons">campaign</span>
                         Enviar Broadcast
                     </a>
                 </li>
@@ -369,7 +444,7 @@
                         Configurações
                     </a>
                 </li>
-                {# Link de Sair (Logout) - Adicionado aqui na navegação principal #}
+                {# Link de Sair (Logout) #}
                 <li class="nav-item">
                     <a href="{{ url_for('logout') }}" class="nav-link">
                         <span class="material-icons">logout</span>
@@ -380,7 +455,7 @@
             {# Informações do Usuário - Parte inferior da sidebar #}
             <div class="user-info">
                 <p>Logado como:</p>
-                <p style="color: var(--warning); font-weight: 600;">{{ session.username }}</p> {# Nome do usuário em amarelo #}
+                <p style="color: var(--warning); font-weight: 600;">{{ session.username if session.username else 'Convidado' }}</p> {# Adicionado fallback 'Convidado' #}
             </div>
         </aside>
 
@@ -390,11 +465,11 @@
                     <button class="mobile-menu-btn" id="mobileMenuBtn">
                         <span class="material-icons">menu</span>
                     </button>
-                    <h1 class="page-title">{% block page_title %}{% endblock %}</h1> {# Título da página dinâmica #}
+                    <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
                 </div>
                 {# Botão de Troca de Tema #}
                 <button class="theme-toggle" id="themeToggle">
-                    <span class="material-icons theme-icon">light_mode</span>
+                    <span class="material-icons theme-icon"></span> {# Ícone inicial vazio, será preenchido pelo JS #}
                 </button>
             </div>
 
@@ -405,7 +480,7 @@
                         {% for category, message in messages %}
                             <div style="padding: 1rem; border-radius: 8px; font-size: 0.875rem; margin-bottom: 0.5rem;
                                 {% if category == 'success' %}background-color: rgba(16, 185, 129, 0.1); color: var(--success);
-                                {% elif category == 'danger' %}background-color: rgba(239, 68, 68, 0.1); color: #EF4444; 
+                                {% elif category == 'danger' %}background-color: rgba(239, 68, 68, 0.1); color: var(--danger); /* Usando variável CSS */
                                 {% else %}background-color: rgba(99, 102, 241, 0.1); color: var(--primary);{% endif %}">
                                 {{ message }}
                             </div>
@@ -418,51 +493,5 @@
             {% block content %}{% endblock content %}
         </main>
     </div>
-
-    <script>
-        // Aplicar o tema escuro por padrão ao carregar a página
-        document.documentElement.setAttribute('data-theme', 'dark');
-        const themeToggleElement = document.getElementById('themeToggle'); 
-        if (themeToggleElement) {
-            const iconSpan = themeToggleElement.querySelector('.theme-icon');
-            if (iconSpan) {
-                iconSpan.textContent = 'dark_mode'; 
-            }
-        }
-
-        // Modo Escuro/Claro Toggle
-        if (themeToggleElement) { 
-            themeToggleElement.addEventListener('click', () => {
-                const currentTheme = document.documentElement.getAttribute('data-theme');
-                const iconSpan = themeToggleElement.querySelector('.theme-icon'); 
-                if (currentTheme === 'dark') {
-                    document.documentElement.removeAttribute('data-theme'); 
-                    if (iconSpan) iconSpan.textContent = 'light_mode';
-                } else {
-                    document.documentElement.setAttribute('data-theme', 'dark');
-                    if (iconSpan) iconSpan.textContent = 'dark_mode';
-                }
-            });
-        }
-
-        // Menu Mobile Toggle
-        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-        const sidebar = document.getElementById('sidebar');
-
-        if (mobileMenuBtn && sidebar) { 
-            mobileMenuBtn.addEventListener('click', () => {
-                sidebar.classList.toggle('active');
-            });
-        }
-
-        // Fechar menu ao clicar em um link (mobile)
-        document.querySelectorAll('.nav-link').forEach(link => {
-            link.addEventListener('click', () => {
-                if (window.innerWidth <= 768) { 
-                    sidebar.classList.remove('active');
-                }
-            });
-        });
-    </script>
 </body>
 </html>
