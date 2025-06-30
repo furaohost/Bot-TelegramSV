@@ -33,11 +33,11 @@ import pagamentos
 # Importa os módulos de handlers e blueprints
 from bot.utils.keyboards import confirm_18_keyboard, menu_principal
 from bot.handlers.chamadas import register_chamadas_handlers
-from bot.handlers.comunidades import register_comunidades_handlers # <-- bot/handlers/comunidades.py
+from bot.handlers.comunidades import register_comunidades_handlers 
 
 from bot.handlers.conteudos import register_conteudos_handlers
 from bot.handlers.produtos import register_produtos_handlers 
-from web.routes.comunidades import comunidades_bp # <-- web/routes/comunidades.py
+from web.routes.comunidades import comunidades_bp 
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -473,10 +473,6 @@ def reset_admin_password_route():
     finally:
         if conn:
             conn.close()
-# ==============================================================================
-# !! END OF TEMPORARY ROUTE !!
-# ==============================================================================
-
 
 @app.route('/logout')
 def logout():
@@ -623,7 +619,9 @@ def index():
                 chart_data_receita.append(daily_revenue)
                 chart_data_quantidade.append(daily_quantity)
                 
-                current_day += timedelta(days=1)
+                # 'current_day' is only used in the API route, not here.
+                # The issue was that 'current_day' was defined inside a loop in the API route, and if the loop didn't run, it was unbound.
+                # In this loop (for 'index' route), 'day' is the iterating variable.
 
             print("DEBUG INDEX: Rendering index.html with dashboard data.")
             return render_template(
@@ -682,10 +680,20 @@ def get_sales_data():
         chart_data_receita = []
         chart_data_quantidade = []
 
-        current_day = start_date
+        # Adicionando depuração para start_date e end_date
+        print(f"DEBUG API SALES DATA: start_date={start_date}, end_date={end_date}")
+
+        current_day = start_date # Garante que current_day sempre terá um valor aqui
+        
+        # Se a data de início for posterior à data de fim, o loop não rodará. 
+        # Isso é um cenário válido, e current_day não será acessado após o loop se ele nunca iniciar.
+        # O erro UnboundLocalError sugere que current_day += ... foi chamado quando current_day não estava definido.
+        # A única forma para isso acontecer é se o 'current_day = start_date' falhasse, o que não parece ser o caso.
+        # Ou se a versão do código no Render for mais antiga.
+        
         with conn: 
             cur = conn.cursor()
-            while current_day <= end_date:
+            while current_day <= end_date: 
                 chart_labels.append(current_day.strftime('%d/%m')) 
                 start_of_day_dt = datetime.combine(current_day, time.min)
                 end_of_day_dt = datetime.combine(current_day, time.max)
@@ -707,8 +715,8 @@ def get_sales_data():
                 chart_data_receita.append(daily_revenue)
                 chart_data_quantidade.append(daily_quantity)
                 
-                current_day += timedelta(days=1)
-
+                current_day += timedelta(days=1) # Linha 626 no seu log
+                
         return jsonify({
             'labels': chart_labels,
             'data_receita': chart_data_receita,
@@ -1015,7 +1023,6 @@ def venda_detalhes(id):
             venda = cur.fetchone()
             if venda:
                 venda_dict = dict(venda)
-                # Convert datetime objects to string for JSON serialization
                 if 'data_venda' in venda_dict and isinstance(venda_dict['data_venda'], datetime):
                     venda_dict['data_venda'] = venda_dict['data_venda'].isoformat()
                 return jsonify(venda_dict)
@@ -1217,12 +1224,12 @@ def add_scheduled_message():
             with conn:
                 insert_cur = conn.cursor()
                 if is_sqlite:
-                    insert_cur.execute(
+                    cur.execute(
                         "INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, schedule_time, status) VALUES (?, ?, ?, ?, ?)",
                         (message_text, target_chat_id_db, image_url if image_url else None, schedule_time, 'pending')
                     )
                 else:
-                    insert_cur.execute(
+                    cur.execute(
                         "INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, schedule_time, status) VALUES (%s, %s, %s, %s, %s)",
                         (message_text, target_chat_id_db, image_url if image_url else None, schedule_time, 'pending')
                     )
@@ -1365,9 +1372,9 @@ def send_broadcast():
         with conn:
             cur = conn.cursor()
             if is_sqlite:
-                cur.execute('SELECT id, username, first_name FROM users WHERE is_active = 1 ORDER BY username ASC')
+                cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
             else:
-                cur.execute('SELECT id, username, first_name FROM users WHERE is_active = TRUE ORDER BY username ASC')
+                cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
             active_users = cur.fetchall()
 
         if request.method == 'POST':
@@ -1550,9 +1557,9 @@ def scheduled_message_worker():
                         targets.append(row["target_chat_id"])
                     else:
                         if is_sqlite:
-                            cur.execute("SELECT id FROM users WHERE is_active=1")
+                            cur.execute("SELECT id FROM users WHERE is_active = 1")
                         else:
-                            cur.execute("SELECT id FROM users WHERE is_active=TRUE")
+                            cur.execute("SELECT id FROM users WHERE is_active = TRUE")
                         targets = [u["id"] for u in cur.fetchall()]
 
                     delivered_to_any_user = False
@@ -1562,11 +1569,12 @@ def scheduled_message_worker():
                                 bot.send_photo(chat_id, row["image_url"], caption=row["message_text"], parse_mode="Markdown")
                             else:
                                 bot.send_message(chat_id, row["message_text"], parse_mode="Markdown")
-                            sent_count += 1
+                            delivered_to_any_user = True
+                            print(f"DEBUG WORKER: Message {row['id']} sent to {chat_id}.")
                         except telebot.apihelper.ApiTelegramException as e:
                             print(f"ERRO Telegram API for chat_id {chat_id}: {e}")
                             if "blocked" in str(e).lower() or "not found" in str(e).lower() or "deactivated" in str(e).lower():
-                                print(f"AVISO: User {chat_id} blocked/not found. Deactivating...")
+                                print(f"AVISO: Usuário {chat_id} blocked/not found. Deactivating...")
                                 temp_conn_update = get_db_connection()
                                 if temp_conn_update:
                                     temp_is_sqlite = isinstance(temp_conn_update, sqlite3.Connection)
@@ -1618,7 +1626,6 @@ def send_welcome(message):
     """
     get_or_register_user(message.from_user)
 
-    # Fetch welcome message from config
     conn = None
     welcome_message_text = "Olá, {first_name}! Bem-vindo(a) ao bot!"
     try:
@@ -1647,7 +1654,6 @@ def send_welcome(message):
     )
     bot.reply_to(message, formatted_message, reply_markup=menu_principal())
 
-# Condition for execution in production environment (Render) or locally
 if __name__ != '__main__':
     print("DEBUG: Running in production mode (gunicorn/Render).")
     try:
