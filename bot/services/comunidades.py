@@ -1,230 +1,226 @@
-import sqlite3
-import psycopg2
-from datetime import datetime
+import telebot
+from telebot import types
+from bot.services.comunidades import ComunidadeService
 
-class ComunidadeService:
+# Dicionário temporário para armazenar o estado das conversas
+# Em um sistema real, isso seria persistido em cache (Redis, memcached) ou DB.
+user_states = {} # Ex: {chat_id: {"step": "awaiting_community_name", "data": {}}}
+
+def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connection_func):
     """
-    Classe de serviço para lidar com a lógica de negócios das comunidades.
-    Responsável por interagir com o banco de dados.
+    Registra os manipuladores (handlers) de comandos relacionados a comunidades no bot.
+    Args:
+        bot_instance (telebot.TeleBot): A instância do bot.
+        get_db_connection_func (function): Função para obter a conexão do DB.
     """
+    comunidade_svc = ComunidadeService(get_db_connection_func)
 
-    def __init__(self, get_db_connection):
-        """
-        Inicializa o serviço de comunidade com uma função para obter a conexão do DB.
-        Isso permite flexibilidade para usar SQLite ou PostgreSQL.
-        """
-        self.get_db_connection = get_db_connection
+    # ------------------------------------------------------------------
+    # COMANDO /nova_comunidade
+    # ------------------------------------------------------------------
+    @bot_instance.message_handler(commands=['nova_comunidade'])
+    def handle_nova_comunidade(message):
+        chat_id = message.chat.id
+        # Verifica se o comando foi enviado em um grupo ou canal, onde ele pode ser útil
+        if message.chat.type in ['group', 'supergroup', 'channel']:
+            # Pede o nome da comunidade
+            msg = bot_instance.send_message(chat_id, "Por favor, digite o *nome* da nova comunidade (ex: 'Comunidade VIP'):")
+            # Armazena o estado do usuário para o próximo passo
+            user_states[chat_id] = {"step": "awaiting_new_community_name", "chat_type": message.chat.type, "chat_title": message.chat.title}
+        else:
+            bot_instance.send_message(chat_id, "Este comando `/nova_comunidade` deve ser usado dentro de um grupo ou canal que você deseja gerenciar.")
 
-    def criar(self, nome, descricao=None, chat_id=None):
-        """
-        Cria uma nova comunidade no banco de dados.
-        Args:
-            nome (str): O nome da comunidade (obrigatório).
-            descricao (str, optional): A descrição da comunidade. Defaults to None.
-            chat_id (int, optional): O ID do chat do Telegram associado à comunidade. Defaults to None.
-        Returns:
-            dict or None: Um dicionário representando a comunidade criada se sucesso, ou None em caso de falha.
-        """
-        conn = None
+
+    @bot_instance.message_handler(func=lambda message: user_states.get(message.chat.id, {}).get("step") == "awaiting_new_community_name")
+    def handle_new_community_name(message):
+        chat_id = message.chat.id
+        nome_comunidade = message.text.strip()
+
+        if not nome_comunidade:
+            bot_instance.send_message(chat_id, "O nome da comunidade não pode ser vazio. Por favor, digite o nome:")
+            return
+
+        # Pede a descrição da comunidade
+        msg = bot_instance.send_message(chat_id, f"Nome da comunidade: *{nome_comunidade}*\nAgora, digite uma *descrição* para esta comunidade (opcional, ou 'pular' para deixar em branco):")
+        
+        # Armazena o nome e avança para o próximo passo
+        user_states[chat_id]["step"] = "awaiting_new_community_description"
+        user_states[chat_id]["data"] = {"nome": nome_comunidade}
+
+
+    @bot_instance.message_handler(func=lambda message: user_states.get(message.chat.id, {}).get("step") == "awaiting_new_community_description")
+    def handle_new_community_description(message):
+        chat_id = message.chat.id
+        descricao_comunidade = message.text.strip()
+        
+        # Se o usuário digitou "pular", a descrição fica vazia
+        if descricao_comunidade.lower() == 'pular':
+            descricao_comunidade = None
+
+        # Recupera os dados armazenados
+        data = user_states[chat_id]["data"]
+        nome_comunidade = data["nome"]
+        
         try:
-            conn = self.get_db_connection()
-            if conn is None:
-                print("ERRO SVC: Não foi possível obter conexão com o banco de dados para criar comunidade.")
-                return None
+            # Cria a comunidade no DB, usando o chat_id do grupo/canal
+            # Se o comando foi iniciado em um grupo, o chat_id é o ID do grupo.
+            target_chat_id = chat_id if user_states[chat_id]["chat_type"] in ['group', 'supergroup', 'channel'] else None
 
-            cursor = conn.cursor()
-            query = """
-                INSERT INTO comunidades (nome, descricao, chat_id, status, created_at)
-                VALUES (%s, %s, %s, %s, %s) RETURNING id, nome, descricao, chat_id, status, created_at;
-            """
-            # Detecta o tipo de banco de dados para ajustar a query e os valores
-            if isinstance(conn, sqlite3.Connection):
-                query = """
-                    INSERT INTO comunidades (nome, descricao, chat_id, status, created_at)
-                    VALUES (?, ?, ?, ?, ?)
-                """
-                cursor.execute(query, (nome, descricao, chat_id, 'ativa', datetime.now().isoformat()))
-                conn.commit()
-                # Para SQLite, precisamos obter o último ID inserido e depois buscar o registro
-                # No PostgreSQL, o RETURNING já retorna os dados.
-                last_id = cursor.lastrowid
-                cursor.execute("SELECT id, nome, descricao, chat_id, status, created_at FROM comunidades WHERE id = ?", (last_id,))
-                comunidade = cursor.fetchone()
-            else: # PostgreSQL
-                cursor.execute(query, (nome, descricao, chat_id, 'ativa', datetime.now()))
-                comunidade = cursor.fetchone()
-                conn.commit() # Confirma a transação no PostgreSQL
-            
-            if comunidade:
-                return dict(comunidade) # Converte Row ou RealDictRow para dicionário
-            return None
-        except (sqlite3.Error, psycopg2.Error) as e:
-            print(f"ERRO SVC: Erro ao criar comunidade '{nome}': {e}")
-            if conn:
-                conn.rollback() # Reverte a transação em caso de erro
-            return None
+            nova_comunidade = comunidade_svc.criar(
+                nome=nome_comunidade, 
+                descricao=descricao_comunidade, 
+                chat_id=target_chat_id
+            )
+
+            if nova_comunidade:
+                bot_instance.send_message(
+                    chat_id, 
+                    f"Comunidade *'{nova_comunidade['nome']}'* criada com sucesso!\n"
+                    f"ID: `{nova_comunidade['id']}`\n"
+                    f"Descrição: {nova_comunidade['descricao'] or 'N/A'}\n"
+                    f"Chat ID: `{nova_comunidade['chat_id'] or 'N/A'}`"
+                )
+            else:
+                bot_instance.send_message(chat_id, "Ocorreu um erro ao criar a comunidade. Tente novamente mais tarde.")
+        except Exception as e:
+            print(f"Erro ao finalizar criação de comunidade: {e}")
+            bot_instance.send_message(chat_id, "Houve um erro inesperado. Por favor, tente novamente.")
         finally:
-            if conn:
-                conn.close()
+            # Limpa o estado do usuário
+            if chat_id in user_states:
+                del user_states[chat_id]
 
-    def obter(self, comunidade_id):
-        """
-        Obtém uma comunidade pelo seu ID.
-        Args:
-            comunidade_id (int): O ID da comunidade.
-        Returns:
-            dict or None: Um dicionário representando a comunidade se encontrada, ou None.
-        """
-        conn = None
+    # ------------------------------------------------------------------
+    # COMANDO /listar_comunidades
+    # ------------------------------------------------------------------
+    @bot_instance.message_handler(commands=['listar_comunidades'])
+    def handle_listar_comunidades(message):
+        chat_id = message.chat.id
+        comunidades = comunidade_svc.listar()
+
+        if not comunidades:
+            bot_instance.send_message(chat_id, "Nenhuma comunidade encontrada.")
+            return
+
+        response_text = "*Comunidades Ativas:*\n\n"
+        for idx, com in enumerate(comunidades):
+            response_text += (
+                f"*{idx+1}. {com['nome']}*\n"
+                f"   ID: `{com['id']}`\n"
+                f"   Descrição: {com['descricao'] or 'N/A'}\n"
+                f"   Chat ID: `{com['chat_id'] or 'N/A'}`\n\n"
+            )
+        
+        bot_instance.send_message(chat_id, response_text, parse_mode="Markdown")
+
+    # ------------------------------------------------------------------
+    # COMANDO /editar_comunidade
+    # ------------------------------------------------------------------
+    @bot_instance.message_handler(commands=['editar_comunidade'])
+    def handle_editar_comunidade(message):
+        chat_id = message.chat.id
+        comunidades = comunidade_svc.listar()
+
+        if not comunidades:
+            bot_instance.send_message(chat_id, "Nenhuma comunidade para editar. Crie uma primeiro!")
+            return
+
+        markup = types.ReplyKeyboardMarkup(row_width=1, one_time_keyboard=True, resize_keyboard=True)
+        for com in comunidades:
+            markup.add(types.KeyboardButton(f"{com['nome']} (ID: {com['id']})"))
+        
+        msg = bot_instance.send_message(
+            chat_id, 
+            "Qual comunidade você deseja editar? Selecione ou digite o ID/Nome:", 
+            reply_markup=markup
+        )
+        user_states[chat_id] = {"step": "awaiting_community_to_edit"}
+
+    @bot_instance.message_handler(func=lambda message: user_states.get(message.chat.id, {}).get("step") == "awaiting_community_to_edit")
+    def handle_select_community_to_edit(message):
+        chat_id = message.chat.id
+        input_text = message.text.strip()
+        
+        selected_com = None
         try:
-            conn = self.get_db_connection()
-            if conn is None:
-                print("ERRO SVC: Não foi possível obter conexão com o banco de dados para obter comunidade.")
-                return None
+            # Tenta encontrar por ID numérico
+            com_id = int(input_text)
+            selected_com = comunidade_svc.obter(com_id)
+        except ValueError:
+            # Tenta encontrar por nome ou parte da string do teclado
+            comunidades = comunidade_svc.listar()
+            for com in comunidades:
+                if input_text.lower() in com['nome'].lower() or f"(ID: {com['id']})" in input_text:
+                    selected_com = com
+                    break
 
-            cursor = conn.cursor()
-            query = "SELECT id, nome, descricao, chat_id, status, created_at FROM comunidades WHERE id = %s;"
-            if isinstance(conn, sqlite3.Connection):
-                query = "SELECT id, nome, descricao, chat_id, status, created_at FROM comunidades WHERE id = ?;"
-            
-            cursor.execute(query, (comunidade_id,))
-            comunidade = cursor.fetchone()
-            return dict(comunidade) if comunidade else None
-        except (sqlite3.Error, psycopg2.Error) as e:
-            print(f"ERRO SVC: Erro ao obter comunidade {comunidade_id}: {e}")
-            return None
-        finally:
-            if conn:
-                conn.close()
+        if not selected_com:
+            bot_instance.send_message(chat_id, "Comunidade não encontrada. Por favor, digite o ID ou nome exato, ou tente selecionar novamente.")
+            if chat_id in user_states:
+                del user_states[chat_id] # Limpa o estado para evitar loop
+            return
 
-    def listar(self):
-        """
-        Lista todas as comunidades ativas.
-        Returns:
-            list: Uma lista de dicionários, cada um representando uma comunidade.
-        """
-        conn = None
+        # Armazena a comunidade selecionada e pede o novo nome
+        user_states[chat_id] = {
+            "step": "awaiting_edited_community_name",
+            "data": {"comunidade_id": selected_com['id'], "current_nome": selected_com['nome'], "current_descricao": selected_com['descricao']}
+        }
+        bot_instance.send_message(
+            chat_id, 
+            f"Você selecionou a comunidade *'{selected_com['nome']}'* (ID: `{selected_com['id']}`).\n"
+            f"Digite o *novo nome* para esta comunidade (nome atual: {selected_com['nome']}):"
+        )
+    
+    @bot_instance.message_handler(func=lambda message: user_states.get(message.chat.id, {}).get("step") == "awaiting_edited_community_name")
+    def handle_edited_community_name(message):
+        chat_id = message.chat.id
+        novo_nome = message.text.strip()
+
+        if not novo_nome:
+            bot_instance.send_message(chat_id, "O novo nome da comunidade não pode ser vazio. Por favor, digite o nome:")
+            return
+        
+        # Armazena o novo nome e pede a nova descrição
+        user_states[chat_id]["step"] = "awaiting_edited_community_description"
+        user_states[chat_id]["data"]["novo_nome"] = novo_nome
+
+        bot_instance.send_message(
+            chat_id, 
+            f"Nome atualizado para: *{novo_nome}*\n"
+            f"Agora, digite a *nova descrição* (opcional, descrição atual: {user_states[chat_id]['data']['current_descricao'] or 'N/A'}, ou 'pular' para deixar igual):"
+        )
+
+    @bot_instance.message_handler(func=lambda message: user_states.get(message.chat.id, {}).get("step") == "awaiting_edited_community_description")
+    def handle_edited_community_description(message):
+        chat_id = message.chat.id
+        nova_descricao = message.text.strip()
+        
+        # Recupera os dados armazenados
+        data = user_states[chat_id]["data"]
+        comunidade_id = data["comunidade_id"]
+        novo_nome = data["novo_nome"]
+        current_descricao = data["current_descricao"]
+
+        # Se o usuário digitou "pular", mantém a descrição atual
+        if nova_descricao.lower() == 'pular':
+            nova_descricao = current_descricao
+
         try:
-            conn = self.get_db_connection()
-            if conn is None:
-                print("ERRO SVC: Não foi possível obter conexão com o banco de dados para listar comunidades.")
-                return []
+            sucesso = comunidade_svc.editar(comunidade_id, novo_nome, nova_descricao)
 
-            cursor = conn.cursor()
-            query = "SELECT id, nome, descricao, chat_id, status, created_at FROM comunidades WHERE status = %s ORDER BY nome;"
-            if isinstance(conn, sqlite3.Connection):
-                query = "SELECT id, nome, descricao, chat_id, status, created_at FROM comunidades WHERE status = ? ORDER BY nome;"
-            
-            cursor.execute(query, ('ativa',))
-            comunidades = cursor.fetchall()
-            return [dict(c) for c in comunidades]
-        except (sqlite3.Error, psycopg2.Error) as e:
-            print(f"ERRO SVC: Erro ao listar comunidades: {e}")
-            return []
+            if sucesso:
+                bot_instance.send_message(
+                    chat_id, 
+                    f"Comunidade com ID `{comunidade_id}` editada com sucesso!\n"
+                    f"Novo Nome: *{novo_nome}*\n"
+                    f"Nova Descrição: {nova_descricao or 'N/A'}"
+                )
+            else:
+                bot_instance.send_message(chat_id, "Ocorreu um erro ao editar a comunidade. Certifique-se de que o ID está correto e tente novamente.")
+        except Exception as e:
+            print(f"Erro ao finalizar edição de comunidade: {e}")
+            bot_instance.send_message(chat_id, "Houve um erro inesperado. Por favor, tente novamente.")
         finally:
-            if conn:
-                conn.close()
-
-    def editar(self, comunidade_id, novo_nome, nova_descricao=None):
-        """
-        Edita uma comunidade existente.
-        Args:
-            comunidade_id (int): O ID da comunidade a ser editada.
-            novo_nome (str): O novo nome da comunidade.
-            nova_descricao (str, optional): A nova descrição. Defaults to None.
-        Returns:
-            bool: True se a edição foi bem-sucedida, False caso contrário.
-        """
-        conn = None
-        try:
-            conn = self.get_db_connection()
-            if conn is None:
-                print("ERRO SVC: Não foi possível obter conexão com o banco de dados para editar comunidade.")
-                return False
-
-            cursor = conn.cursor()
-            query = """
-                UPDATE comunidades
-                SET nome = %s, descricao = %s
-                WHERE id = %s;
-            """
-            if isinstance(conn, sqlite3.Connection):
-                query = """
-                    UPDATE comunidades
-                    SET nome = ?, descricao = ?
-                    WHERE id = ?;
-                """
-            
-            cursor.execute(query, (novo_nome, nova_descricao, comunidade_id))
-            conn.commit() # Confirma a transação
-            return cursor.rowcount > 0 # Retorna True se alguma linha foi afetada
-        except (sqlite3.Error, psycopg2.Error) as e:
-            print(f"ERRO SVC: Erro ao editar comunidade {comunidade_id}: {e}")
-            if conn:
-                conn.rollback() # Reverte a transação em caso de erro
-            return False
-        finally:
-            if conn:
-                conn.close()
-
-    def deletar(self, comunidade_id):
-        """
-        Altera o status de uma comunidade para 'inativa' (exclusão lógica).
-        Args:
-            comunidade_id (int): O ID da comunidade a ser desativada.
-        Returns:
-            bool: True se a desativação foi bem-sucedida, False caso contrário.
-        """
-        conn = None
-        try:
-            conn = self.get_db_connection()
-            if conn is None:
-                print("ERRO SVC: Não foi possível obter conexão com o banco de dados para deletar comunidade.")
-                return False
-
-            cursor = conn.cursor()
-            query = "UPDATE comunidades SET status = %s WHERE id = %s;"
-            if isinstance(conn, sqlite3.Connection):
-                query = "UPDATE comunidades SET status = ? WHERE id = ?;"
-            
-            cursor.execute(query, ('inativa', comunidade_id))
-            conn.commit()
-            return cursor.rowcount > 0
-        except (sqlite3.Error, psycopg2.Error) as e:
-            print(f"ERRO SVC: Erro ao deletar comunidade {comunidade_id}: {e}")
-            if conn:
-                conn.rollback()
-            return False
-        finally:
-            if conn:
-                conn.close()
-
-    def obter_por_chat_id(self, chat_id):
-        """
-        Obtém uma comunidade pelo seu chat_id do Telegram.
-        Args:
-            chat_id (int): O ID do chat do Telegram.
-        Returns:
-            dict or None: Um dicionário representando a comunidade se encontrada, ou None.
-        """
-        conn = None
-        try:
-            conn = self.get_db_connection()
-            if conn is None:
-                print("ERRO SVC: Não foi possível obter conexão com o banco de dados para obter comunidade por chat_id.")
-                return None
-
-            cursor = conn.cursor()
-            query = "SELECT id, nome, descricao, chat_id, status, created_at FROM comunidades WHERE chat_id = %s;"
-            if isinstance(conn, sqlite3.Connection):
-                query = "SELECT id, nome, descricao, chat_id, status, created_at FROM comunidades WHERE chat_id = ?;"
-            
-            cursor.execute(query, (chat_id,))
-            comunidade = cursor.fetchone()
-            return dict(comunidade) if comunidade else None
-        except (sqlite3.Error, psycopg2.Error) as e:
-            print(f"ERRO SVC: Erro ao obter comunidade por chat_id {chat_id}: {e}")
-            return None
-        finally:
-            if conn:
-                conn.close()
+            # Limpa o estado do usuário
+            if chat_id in user_states:
+                del user_states[chat_id]
