@@ -1,52 +1,71 @@
-# web/routes/comunidades.py
+# bot/services/comunidades.py
 
-@comunidades_bp.route('/comunidades/editar/<int:id>', methods=['GET', 'POST'])
-def editar_comunidade(id): # <-- Endpoint: 'comunidades.editar_comunidade'
-    comunidade_service = ComunidadeService(get_db_connection)
-    
-    # Busca a comunidade para garantir que ela existe antes de mais nada
-    comunidade = comunidade_service.obter(id)
-    if not comunidade:
-        flash('Comunidade não encontrada.', 'danger')
-        return redirect(url_for('comunidades.comunidades'))
+# Este arquivo deve conter APENAS a classe de serviço para interagir com o banco de dados.
+# Nenhuma rota da web (@...route) deve estar aqui.
 
-    try:
-        if request.method == 'POST':
-            # Pega os dados do formulário
-            nome = request.form['nome'].strip()
-            descricao = request.form.get('descricao', '').strip()
-            chat_id_str = request.form.get('chat_id', '').strip()
-            chat_id = None
+class ComunidadeService:
+    def __init__(self, get_db_connection_func):
+        """
+        Inicializa o serviço com uma função que obtém uma conexão com o banco.
+        """
+        self.get_db_connection = get_db_connection_func
 
-            # Validação do chat_id
-            if chat_id_str:
-                try:
-                    chat_id = int(chat_id_str)
-                except ValueError:
-                    flash('ID do Chat/Grupo inválido. Deve ser um número.', 'danger')
-                    # Se der erro, renderiza a página de novo com os dados que o utilizador já inseriu
-                    return render_template('editar_comunidade.html', 
-                                           comunidade=comunidade, 
-                                           nome_val=nome, 
-                                           descricao_val=descricao, 
-                                           chat_id_val=chat_id_str)
+    def _execute_query(self, query, params=None, fetch=None):
+        """
+        Função auxiliar para executar consultas no banco de dados.
+        """
+        conn = None
+        result = None
+        try:
+            conn = self.get_db_connection()
+            if conn is None:
+                print("ERRO DB: Não foi possível obter conexão com a base de dados.")
+                return None
+            
+            with conn:
+                cur = conn.cursor()
+                cur.execute(query, params or ())
+                
+                if fetch == 'one':
+                    result = cur.fetchone()
+                elif fetch == 'all':
+                    result = cur.fetchall()
+                # Se fetch for None, é uma operação como INSERT, UPDATE, DELETE
+                
+        except Exception as e:
+            print(f"ERRO DB (_execute_query): {e}")
+            # Em caso de erro, retorna None
+            return None
+        finally:
+            if conn:
+                conn.close()
+        return result
 
-            # Tenta editar no banco de dados
-            sucesso = comunidade_service.editar(id, nome, descricao, chat_id)
-            if sucesso:
-                flash('Comunidade atualizada com sucesso!', 'success')
-                return redirect(url_for('comunidades.comunidades'))
-            else:
-                flash('Falha ao atualizar a comunidade. Tente novamente.', 'danger')
+    def listar(self):
+        """Lista todas as comunidades."""
+        return self._execute_query("SELECT * FROM comunidades ORDER BY nome ASC", fetch='all')
 
-        # Se for um pedido GET (primeiro acesso à página), apenas mostra o formulário
-        return render_template('editar_comunidade.html', 
-                               comunidade=comunidade, 
-                               nome_val=comunidade['nome'], 
-                               descricao_val=comunidade['descricao'], 
-                               chat_id_val=comunidade['chat_id'] or '')
+    def obter(self, comunidade_id):
+        """Obtém uma comunidade específica pelo ID."""
+        return self._execute_query("SELECT * FROM comunidades WHERE id = %s", (comunidade_id,), fetch='one')
 
-    except Exception as e:
-        print(f"ERRO ao editar comunidade: {e}")
-        flash('Ocorreu um erro inesperado ao editar a comunidade.', 'danger')
-        return redirect(url_for('comunidades.comunidades'))
+    def criar(self, nome, descricao, chat_id):
+        """Cria uma nova comunidade."""
+        self._execute_query(
+            "INSERT INTO comunidades (nome, descricao, chat_id) VALUES (%s, %s, %s)",
+            (nome, descricao, chat_id)
+        )
+        return True # Assumindo sucesso se não houver exceção
+
+    def editar(self, comunidade_id, nome, descricao, chat_id):
+        """Edita uma comunidade existente."""
+        self._execute_query(
+            "UPDATE comunidades SET nome = %s, descricao = %s, chat_id = %s WHERE id = %s",
+            (nome, descricao, chat_id, comunidade_id)
+        )
+        return True # Assumindo sucesso se não houver exceção
+
+    def deletar(self, comunidade_id):
+        """Deleta uma comunidade pelo ID."""
+        self._execute_query("DELETE FROM comunidades WHERE id = %s", (comunidade_id,))
+        return True # Assumindo sucesso se não houver exceção
