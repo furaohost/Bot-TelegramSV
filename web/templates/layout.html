@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Painel{% endblock %} - Bot Vendas</title>
     
-    {# Tailwind CSS via CDN - Remova esta linha se optar por compilação local #}
+    {# Tailwind CSS via CDN - Mantido #}
     <script src="https://cdn.tailwindcss.com"></script>
     
     {# Chart.js para gráficos #}
@@ -16,11 +16,25 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    {# Font Awesome para ícones #}
+    {# Font Awesome para ícones - ESSENCIAL para o ícone de robô #}
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     
     <style>
         body { font-family: 'Inter', sans-serif; }
+
+        /* Animação para o ícone do título */
+        @keyframes bounce-and-spin {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            25% { transform: translateY(-5px) rotate(90deg); }
+            50% { transform: translateY(0) rotate(180deg); }
+            75% { transform: translateY(-5px) rotate(270deg); }
+        }
+        .animate-bounce-spin {
+            animation: bounce-and-spin 4s ease-in-out infinite; /* Animação lenta contínua */
+        }
+        .animate-bounce-spin-hover:hover {
+            animation: bounce-and-spin 1s linear infinite; /* Animação mais rápida no hover */
+        }
 
         /* Estilo para a sidebar em telas menores, hidden por padrão */
         @media (max-width: 767px) {
@@ -60,9 +74,10 @@
         {# Sidebar (Menu Lateral) #}
         <div id="sidebar" class="fixed inset-y-0 flex w-64 flex-col bg-gray-900 sidebar-mobile-hidden sidebar-transition z-50">
             <div class="flex min-h-0 flex-1 flex-col">
-                {# Título da Sidebar #}
+                {# Título da Sidebar com Ícone e Animação #}
                 <div class="flex h-16 flex-shrink-0 items-center bg-gray-900 px-4">
-                    <h1 class="text-xl font-bold text-white">🤖 Painel do Bot</h1>
+                    <i class="fas fa-robot text-gray-400 text-2xl mr-3 animate-bounce-spin animate-bounce-spin-hover"></i> {# Ícone de robô com animação e cor original #}
+                    <h1 class="text-xl font-bold text-white">Painel do Bot</h1>
                 </div>
                 {# Itens de Navegação #}
                 <div class="flex flex-1 flex-col overflow-y-auto">
@@ -115,17 +130,23 @@
                             <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.545 1.05 2.875 2.5 3.14M5.25 18.75h13.5c.621 0 1.125-.504 1.125-1.125v-9c0-.621-.504-1.125-1.125-1.125H5.25c-.621 0-1.125.504-1.125 1.125v9c0 .621.504 1.125 1.125 1.125z" /></svg>
                             Configurações de Mensagens
                         </a>
+
+                        {# Link de Sair movido para cima, após os outros links de navegação #}
+                        <a href="{{ url_for('logout') }}" 
+                           class="{{ 'bg-gray-800 text-white' if request.endpoint == 'logout' else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium mt-4"> {# Adicionado mt-4 para espaçamento #}
+                            <i class="fas fa-sign-out-alt mr-3 h-6 w-6 flex-shrink-0 text-gray-400"></i> {# Ícone de sair #}
+                            Sair
+                        </a>
                     </nav>
                 </div>
-                {# Seção de Usuário Logado #}
+                {# Seção de Usuário Logado - Mantida na parte inferior #}
                 <div class="flex flex-shrink-0 border-t border-gray-700 p-4">
                     <div class="flex-shrink-0 w-full">
                         <div class="flex items-center">
                             <div>
-                                <p class="text-sm font-medium text-white">{{ session.username }}</p>
+                                <p class="text-sm font-medium text-yellow-400">{{ session.username }}</p> {# Nome do usuário em amarelo #}
                             </div>
                         </div>
-                        <a href="{{ url_for('logout') }}" class="mt-2 block w-full text-center text-sm font-medium text-gray-400 hover:text-white">Sair</a>
                     </div>
                 </div>
             </div>
@@ -173,17 +194,14 @@
             const sidebarOverlay = document.getElementById('sidebar-overlay');
 
             if (mobileMenuButton && sidebar && sidebarOverlay) {
-                // Função para abrir o menu
                 mobileMenuButton.addEventListener('click', function() {
                     sidebar.classList.remove('sidebar-mobile-hidden');
                     sidebar.classList.add('sidebar-mobile-show');
                     sidebarOverlay.classList.add('active');
                 });
 
-                // Função para fechar o menu (clicando no overlay ou num item do menu)
                 sidebarOverlay.addEventListener('click', closeSidebar);
                 
-                // Opcional: Fechar a sidebar ao clicar em um link de navegação
                 const navLinks = sidebar.querySelectorAll('nav a');
                 navLinks.forEach(link => {
                     link.addEventListener('click', closeSidebar);
