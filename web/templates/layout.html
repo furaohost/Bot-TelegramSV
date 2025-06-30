@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Painel{% endblock %} - Bot Vendas</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    {# REMOVIDO: <script src="https://cdn.tailwindcss.com"></script> #}
+    <link href="{{ url_for('static', filename='dist/output.css') }}" rel="stylesheet"> {# NOVO: Link para o CSS compilado #}
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -102,81 +103,81 @@
                         <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.545 1.05 2.875 2.5 3.14M5.25 18.75h13.5c.621 0 1.125-.504 1.125-1.125v-9c0-.621-.504-1.125-1.125-1.125H5.25c-.621 0-1.125.504-1.125 1.125v9c0 .621.504 1.125 1.125 1.125z" /></svg>
                         Configurações de Mensagens
                     </a>
-                </nav>
-            </div>
-            <div class="flex flex-shrink-0 border-t border-gray-700 p-4">
-                <div class="flex-shrink-0 w-full">
-                    <div class="flex items-center">
-                        <div>
-                            <p class="text-sm font-medium text-white">{{ session.username }}</p>
-                        </div>
-                    </div>
-                    <a href="{{ url_for('logout') }}" class="mt-2 block w-full text-center text-sm font-medium text-gray-400 hover:text-white">Sair</a>
-                </div>
-            </div>
-        </div>
-    </div>
+                </nav>
+            </div>
+            <div class="flex flex-shrink-0 border-t border-gray-700 p-4">
+                <div class="flex-shrink-0 w-full">
+                    <div class="flex items-center">
+                        <div>
+                            <p class="text-sm font-medium text-white">{{ session.username }}</p>
+                        </div>
+                    </div>
+                    <a href="{{ url_for('logout') }}" class="mt-2 block w-full text-center text-sm font-medium text-gray-400 hover:text-white">Sair</a>
+                </div>
+            </div>
+        </div>
+    </div>
 
-    <div class="flex flex-1 flex-col md:ml-64">
-        <div class="md:hidden sticky top-0 z-10 flex h-16 flex-shrink-0 items-center bg-white shadow-sm">
-            <button type="button" id="mobile-menu-button" class="px-4 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500">
-                <span class="sr-only">Abrir menu lateral</span>
-                <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                </svg>
-            </button>
-            <h1 class="text-xl font-bold text-gray-900 ml-4">Painel do Bot</h1>
-        </div>
+    <div class="flex flex-1 flex-col md:ml-64">
+        <div class="md:hidden sticky top-0 z-10 flex h-16 flex-shrink-0 items-center bg-white shadow-sm">
+            <button type="button" id="mobile-menu-button" class="px-4 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500">
+                <span class="sr-only">Abrir menu lateral</span>
+                <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                </svg>
+            </button>
+            <h1 class="text-xl font-bold text-gray-900 ml-4">Painel do Bot</h1>
+        </div>
 
-        <main class="flex-1">
-            <div class="py-6">
-                <div class="mx-auto max-w-7xl px-4 sm:px-6 md:px-8">
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                      {% if messages %}
-                        {% for category, message in messages %}
-                          <div class="mb-4 rounded-md p-4 {{ 'bg-green-100 text-green-800' if category == 'success' else 'bg-red-100 text-red-800' }}" role="alert">
-                            <p>{{ message }}</p>
-                          </div>
-                        {% endfor %}
-                      {% endif %}
-                    {% endwith %}
-                    {% block content %}{% endblock %}
-                </div>
-            </div>
-        </main>
-    </div>
+        <main class="flex-1">
+            <div class="py-6">
+                <div class="mx-auto max-w-7xl px-4 sm:px-6 md:px-8">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                      {% if messages %}
+                        {% for category, message in messages %}
+                          <div class="mb-4 rounded-md p-4 {{ 'bg-green-100 text-green-800' if category == 'success' else 'bg-red-100 text-red-800' }}" role="alert">
+                            <p>{{ message }}</p>
+                          </div>
+                        {% endfor %}
+                      {% endif %}
+                    {% endwith %}
+                    {% block content %}{% endblock %}
+                </div>
+            </div>
+        </main>
+    </div>
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const mobileMenuButton = document.getElementById('mobile-menu-button');
-        const sidebar = document.getElementById('sidebar');
-        const sidebarOverlay = document.getElementById('sidebar-overlay');
+    document.addEventListener('DOMContentLoaded', function() {
+        const mobileMenuButton = document.getElementById('mobile-menu-button');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarOverlay = document.getElementById('sidebar-overlay');
 
-        if (mobileMenuButton && sidebar && sidebarOverlay) {
-            // Função para abrir o menu
-            mobileMenuButton.addEventListener('click', function() {
-                sidebar.classList.remove('sidebar-mobile-hidden');
-                sidebar.classList.add('sidebar-mobile-show');
-                sidebarOverlay.classList.add('active');
-            });
+        if (mobileMenuButton && sidebar && sidebarOverlay) {
+            // Função para abrir o menu
+            mobileMenuButton.addEventListener('click', function() {
+                sidebar.classList.remove('sidebar-mobile-hidden');
+                sidebar.classList.add('sidebar-mobile-show');
+                sidebarOverlay.classList.add('active');
+            });
 
-            // Função para fechar o menu (clicando no overlay ou num item do menu)
-            sidebarOverlay.addEventListener('click', closeSidebar);
-            
-            // Opcional: Fechar a sidebar ao clicar em um link de navegação
-            const navLinks = sidebar.querySelectorAll('nav a');
-            navLinks.forEach(link => {
-                link.addEventListener('click', closeSidebar);
-            });
+            // Função para fechar o menu (clicando no overlay ou num item do menu)
+            sidebarOverlay.addEventListener('click', closeSidebar);
+            
+            // Opcional: Fechar a sidebar ao clicar em um link de navegação
+            const navLinks = sidebar.querySelectorAll('nav a');
+            navLinks.forEach(link => {
+                link.addEventListener('click', closeSidebar);
+            });
 
-            function closeSidebar() {
-                sidebar.classList.remove('sidebar-mobile-show');
-                sidebar.classList.add('sidebar-mobile-hidden');
-                sidebarOverlay.classList.remove('active');
-            }
-        }
-    });
+            function closeSidebar() {
+                sidebar.classList.remove('sidebar-mobile-show');
+                sidebar.classList.add('sidebar-mobile-hidden');
+                sidebarOverlay.classList.remove('active');
+            }
+        }
+    });
 </script>
 </body>
 </html>
