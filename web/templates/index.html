@@ -4,149 +4,165 @@
 {% block title %}Dashboard - Painel Administrativo{% endblock %}
 
 {% block content %}
-<div class="bg-white p-6 rounded-lg shadow-md mb-8">
-    <h1 class="text-3xl font-semibold text-gray-800 mb-6">Bem-vindo(a) ao Painel Administrativo, {{ session.username | default('Usuário', true) }}!</h1>
-    
-    <p class="text-gray-700 mb-4">Este é o painel de controle do seu Bot TelegramSV. Use o menu acima para navegar pelas funcionalidades.</p>
+<div class="bg-gray-100 min-h-screen p-4 sm:p-6 lg:p-8"> {# Adicionado padding e fundo para o corpo #}
+    <div class="max-w-7xl mx-auto"> {# Centraliza o conteúdo principal #}
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h1 class="text-3xl font-semibold text-gray-800 mb-6">Bem-vindo(a) ao Painel Administrativo, {{ session.username | default('Usuário', true) }}!</h1>
+            
+            <p class="text-gray-700 mb-4">Este é o painel de controle do seu Bot TelegramSV. Use o menu acima para navegar pelas funcionalidades.</p>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <div class="p-6 bg-blue-50 rounded-lg shadow-sm flex flex-col items-center justify-center text-center">
-            <h2 class="text-xl font-semibold text-blue-800 mb-2">Total de Usuários</h2>
-            <p class="text-gray-700 text-5xl font-extrabold">{{ total_usuarios }}</p>
-        </div>
-
-        <div class="p-6 bg-green-50 rounded-lg shadow-sm flex flex-col items-center justify-center text-center">
-            <h2 class="text-xl font-semibold text-green-800 mb-2">Total de Produtos</h2>
-            <p class="text-gray-700 text-5xl font-extrabold">{{ total_produtos }}</p>
-        </div>
-
-        <div class="p-6 bg-purple-50 rounded-lg shadow-sm flex flex-col items-center justify-center text-center">
-            <h2 class="text-xl font-semibold text-purple-800 mb-2">Receita Total (Aprovado)</h2>
-            <p class="text-gray-700 text-5xl font-extrabold">R$ {{ receita_total | round(2) }}</p>
-        </div>
-    </div>
-
-    <div class="bg-white p-6 rounded-lg shadow-md mb-8">
-        <h2 class="text-2xl font-semibold text-gray-800 mb-4">Métricas de Vendas por Período</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-            <div class="p-4 bg-gray-50 rounded-lg shadow-sm border border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-700 mb-2">Período Atual ({{ data_inicio_periodo_atual }} a {{ data_fim_periodo_atual }})</h3>
-                <div class="flex justify-between items-center mb-2">
-                    <p class="text-gray-600">Vendas (Quantidade):</p>
-                    <span class="text-2xl font-bold text-indigo-700">{{ periodo_atual_vendas_quantidade }}</span>
-                    {% if variacao_vendas_quantidade is not defined or variacao_vendas_quantidade == '0.0' %}
-                        <span class="text-sm text-gray-500"> -- </span>
-                    {% elif variacao_vendas_quantidade[0] == '-' %}
-                        <span class="text-red-500 text-sm font-semibold ml-2"> {{ variacao_vendas_quantidade }}% <i class="fas fa-arrow-down"></i></span>
-                    {% else %}
-                        <span class="text-green-500 text-sm font-semibold ml-2"> +{{ variacao_vendas_quantidade }}% <i class="fas fa-arrow-up"></i></span>
-                    {% endif %}
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                <div class="p-6 bg-blue-50 rounded-lg shadow-sm flex flex-col items-center justify-center text-center">
+                    <h2 class="text-xl font-semibold text-blue-800 mb-2">Total de Usuários</h2>
+                    <p class="text-gray-700 text-5xl font-extrabold">{{ total_usuarios }}</p>
                 </div>
-                <div class="flex justify-between items-center">
-                    <p class="text-gray-600">Vendas (Valor):</p>
-                    <span class="text-2xl font-bold text-indigo-700">R$ {{ periodo_atual_vendas_valor | round(2) }}</span>
-                    {% if variacao_vendas_valor is not defined or variacao_vendas_valor == '0.0' %}
-                        <span class="text-sm text-gray-500"> -- </span>
-                    {% elif variacao_vendas_valor[0] == '-' %}
-                        <span class="text-red-500 text-sm font-semibold ml-2"> {{ variacao_vendas_valor }}% <i class="fas fa-arrow-down"></i></span>
-                    {% else %}
-                        <span class="text-green-500 text-sm font-semibold ml-2"> +{{ variacao_vendas_valor }}% <i class="fas fa-arrow-up"></i></span>
-                    {% endif %}
+
+                <div class="p-6 bg-green-50 rounded-lg shadow-sm flex flex-col items-center justify-center text-center">
+                    <h2 class="text-xl font-semibold text-green-800 mb-2">Total de Produtos</h2>
+                    <p class="text-gray-700 text-5xl font-extrabold">{{ total_produtos }}</p>
+                </div>
+
+                <div class="p-6 bg-purple-50 rounded-lg shadow-sm flex flex-col items-center justify-center text-center">
+                    <h2 class="text-xl font-semibold text-purple-800 mb-2">Receita Total (Aprovado)</h2>
+                    <p class="text-gray-700 text-5xl font-extrabold">R$ {{ receita_total | round(2) }}</p>
                 </div>
             </div>
 
-            <div class="p-4 bg-gray-50 rounded-lg shadow-sm border border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-700 mb-2">Período Anterior</h3>
-                <div class="flex justify-between items-center mb-2">
-                    <p class="text-gray-600">Vendas (Quantidade):</p>
-                    <span class="text-2xl font-bold text-gray-700">{{ periodo_anterior_vendas_quantidade }}</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <p class="text-gray-600">Vendas (Valor):</p>
-                    <span class="text-2xl font-bold text-gray-700">R$ {{ periodo_anterior_vendas_valor | round(2) }}</span>
-                </div>
-            </div>
-        </div>
-    </div>
+            <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Métricas de Vendas por Período</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                    <div class="p-4 bg-gray-50 rounded-lg shadow-sm border border-gray-200">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-2">Período Atual ({{ data_inicio_periodo_atual }} a {{ data_fim_periodo_atual }})</h3>
+                        <div class="flex justify-between items-center mb-2">
+                            <p class="text-gray-600">Vendas (Quantidade):</p>
+                            <span class="text-2xl font-bold text-indigo-700">{{ periodo_atual_vendas_quantidade }}</span>
+                            {% if variacao_vendas_quantidade is not defined or variacao_vendas_quantidade == '0.0' %}
+                                <span class="text-sm text-gray-500"> -- </span>
+                            {% elif variacao_vendas_quantidade[0] == '-' %}
+                                <span class="text-red-500 text-sm font-semibold ml-2"> {{ variacao_vendas_quantidade }}% <i class="fas fa-arrow-down"></i></span>
+                            {% else %}
+                                <span class="text-green-500 text-sm font-semibold ml-2"> +{{ variacao_vendas_quantidade }}% <i class="fas fa-arrow-up"></i></span>
+                            {% endif %}
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <p class="text-gray-600">Vendas (Valor):</p>
+                            <span class="text-2xl font-bold text-indigo-700">R$ {{ periodo_atual_vendas_valor | round(2) }}</span>
+                            {% if variacao_vendas_valor is not defined or variacao_vendas_valor == '0.0' %}
+                                <span class="text-sm text-gray-500"> -- </span>
+                            {% elif variacao_vendas_valor[0] == '-' %}
+                                <span class="text-red-500 text-sm font-semibold ml-2"> {{ variacao_vendas_valor }}% <i class="fas fa-arrow-down"></i></span>
+                            {% else %}
+                                <span class="text-green-500 text-sm font-semibold ml-2"> +{{ variacao_vendas_valor }}% <i class="fas fa-arrow-up"></i></span>
+                            {% endif %}
+                        </div>
+                    </div>
 
-    <div class="bg-white p-6 rounded-lg shadow-md mb-8">
-        <h2 class="text-2xl font-semibold text-gray-800 mb-4">Performance de Vendas</h2>
-        
-        <div class="flex flex-wrap gap-4 mb-6 items-center">
-            <label for="periodSelect" class="block text-sm font-medium text-gray-700 min-w-max">Visualizar por:</label>
-            <select id="periodSelect" class="mt-1 block w-auto pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                <option value="7">Últimos 7 Dias</option>
-                <option value="30">Últimos 30 Dias</option>
-                <option value="90">Últimos 90 Dias</option>
-                <option value="current_month">Mês Corrente</option>
-                <option value="last_month">Mês Anterior</option>
-                <option value="custom">Período Personalizado</option>
-            </select>
-            <div id="customDateRange" class="flex flex-wrap gap-2 hidden">
-                <input type="date" id="startDate" class="mt-1 block w-auto pl-3 pr-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                <input type="date" id="endDate" class="mt-1 block w-auto pl-3 pr-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                <button id="applyCustomDate" class="ml-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Aplicar</button>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-white p-6 rounded-lg shadow-md flex flex-col border border-gray-200">
-                <h3 class="text-xl font-semibold text-gray-800 mb-4">Receita Diária (R$)</h3>
-                <div class="relative h-72 w-full">
-                    <canvas id="dailyRevenueChart"></canvas>
+                    <div class="p-4 bg-gray-50 rounded-lg shadow-sm border border-gray-200">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-2">Período Anterior</h3>
+                        <div class="flex justify-between items-center mb-2">
+                            <p class="text-gray-600">Vendas (Quantidade):</p>
+                            <span class="text-2xl font-bold text-gray-700">{{ periodo_anterior_vendas_quantidade }}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <p class="text-gray-600">Vendas (Valor):</p>
+                            <span class="text-2xl font-bold text-gray-700">R$ {{ periodo_anterior_vendas_valor | round(2) }}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="bg-white p-6 rounded-lg shadow-md flex flex-col border border-gray-200">
-                <h3 class="text-xl font-semibold text-gray-800 mb-4">Quantidade de Vendas Diárias</h3>
-                <div class="relative h-72 w-full">
-                    <canvas id="dailyQuantityChart"></canvas>
+
+            <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Performance de Vendas</h2>
+                
+                <div class="flex flex-wrap gap-4 mb-6 items-center">
+                    <label for="periodSelect" class="block text-sm font-medium text-gray-700 min-w-max">Visualizar por:</label>
+                    <select id="periodSelect" class="mt-1 block w-auto pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                        <option value="7">Últimos 7 Dias</option>
+                        <option value="30">Últimos 30 Dias</option>
+                        <option value="90">Últimos 90 Dias</option>
+                        <option value="current_month">Mês Corrente</option>
+                        <option value="last_month">Mês Anterior</option>
+                        <option value="custom">Período Personalizado</option>
+                    </select>
+                    <div id="customDateRange" class="flex flex-wrap gap-2 hidden">
+                        <input type="date" id="startDate" class="mt-1 block w-auto pl-3 pr-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                        <input type="date" id="endDate" class="mt-1 block w-auto pl-3 pr-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                        <button id="applyCustomDate" class="ml-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Aplicar</button>
+                    </div>
+                </div>
+
+                <div id="chartsContainer" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {# Receita Diária Chart #}
+                    <div id="revenueChartPanel" class="bg-white p-6 rounded-lg shadow-md flex flex-col border border-gray-200 relative">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-semibold text-gray-800">Receita Diária (R$)</h3>
+                            <button class="expand-btn text-gray-500 hover:text-gray-700 text-lg" data-target="revenue">
+                                <i class="fas fa-expand-alt"></i> {# Ícone de expandir #}
+                            </button>
+                        </div>
+                        <div class="relative h-72 w-full">
+                            <canvas id="dailyRevenueChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    {# Quantidade de Vendas Diárias Chart #}
+                    <div id="quantityChartPanel" class="bg-white p-6 rounded-lg shadow-md flex flex-col border border-gray-200 relative">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-semibold text-gray-800">Quantidade de Vendas Diárias</h3>
+                            <button class="expand-btn text-gray-500 hover:text-gray-700 text-lg" data-target="quantity">
+                                <i class="fas fa-expand-alt"></i> {# Ícone de expandir #}
+                            </button>
+                        </div>
+                        <div class="relative h-72 w-full">
+                            <canvas id="dailyQuantityChart"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <div class="bg-white p-6 rounded-lg shadow-md">
-        <h2 class="text-2xl font-semibold text-gray-800 mb-4">Vendas Recentes</h2>
-        {% if vendas_recentes %}
-        <div class="overflow-x-auto overflow-y-auto max-h-96 rounded-lg border border-gray-200"> {# Aumentei a altura para max-h-96 e adicionei borda #}
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50 sticky top-0">
-                    <tr>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Venda</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Comprador</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produto</th>
-                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Preço</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    {% for venda in vendas_recentes %}
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ venda.id }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ venda.first_name | default(venda.username, true) }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ venda.nome }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-700">R$ {{ venda.preco | round(2) }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                {% if venda.status == 'aprovado' %}bg-green-100 text-green-800
-                                {% elif venda.status == 'pendente' %}bg-yellow-100 text-yellow-800
-                                {% elif venda.status == 'expirado' %}bg-gray-100 text-gray-800
-                                {% else %}bg-red-100 text-red-800{% endif %}">
-                                {{ venda.status }}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ venda.data_venda | datetimeformat }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Vendas Recentes</h2>
+                {% if vendas_recentes %}
+                <div class="overflow-x-auto overflow-y-auto max-h-96 rounded-lg border border-gray-200"> {# Aumentei a altura para max-h-96 e adicionei borda #}
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Venda</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Comprador</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produto</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Preço</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for venda in vendas_recentes %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ venda.id }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ venda.first_name | default(venda.username, true) }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ venda.nome }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-700">R$ {{ venda.preco | round(2) }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                        {% if venda.status == 'aprovado' %}bg-green-100 text-green-800
+                                        {% elif venda.status == 'pendente' %}bg-yellow-100 text-yellow-800
+                                        {% elif venda.status == 'expirado' %}bg-gray-100 text-gray-800
+                                        {% else %}bg-red-100 text-red-800{% endif %}">
+                                        {{ venda.status }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ venda.data_venda | datetimeformat }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-gray-600">Nenhuma venda recente encontrada.</p>
+                {% endif %}
+            </div>
         </div>
-        {% else %}
-        <p class="text-gray-600">Nenhuma venda recente encontrada.</p>
-        {% endif %}
-    </div>
-</div>
+    </div> {# Fim do max-w-7xl #}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dayjs@1.10.7/dayjs.min.js"></script> {# Biblioteca para manipulação de datas #}
@@ -285,12 +301,7 @@
                                     if (context.parsed.y !== null) { label += 'R$ ' + context.parsed.y.toFixed(2).replace('.', ','); }
                                     return label;
                                 }
-                            },
-                            bodyFont: { size: 14 },
-                            titleFont: { size: 16, weight: 'bold' },
-                            padding: 10,
-                            backgroundColor: 'rgba(0,0,0,0.7)',
-                            boxPadding: 5
+                            }
                         }
                     },
                     scales: {
@@ -340,12 +351,7 @@
                                     if (context.parsed.y !== null) { label += context.parsed.y + ' vendas'; }
                                     return label;
                                 }
-                            },
-                            bodyFont: { size: 14 },
-                            titleFont: { size: 16, weight: 'bold' },
-                            padding: 10,
-                            backgroundColor: 'rgba(0,0,0,0.7)',
-                            boxPadding: 5
+                            }
                         }
                     },
                     scales: {
@@ -365,6 +371,61 @@
                 }
             });
         }
+
+        // --- Lógica de Expansão dos Gráficos ---
+        const revenueChartPanel = document.getElementById('revenueChartPanel');
+        const quantityChartPanel = document.getElementById('quantityChartPanel');
+        const chartsContainer = document.getElementById('chartsContainer'); // O pai dos gráficos
+        const expandButtons = document.querySelectorAll('.expand-btn');
+
+        expandButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const targetChart = this.dataset.target; // 'revenue' or 'quantity'
+                const isExpanded = this.classList.contains('expanded');
+                const icon = this.querySelector('i');
+
+                // Se já estiver expandido, volta ao estado original
+                if (isExpanded) {
+                    chartsContainer.classList.remove('lg:grid-cols-1'); // Remove a classe que esconde
+                    chartsContainer.classList.add('lg:grid-cols-2'); // Restaura o grid de 2 colunas
+                    
+                    revenueChartPanel.classList.remove('lg:col-span-2');
+                    quantityChartPanel.classList.remove('lg:col-span-2');
+                    
+                    revenueChartPanel.classList.remove('hidden'); // Mostra ambos
+                    quantityChartPanel.classList.remove('hidden');
+
+                    icon.classList.remove('fa-compress-alt');
+                    icon.classList.add('fa-expand-alt');
+                    this.classList.remove('expanded');
+
+                } else {
+                    // Expande o gráfico clicado e esconde o outro
+                    chartsContainer.classList.remove('lg:grid-cols-2'); // Remove o grid de 2 colunas
+                    chartsContainer.classList.add('lg:grid-cols-1'); // Faz o container agir como 1 coluna (para o filho ocupar 100%)
+
+                    if (targetChart === 'revenue') {
+                        revenueChartPanel.classList.add('lg:col-span-2'); // Faz o painel de receita ocupar 2 colunas (100% da largura do pai)
+                        quantityChartPanel.classList.add('hidden'); // Esconde o painel de quantidade
+                    } else {
+                        quantityChartPanel.classList.add('lg:col-span-2'); // Faz o painel de quantidade ocupar 2 colunas (100% da largura do pai)
+                        revenueChartPanel.classList.add('hidden'); // Esconde o painel de receita
+                    }
+                    
+                    icon.classList.remove('fa-expand-alt');
+                    icon.classList.add('fa-compress-alt'); // Muda para ícone de "comprimir"
+                    this.classList.add('expanded');
+                }
+
+                // Chame update() em ambos os gráficos para que Chart.js se ajuste ao novo tamanho
+                // É mais robusto chamar renderCharts novamente com os dados atuais
+                const currentLabels = dailyRevenueChart.data.labels;
+                const currentDataReceita = dailyRevenueChart.data.datasets[0].data;
+                const currentDataQuantidade = dailyQuantityChart.data.datasets[0].data;
+                renderCharts(currentLabels, currentDataReceita, currentDataQuantidade);
+            });
+        });
+
     });
 </script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
