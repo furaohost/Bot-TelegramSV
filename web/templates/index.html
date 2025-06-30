@@ -1,43 +1,45 @@
-{% extends 'layout.html' %} {# <--- CORREÇÃO AQUI: Mudado de 'base.html' para 'layout.html' #}
-{% from 'macros.html' import format_currency %} # Se você criar um macros.html para formatar moeda
+{% extends 'layout.html' %}
+{% from 'macros.html' import format_currency %}
 
 {% block title %}Dashboard - Painel Administrativo{% endblock %}
 
 {% block content %}
-<div class="bg-white p-6 rounded-lg shadow-md">
+<div class="bg-white p-6 rounded-lg shadow-md mb-8">
     <h1 class="text-3xl font-semibold text-gray-800 mb-6">Bem-vindo(a) ao Painel Administrativo, {{ session.username | default('Usuário', true) }}!</h1>
     
     <p class="text-gray-700 mb-4">Este é o painel de controle do seu Bot TelegramSV. Use o menu acima para navegar pelas funcionalidades.</p>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <div class="p-6 bg-blue-50 rounded-lg shadow-sm">
+        <div class="p-6 bg-blue-50 rounded-lg shadow-sm flex flex-col items-center justify-center">
             <h2 class="text-xl font-semibold text-blue-800 mb-2">Total de Usuários</h2>
-            <p class="text-gray-700 text-3xl font-bold">{{ total_usuarios }}</p>
+            <p class="text-gray-700 text-5xl font-extrabold">{{ total_usuarios }}</p>
         </div>
 
-        <div class="p-6 bg-green-50 rounded-lg shadow-sm">
+        <div class="p-6 bg-green-50 rounded-lg shadow-sm flex flex-col items-center justify-center">
             <h2 class="text-xl font-semibold text-green-800 mb-2">Total de Produtos</h2>
-            <p class="text-gray-700 text-3xl font-bold">{{ total_produtos }}</p>
+            <p class="text-gray-700 text-5xl font-extrabold">{{ total_produtos }}</p>
         </div>
 
-        <div class="p-6 bg-purple-50 rounded-lg shadow-sm">
+        <div class="p-6 bg-purple-50 rounded-lg shadow-sm flex flex-col items-center justify-center">
             <h2 class="text-xl font-semibold text-purple-800 mb-2">Receita Total (Aprovado)</h2>
-            <p class="text-gray-700 text-3xl font-bold">R$ {{ receita_total | round(2) }}</p>
+            <p class="text-gray-700 text-5xl font-extrabold">R$ {{ receita_total | round(2) }}</p>
         </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="bg-white p-6 rounded-lg shadow-md">
+        <div class="bg-white p-6 rounded-lg shadow-md flex flex-col">
             <h2 class="text-xl font-semibold text-gray-800 mb-4">Receita Diária (Últimos 7 Dias)</h2>
-            <canvas id="dailyRevenueChart"></canvas>
+            <div class="relative h-72 w-full"> {# Aumentei a altura para 72 (288px) e w-full #}
+                <canvas id="dailyRevenueChart"></canvas>
+            </div>
         </div>
 
-        <div class="bg-white p-6 rounded-lg shadow-md">
+        <div class="bg-white p-6 rounded-lg shadow-md flex flex-col">
             <h2 class="text-xl font-semibold text-gray-800 mb-4">Vendas Recentes</h2>
             {% if vendas_recentes %}
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto max-h-80 overflow-y-auto">
                 <table class="min-w-full bg-white border border-gray-200 rounded-lg">
-                    <thead class="bg-gray-100">
+                    <thead class="bg-gray-100 sticky top-0">
                         <tr>
                             <th class="py-3 px-4 border-b text-left text-sm font-semibold text-gray-600">ID Venda</th>
                             <th class="py-3 px-4 border-b text-left text-sm font-semibold text-gray-600">Comprador</th>
@@ -80,59 +82,125 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const ctx = document.getElementById('dailyRevenueChart').getContext('2d');
-        // Alterado para usar JSON.parse() com template literals para evitar SyntaxError
         const chartLabels = JSON.parse(`{{ chart_labels | safe }}`);
         const chartData = JSON.parse(`{{ chart_data | safe }}`);
 
+        // Criando um gradiente para o preenchimento do gráfico
+        const gradient = ctx.createLinearGradient(0, 0, 0, 400); // Gradiente vertical
+        gradient.addColorStop(0, 'rgba(99, 102, 241, 0.8)'); // indigo-500 com opacidade
+        gradient.addColorStop(1, 'rgba(99, 102, 241, 0)'); // transparente no final
+
         new Chart(ctx, {
-            type: 'bar',
+            type: 'line', // Alterado de 'bar' para 'line'
             data: {
                 labels: chartLabels,
                 datasets: [{
                     label: 'Receita Diária (R$)',
                     data: chartData,
-                    backgroundColor: 'rgba(59, 130, 246, 0.6)', // blue-500
-                    borderColor: 'rgba(59, 130, 246, 1)',
-                    borderWidth: 1
+                    borderColor: 'rgb(99, 102, 241)', // indigo-500
+                    backgroundColor: gradient, // Usando o gradiente
+                    fill: true, // Preenche a área abaixo da linha
+                    tension: 0.4, // Curva mais suave para a linha (0 para linha reta)
+                    pointBackgroundColor: 'rgb(99, 102, 241)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgb(99, 102, 241)',
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointHitRadius: 10,
+                    pointBorderWidth: 2
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Receita (R$)'
-                        }
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Data'
-                        }
-                    }
-                },
                 plugins: {
                     legend: {
                         display: true,
                         position: 'top',
+                        labels: {
+                            font: {
+                                size: 14
+                            }
+                        }
                     },
                     tooltip: {
+                        mode: 'index',
+                        intersect: false,
                         callbacks: {
+                            title: function(context) {
+                                return `Data: ${context[0].label}`;
+                            },
                             label: function(context) {
                                 let label = context.dataset.label || '';
                                 if (label) {
                                     label += ': ';
                                 }
                                 if (context.parsed.y !== null) {
-                                    label += 'R$ ' + context.parsed.y.toFixed(2);
+                                    label += 'R$ ' + context.parsed.y.toFixed(2).replace('.', ','); // Formato BRL
                                 }
                                 return label;
                             }
+                        },
+                        bodyFont: {
+                            size: 14
+                        },
+                        titleFont: {
+                            size: 16,
+                            weight: 'bold'
+                        },
+                        padding: 10,
+                        backgroundColor: 'rgba(0,0,0,0.7)',
+                        boxPadding: 5
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Receita (R$)',
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            },
+                            color: '#4a4a4a'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return 'R$ ' + value.toFixed(2).replace('.', ',');
+                            },
+                            font: {
+                                size: 12
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(200, 200, 200, 0.2)' // Linhas de grade mais suaves
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Período',
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            },
+                            color: '#4a4a4a'
+                        },
+                        ticks: {
+                            font: {
+                                size: 12
+                            }
+                        },
+                        grid: {
+                            display: false // Remover linhas de grade verticais
                         }
                     }
+                },
+                animation: {
+                    duration: 1000, // Duração da animação em milissegundos
+                    easing: 'easeOutQuart' // Tipo de easing
                 }
             }
         });
