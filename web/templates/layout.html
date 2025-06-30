@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
         body { font-family: 'Inter', sans-serif; }
 
@@ -53,32 +54,51 @@
             </div>
             <div class="flex flex-1 flex-col overflow-y-auto">
                 <nav class="flex-1 space-y-1 px-2 py-4">
-                    <a href="{{ url_for('index') }}" class="{{ 'bg-gray-800 text-white' if request.path == url_for('index') else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
+                    {# Dashboard Link #}
+                    <a href="{{ url_for('index') }}" 
+                       class="{{ 'bg-gray-800 text-white' if request.endpoint == 'index' else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
                         <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h7.5" /></svg>
                         Dashboard
                     </a>
-                    <a href="{{ url_for('produtos') }}" class="{{ 'bg-gray-800 text-white' if request.path == url_for('produtos') else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
+                    {# Produtos Link #}
+                    <a href="{{ url_for('produtos') }}" 
+                       class="{{ 'bg-gray-800 text-white' if request.endpoint == 'produtos' or 'edit_product' in request.endpoint else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
                         <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" /></svg>
                         Produtos
                     </a>
-                    <a href="{{ url_for('vendas') }}" class="{{ 'bg-gray-800 text-white' if request.path == url_for('vendas') else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
+                    {# Vendas Link #}
+                    <a href="{{ url_for('vendas') }}" 
+                       class="{{ 'bg-gray-800 text-white' if request.endpoint == 'vendas' else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
                         <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414-.336.75-.75.75h-.75m0-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" /></svg>
                         Vendas
                     </a>
-                    <a href="{{ url_for('usuarios') }}" class="{{ 'bg-gray-800 text-white' if request.path == url_for('usuarios') else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
+                    {# Usuários Link #}
+                    <a href="{{ url_for('usuarios') }}" 
+                       class="{{ 'bg-gray-800 text-white' if request.endpoint == 'usuarios' else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
                         <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-4.67c.12-.313.25-.624.39-1.458m-11.964-.75a6.375 6.375 0 016.374-6.374 6.375 6.375 0 016.374 6.374m-12.748 0L3 16.5" /></svg>
                         Usuários
                     </a>
-                    <a href="{{ url_for('scheduled_messages') }}" class="{{ 'bg-gray-800 text-white' if request.path == url_for('scheduled_messages') else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
+                    {# NOVO ITEM DE MENU: COMUNIDADES #}
+                    <a href="{{ url_for('comunidades.comunidades') }}" 
+                       class="{{ 'bg-gray-800 text-white' if request.endpoint.startswith('comunidades') else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
+                        <i class="fas fa-users mr-3 h-6 w-6 flex-shrink-0 text-gray-400"></i> {# Ícone de comunidades do Font Awesome #}
+                        Comunidades
+                    </a>
+                    {# Mensagens Agendadas Link #}
+                    <a href="{{ url_for('scheduled_messages') }}" 
+                       class="{{ 'bg-gray-800 text-white' if request.endpoint.startswith('scheduled_messages') or request.endpoint.startswith('add_scheduled_message') or request.endpoint.startswith('edit_scheduled_message') else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
                         <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-16.5-7.5h1.5m-1.5 3h1.5m-1.5 3h1.5" /></svg>
                         Mensagens Agendadas
                     </a>
                     {# NOVO ITEM DE MENU: ENVIAR BROADCAST #}
-                    <a href="{{ url_for('send_broadcast') }}" class="{{ 'bg-gray-800 text-white' if request.path == url_for('send_broadcast') else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
+                    <a href="{{ url_for('send_broadcast') }}" 
+                       class="{{ 'bg-gray-800 text-white' if request.endpoint == 'send_broadcast' else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
                         <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.688c0-.864.933-1.405 1.683-.977l7.108 4.062a1.125 1.125 0 010 1.953l-7.108 4.062A1.125 1.125 0 013 16.813V8.688zM12.75 8.688v7.424" /></svg>
                         Enviar Broadcast
                     </a>
-                    <a href="{{ url_for('config_messages') }}" class="{{ 'bg-gray-800 text-white' if request.path == url_for('config_messages') else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
+                    {# Configurações de Mensagens Link #}
+                    <a href="{{ url_for('config_messages') }}" 
+                       class="{{ 'bg-gray-800 text-white' if request.endpoint == 'config_messages' else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
                         <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.545 1.05 2.875 2.5 3.14M5.25 18.75h13.5c.621 0 1.125-.504 1.125-1.125v-9c0-.621-.504-1.125-1.125-1.125H5.25c-.621 0-1.125.504-1.125 1.125v9c0 .621.504 1.125 1.125 1.125z" /></svg>
                         Configurações de Mensagens
                     </a>
