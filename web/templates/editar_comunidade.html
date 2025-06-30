@@ -6,7 +6,7 @@
 <div class="bg-white p-6 rounded-lg shadow-md max-w-lg mx-auto">
     <h1 class="text-3xl font-semibold text-gray-800 mb-6 text-center">Editar Comunidade</h1>
     
-    <form action="{{ url_for('comunidades.editar', cid=comunidade.id) }}" method="POST" class="space-y-4">
+    <form action="{{ url_for('comunidades.editar_comunidade', id=comunidade.id) }}" method="POST" class="space-y-4">
         <input type="hidden" name="id" value="{{ comunidade.id }}">
         
         <div>
