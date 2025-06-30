@@ -1,218 +1,511 @@
 <!DOCTYPE html>
-<html lang="pt-br" class="h-full bg-gray-100">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Painel{% endblock %} - Bot Vendas</title>
+    <title>{% block title %}Painel{% endblock %} - SvBOT | Gestão de Vendas</title>
     
-    {# Tailwind CSS via CDN - Mantido #}
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
     
-    {# Chart.js para gráficos #}
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    {# Fontes do Google Fonts #}
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
-    {# Font Awesome para ícones - ESSENCIAL para o ícone de robô #}
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    
+
+    {# Chart.js para gráficos - Mantido, pois é uma biblioteca de JS #}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        :root {
+            /* Cores light mode - Se o tema padrão for claro */
+            --primary: #4F46E5; /* Índigo */
+            --primary-dark: #4338CA;
+            --text: #1F2937; /* Cinza escuro */
+            --text-light: #6B7280; /* Cinza médio */
+            --bg: #F3F4F6; /* Cinza claro de fundo */
+            --card-bg: #FFFFFF; /* Branco para cards */
+            --sidebar-bg: #FFFFFF; /* Branco para sidebar */
+            --border: #E5E7EB; /* Cinza claro para bordas */
+            --success: #10B981; /* Verde */
+            --warning: #F59E0B; /* Laranja */
+            --shadow: 0 1px 3px rgba(0,0,0,0.1); /* Sombra suave */
+        }
 
-        /* Animação para o ícone do título */
-        @keyframes bounce-and-spin {
+        /* Dark mode colors - Usaremos essas como o tema principal AGORA */
+        [data-theme="dark"] {
+            --primary: #6366F1; /* Índigo mais claro */
+            --primary-dark: #4F46E5;
+            --text: #E5E7EB; /* Quase branco */
+            --text-light: #9CA3AF; /* Cinza claro */
+            --bg: #111827; /* Fundo muito escuro (dark gray-900 do Tailwind) */
+            --card-bg: #1F2937; /* Cinza escuro para cards (dark gray-800) */
+            --sidebar-bg: #111827; /* Mesma cor do fundo principal para sidebar */
+            --border: #374151; /* Cinza médio para bordas */
+            --success: #34D399;
+            --warning: #FBBF24;
+            --shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        /* Ajustes para o tema padrão ser Dark (mesmo que não haja data-theme="dark") */
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--bg, #111827); /* Fundo padrão do Dark Mode */
+            color: var(--text, #E5E7EB); /* Cor de texto padrão do Dark Mode */
+            line-height: 1.6;
+            transition: all 0.3s ease;
+        }
+
+        h1, h2, h3, h4 {
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            color: var(--text, #E5E7EB);
+        }
+
+        /* Animação para o ícone do robô */
+        @keyframes rotate-and-float {
             0%, 100% { transform: translateY(0) rotate(0deg); }
-            25% { transform: translateY(-5px) rotate(90deg); }
-            50% { transform: translateY(0) rotate(180deg); }
-            75% { transform: translateY(-5px) rotate(270deg); }
+            25% { transform: translateY(-3px) rotate(10deg); }
+            50% { transform: translateY(0) rotate(0deg); }
+            75% { transform: translateY(3px) rotate(-10deg); }
         }
-        .animate-bounce-spin {
-            animation: bounce-and-spin 4s ease-in-out infinite; /* Animação lenta contínua */
+        .animate-logo {
+            animation: rotate-and-float 4s ease-in-out infinite;
         }
-        .animate-bounce-spin-hover:hover {
-            animation: bounce-and-spin 1s linear infinite; /* Animação mais rápida no hover */
-        }
-
-        /* Estilo para a sidebar em telas menores, hidden por padrão */
-        @media (max-width: 767px) {
-            .sidebar-mobile-hidden {
-                transform: translateX(-100%); /* Esconde a sidebar para a esquerda */
-            }
-            .sidebar-mobile-show {
-                transform: translateX(0); /* Mostra a sidebar */
-            }
-        }
-        /* Transição suave para a sidebar */
-        .sidebar-transition {
-            transition: transform 0.3s ease-in-out;
+        .animate-logo-hover:hover {
+            animation: rotate-and-float 0.8s ease-in-out infinite; /* Mais rápido ao hover */
         }
 
-        /* Estilo para o overlay que escurece o fundo em mobile */
-        .overlay {
-            position: fixed;
-            inset: 0;
-            background-color: rgba(0, 0, 0, 0.7);
-            z-index: 40; /* Abaixo da sidebar (z-50), acima do conteúdo */
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        /* Layout Principal */
+        .dashboard {
+            display: grid;
+            grid-template-columns: 220px 1fr; /* Largura da sidebar ajustada para 220px */
+            min-height: 100vh;
+            background-color: var(--bg, #111827); /* Garante que o fundo seja o do tema Dark */
         }
-        .overlay.active {
-            opacity: 1;
-            visibility: visible;
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--sidebar-bg, #111827); /* Fundo da sidebar do tema Dark */
+            box-shadow: var(--shadow);
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            display: flex; /* Para flexbox interno */
+            flex-direction: column; /* Para organizar itens verticalmente */
+        }
+
+        .logo {
+            font-family: 'Inter', sans-serif;
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: var(--primary, #6366F1); /* Cor primária do tema Dark */
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .telegram-plane { /* Para o ícone Telegram original, se for usado */
+            width: 32px;
+            height: 32px;
+            fill: var(--primary, #6366F1);
+            transition: transform 0.3s ease;
+        }
+
+        .logo:hover .telegram-plane {
+            transform: translateY(-3px);
+        }
+
+        .nav-menu {
+            list-style: none;
+            flex-grow: 1; /* Ocupa espaço disponível */
+        }
+
+        .nav-item {
+            margin-bottom: 0.5rem;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0.75rem;
+            border-radius: 6px;
+            text-decoration: none;
+            color: var(--text-light, #9CA3AF); /* Cor de texto claro do tema Dark */
+            transition: all 0.2s;
+        }
+
+        .nav-link .material-icons, .nav-link .fas { /* Estilo para ícones dentro dos links */
+            font-size: 1.5rem; /* Ajuste o tamanho do ícone */
+            color: var(--text-light, #9CA3AF);
+            transition: all 0.2s;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            background-color: var(--border, #374151); /* Cor de borda/hover do tema Dark */
+            color: var(--primary, #6366F1); /* Cor primária do tema Dark */
+        }
+        .nav-link.active .material-icons, .nav-link.active .fas {
+            color: var(--primary, #6366F1);
+        }
+
+        /* Usuário Logado e Sair na Sidebar */
+        .user-info {
+            padding-top: 1rem;
+            border-top: 1px solid var(--border, #374151); /* Borda superior */
+            margin-top: auto; /* Empurra para o final da sidebar */
+        }
+        .user-info p {
+            font-size: 0.875rem;
+            color: var(--text-light, #9CA3AF);
+            margin-bottom: 0.5rem;
+        }
+        .user-info a {
+            font-size: 0.875rem;
+            color: var(--text-light, #9CA3AF);
+            text-decoration: none;
+            display: block;
+            padding: 0.5rem 0;
+        }
+        .user-info a:hover {
+            color: var(--primary, #6366F1);
+        }
+
+        /* Main Content */
+        .main-content {
+            padding: 2rem;
+            overflow-x: auto; /* Para tabelas que podem ser largas */
+            background-color: var(--bg, #111827); /* Fundo do tema Dark */
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+            padding-bottom: 1rem; /* Espaçamento abaixo do header */
+            border-bottom: 1px solid var(--border, #374151); /* Borda no header */
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+            color: var(--text, #E5E7EB);
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--card-bg, #1F2937); /* Cor de card do tema Dark */
+            border: 1px solid var(--border, #374151);
+            padding: 0.5rem;
+            border-radius: 9999px;
+            cursor: pointer;
+            color: var(--text, #E5E7EB);
+            transition: all 0.2s;
+        }
+        .theme-toggle:hover {
+            background-color: var(--border, #374151);
+        }
+
+        .theme-icon {
+            font-size: 1.2rem;
+        }
+
+        /* Cards (para o dashboard) */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: var(--card-bg, #1F2937); /* Cor de card do tema Dark */
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+            border: 1px solid var(--border, #374151); /* Borda sutil */
+        }
+
+        .card-title {
+            font-size: 0.875rem;
+            color: var(--text-light, #9CA3AF);
+            margin-bottom: 0.5rem;
+        }
+
+        .card-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            color: var(--primary, #6366F1); /* Valor em cor primária */
+        }
+
+        /* Tabela */
+        .data-table {
+            width: 100%;
+            background: var(--card-bg, #1F2937);
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            border-collapse: collapse;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            min-width: 600px; /* Garante que a tabela tenha um mínimo de largura para scrollar em mobile */
+            border: 1px solid var(--border, #374151);
+        }
+
+        .data-table th, .data-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border, #374151);
+            color: var(--text, #E5E7EB);
+        }
+
+        .data-table th {
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            background-color: var(--sidebar-bg, #111827); /* Fundo do cabeçalho da tabela */
+            color: var(--text-light, #9CA3AF);
+        }
+
+        /* Status (para tabelas) */
+        .status {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .status-success {
+            background-color: rgba(52, 211, 153, 0.1); /* rgba(var(--success), 0.1) */
+            color: var(--success, #34D399);
+        }
+
+        .status-warning {
+            background-color: rgba(251, 191, 36, 0.1); /* rgba(var(--warning), 0.1) */
+            color: var(--warning, #FBBF24);
+        }
+        /* Botões */
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background-color: var(--primary, #6366F1);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-dark, #4F46E5);
+        }
+
+        /* Mobile Menu */
+        .mobile-menu-btn {
+            display: none; /* Escondido por padrão em desktop */
+            background: none;
+            border: none;
+            color: var(--text, #E5E7EB); /* Cor do texto do tema Dark */
+            font-size: 1.5rem;
+            cursor: pointer;
+            margin-right: 1rem; /* Espaçamento à direita */
+        }
+        
+        /* Responsividade */
+        @media (max-width: 768px) { /* Em telas menores que 768px */
+            .dashboard {
+                grid-template-columns: 1fr; /* Sidebar e Main Content empilham */
+            }
+
+            .sidebar {
+                position: fixed;
+                top: 0;
+                left: -220px; /* Esconde a sidebar para a esquerda (largura 220px) */
+                width: 220px;
+                height: 100vh;
+                z-index: 100;
+                transition: left 0.3s ease;
+                box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+            }
+
+            .sidebar.active {
+                left: 0;
+            }
+
+            .mobile-menu-btn {
+                display: block; /* Mostra o botão de menu em mobile */
+            }
+
+            .main-content {
+                padding: 1rem; /* Reduz o padding em mobile */
+            }
+
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
         }
     </style>
 </head>
-<body class="h-full">
-    <div class="min-h-full">
-        {# Overlay para o menu mobile #}
-        <div id="sidebar-overlay" class="overlay md:hidden"></div>
-
-        {# Sidebar (Menu Lateral) #}
-        <div id="sidebar" class="fixed inset-y-0 flex w-64 flex-col bg-gray-900 sidebar-mobile-hidden sidebar-transition z-50">
-            <div class="flex min-h-0 flex-1 flex-col">
-                {# Título da Sidebar com Ícone e Animação #}
-                <div class="flex h-16 flex-shrink-0 items-center bg-gray-900 px-4">
-                    <i class="fas fa-robot text-gray-400 text-2xl mr-3 animate-bounce-spin animate-bounce-spin-hover"></i> {# Ícone de robô com animação e cor original #}
-                    <h1 class="text-xl font-bold text-white">Painel do Bot</h1>
-                </div>
-                {# Itens de Navegação #}
-                <div class="flex flex-1 flex-col overflow-y-auto">
-                    <nav class="flex-1 space-y-1 px-2 py-4">
-                        {# Dashboard Link #}
-                        <a href="{{ url_for('index') }}" 
-                           class="{{ 'bg-gray-800 text-white' if request.endpoint == 'index' else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
-                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h7.5" /></svg>
-                            Dashboard
-                        </a>
-                        {# Produtos Link #}
-                        <a href="{{ url_for('produtos') }}" 
-                           class="{{ 'bg-gray-800 text-white' if request.endpoint == 'produtos' or 'edit_product' in request.endpoint else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
-                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" /></svg>
-                            Produtos
-                        </a>
-                        {# Vendas Link #}
-                        <a href="{{ url_for('vendas') }}" 
-                           class="{{ 'bg-gray-800 text-white' if request.endpoint == 'vendas' else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
-                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414-.336.75-.75.75h-.75m0-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" /></svg>
-                            Vendas
-                        </a>
-                        {# Usuários Link #}
-                        <a href="{{ url_for('usuarios') }}" 
-                           class="{{ 'bg-gray-800 text-white' if request.endpoint == 'usuarios' else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
-                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-4.67c.12-.313.25-.624.39-1.458m-11.964-.75a6.375 6.375 0 016.374-6.374 6.375 6.375 0 016.374 6.374m-12.748 0L3 16.5" /></svg>
-                            Usuários
-                        </a>
-                        {# NOVO ITEM DE MENU: COMUNIDADES #}
-                        <a href="{{ url_for('comunidades.comunidades') }}" 
-                           class="{{ 'bg-gray-800 text-white' if request.endpoint.startswith('comunidades') else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
-                            <i class="fas fa-users mr-3 h-6 w-6 flex-shrink-0 text-gray-400"></i> {# Ícone de comunidades do Font Awesome #}
-                            Comunidades
-                        </a>
-                        {# Mensagens Agendadas Link #}
-                        <a href="{{ url_for('scheduled_messages') }}" 
-                           class="{{ 'bg-gray-800 text-white' if request.endpoint.startswith('scheduled_messages') or request.endpoint.startswith('add_scheduled_message') or request.endpoint.startswith('edit_scheduled_message') else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
-                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-16.5-7.5h1.5m-1.5 3h1.5m-1.5 3h1.5" /></svg>
-                            Mensagens Agendadas
-                        </a>
-                        {# NOVO ITEM DE MENU: ENVIAR BROADCAST #}
-                        <a href="{{ url_for('send_broadcast') }}" 
-                           class="{{ 'bg-gray-800 text-white' if request.endpoint == 'send_broadcast' else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
-                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.688c0-.864.933-1.405 1.683-.977l7.108 4.062a1.125 1.125 0 010 1.953l-7.108 4.062A1.125 1.125 0 013 16.813V8.688zM12.75 8.688v7.424" /></svg>
-                            Enviar Broadcast
-                        </a>
-                        {# Configurações de Mensagens Link #}
-                        <a href="{{ url_for('config_messages') }}" 
-                           class="{{ 'bg-gray-800 text-white' if request.endpoint == 'config_messages' else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium">
-                            <svg class="mr-3 h-6 w-6 flex-shrink-0 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.545 1.05 2.875 2.5 3.14M5.25 18.75h13.5c.621 0 1.125-.504 1.125-1.125v-9c0-.621-.504-1.125-1.125-1.125H5.25c-.621 0-1.125.504-1.125 1.125v9c0 .621.504 1.125 1.125 1.125z" /></svg>
-                            Configurações de Mensagens
-                        </a>
-
-                        {# Link de Sair movido para cima, após os outros links de navegação #}
-                        <a href="{{ url_for('logout') }}" 
-                           class="{{ 'bg-gray-800 text-white' if request.endpoint == 'logout' else 'text-gray-400 hover:bg-gray-800 hover:text-white' }} group flex items-center rounded-md px-2 py-2 text-sm font-medium mt-4"> {# Adicionado mt-4 para espaçamento #}
-                            <i class="fas fa-sign-out-alt mr-3 h-6 w-6 flex-shrink-0 text-gray-400"></i> {# Ícone de sair #}
-                            Sair
-                        </a>
-                    </nav>
-                </div>
-                {# Seção de Usuário Logado - Mantida na parte inferior #}
-                <div class="flex flex-shrink-0 border-t border-gray-700 p-4">
-                    <div class="flex-shrink-0 w-full">
-                        <div class="flex items-center">
-                            <div>
-                                <p class="text-sm font-medium text-yellow-400">{{ session.username }}</p> {# Nome do usuário em amarelo #}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+<body>
+    <div class="dashboard">
+        <aside class="sidebar" id="sidebar">
+            <div class="logo">
+                {# Ícone de robô animado (Font Awesome) #}
+                <i class="fas fa-robot text-primary animate-logo animate-logo-hover"></i> 
+                SvBOT
             </div>
-        </div>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">
+                        <span class="material-icons">dashboard</span>
+                        Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('produtos') }}" class="nav-link {% if request.endpoint == 'produtos' or request.endpoint == 'editar_produto' %}active{% endif %}">
+                        <span class="material-icons">inventory</span> {# Ícone para Produtos #}
+                        Produtos
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('vendas') }}" class="nav-link {% if request.endpoint == 'vendas' %}active{% endif %}">
+                        <span class="material-icons">shopping_cart</span>
+                        Vendas
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('usuarios') }}" class="nav-link {% if request.endpoint == 'usuarios' %}active{% endif %}">
+                        <span class="material-icons">people</span>
+                        Usuários
+                    </a>
+                </li>
+                <li class="nav-item">
+                    {# Comunidades - Assumindo que o endpoint é 'comunidades.comunidades' #}
+                    <a href="{{ url_for('comunidades.comunidades') }}" class="nav-link {% if request.endpoint.startswith('comunidades') %}active{% endif %}">
+                        <span class="material-icons">groups</span> {# Ícone para Comunidades #}
+                        Comunidades
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('scheduled_messages') }}" class="nav-link {% if request.endpoint.startswith('scheduled_messages') or request.endpoint.startswith('add_scheduled_message') or request.endpoint.startswith('edit_scheduled_message') %}active{% endif %}">
+                        <span class="material-icons">schedule</span> {# Ícone para Mensagens Agendadas #}
+                        Mensagens Agendadas
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('send_broadcast') }}" class="nav-link {% if request.endpoint == 'send_broadcast' %}active{% endif %}">
+                        <span class="material-icons">campaign</span> {# Ícone para Enviar Broadcast #}
+                        Enviar Broadcast
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('config_messages') }}" class="nav-link {% if request.endpoint == 'config_messages' %}active{% endif %}">
+                        <span class="material-icons">settings</span>
+                        Configurações
+                    </a>
+                </li>
+                {# Link de Sair (Logout) - Adicionado aqui na navegação principal #}
+                <li class="nav-item">
+                    <a href="{{ url_for('logout') }}" class="nav-link">
+                        <span class="material-icons">logout</span>
+                        Sair
+                    </a>
+                </li>
+            </ul>
+            {# Informações do Usuário - Parte inferior da sidebar #}
+            <div class="user-info">
+                <p>Logado como:</p>
+                <p style="color: #FBBF24; font-weight: 600;">{{ session.username }}</p> {# Nome do usuário em amarelo #}
+            </div>
+        </aside>
 
-        {# Área de Conteúdo Principal #}
-        <div class="flex flex-1 flex-col md:ml-64">
-            {# Cabeçalho Mobile (exibido apenas em telas pequenas) #}
-            <div class="md:hidden sticky top-0 z-10 flex h-16 flex-shrink-0 items-center bg-white shadow-sm">
-                <button type="button" id="mobile-menu-button" class="px-4 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500">
-                    <span class="sr-only">Abrir menu lateral</span>
-                    <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                    </svg>
+        <main class="main-content">
+            <div class="header">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <button class="mobile-menu-btn" id="mobileMenuBtn">
+                        <span class="material-icons">menu</span>
+                    </button>
+                    <h1 class="page-title">{% block page_title %}Dashboard{% endblock %}</h1> {# Título da página dinâmica #}
+                </div>
+                {# Botão de Troca de Tema - Movido para o header do main-content #}
+                <button class="theme-toggle" id="themeToggle">
+                    <span class="material-icons theme-icon">light_mode</span>
                 </button>
-                <h1 class="text-xl font-bold text-gray-900 ml-4">Painel do Bot</h1>
             </div>
 
-            <main class="flex-1">
-                <div class="py-6">
-                    {# Área para mensagens flash (sucesso/erro) #}
-                    <div class="mx-auto max-w-7xl px-4 sm:px-6 md:px-8">
-                        {% with messages = get_flashed_messages(with_categories=true) %}
-                          {% if messages %}
-                            {% for category, message in messages %}
-                              <div class="mb-4 rounded-md p-4 {{ 'bg-green-100 text-green-800' if category == 'success' else 'bg-red-100 text-red-800' }}" role="alert">
-                                <p>{{ message }}</p>
-                              </div>
-                            {% endfor %}
-                          {% endif %}
-                        {% endwith %}
-                        {# Bloco onde o conteúdo de cada página individual será injetado #}
-                        {% block content %}{% endblock %}
+            {# Área para mensagens flash (sucesso/erro) #}
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div style="margin-bottom: 1.5rem;">
+                        {% for category, message in messages %}
+                            <div style="padding: 1rem; border-radius: 8px; font-size: 0.875rem; margin-bottom: 0.5rem;
+                                {% if category == 'success' %}background-color: rgba(52, 211, 153, 0.1); color: var(--success, #34D399);
+                                {% elif category == 'danger' %}background-color: rgba(239, 68, 68, 0.1); color: #EF4444; /* red-500 */
+                                {% else %}background-color: rgba(99, 102, 241, 0.1); color: var(--primary, #6366F1);{% endif %}">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
                     </div>
-                </div>
-            </main>
-        </div>
+                {% endif %}
+            {% endwith %}
+
+            {# Este é o bloco onde o conteúdo específico de cada página será injetado #}
+            {% block content %}{% endblock content %}
+        </main>
     </div>
 
-    {# JavaScript para o menu mobile #}
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const mobileMenuButton = document.getElementById('mobile-menu-button');
-            const sidebar = document.getElementById('sidebar');
-            const sidebarOverlay = document.getElementById('sidebar-overlay');
+        // Aplicar o tema escuro por padrão ao carregar a página
+        document.documentElement.setAttribute('data-theme', 'dark');
+        const themeIcon = document.getElementById('themeToggle').querySelector('.theme-icon');
+        if (themeIcon) {
+            themeIcon.textContent = 'dark_mode'; // Garante que o ícone inicial seja o de sol para alternar para claro
+        }
 
-            if (mobileMenuButton && sidebar && sidebarOverlay) {
-                mobileMenuButton.addEventListener('click', function() {
-                    sidebar.classList.remove('sidebar-mobile-hidden');
-                    sidebar.classList.add('sidebar-mobile-show');
-                    sidebarOverlay.classList.add('active');
-                });
-
-                sidebarOverlay.addEventListener('click', closeSidebar);
-                
-                const navLinks = sidebar.querySelectorAll('nav a');
-                navLinks.forEach(link => {
-                    link.addEventListener('click', closeSidebar);
-                });
-
-                function closeSidebar() {
-                    sidebar.classList.remove('sidebar-mobile-show');
-                    sidebar.classList.add('sidebar-mobile-hidden');
-                    sidebarOverlay.classList.remove('active');
+        // Modo Escuro/Claro Toggle
+        const themeToggle = document.getElementById('themeToggle');
+        if (themeToggle) { // Verifica se o botão existe
+            themeToggle.addEventListener('click', () => {
+                const currentTheme = document.documentElement.getAttribute('data-theme');
+                if (currentTheme === 'dark') {
+                    document.documentElement.removeAttribute('data-theme'); // Remove o atributo para voltar ao light
+                    themeIcon.textContent = 'light_mode';
+                } else {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    themeIcon.textContent = 'dark_mode';
                 }
-            }
+            });
+        }
+
+        // Menu Mobile Toggle
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const sidebar = document.getElementById('sidebar');
+
+        if (mobileMenuBtn && sidebar) { // Verifica se os elementos existem
+            mobileMenuBtn.addEventListener('click', () => {
+                sidebar.classList.toggle('active');
+            });
+        }
+
+        // Fechar menu ao clicar em um link (mobile)
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth <= 768) { // Apenas em telas mobile
+                    sidebar.classList.remove('active');
+                }
+            });
         });
     </script>
 </body>
