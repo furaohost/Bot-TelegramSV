@@ -1708,7 +1708,7 @@ else:
 
     # Initialize Mercado Pago SDK (for local testing)
     pagamentos.init_mercadopago_sdk()
-
+    
     worker_thread = Thread(target=scheduled_message_worker)
     worker_thread.daemon = True
     worker_thread.start()
