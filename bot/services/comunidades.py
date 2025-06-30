@@ -1,136 +1,52 @@
-# bot/services/comunidades.py
-import sqlite3 # Adicionado para verificar tipo de conexão
-import traceback # Para depuração de erros em serviços
+# web/routes/comunidades.py
 
-# A classe ComunidadeService não importa a si mesma.
-# Ela depende de get_db_connection_func que é passada no construtor.
+@comunidades_bp.route('/comunidades/editar/<int:id>', methods=['GET', 'POST'])
+def editar_comunidade(id): # <-- Endpoint: 'comunidades.editar_comunidade'
+    comunidade_service = ComunidadeService(get_db_connection)
+    
+    # Busca a comunidade para garantir que ela existe antes de mais nada
+    comunidade = comunidade_service.obter(id)
+    if not comunidade:
+        flash('Comunidade não encontrada.', 'danger')
+        return redirect(url_for('comunidades.comunidades'))
 
-class ComunidadeService:
-    def __init__(self, get_db_connection_func):
-        self.get_db_connection = get_db_connection_func
+    try:
+        if request.method == 'POST':
+            # Pega os dados do formulário
+            nome = request.form['nome'].strip()
+            descricao = request.form.get('descricao', '').strip()
+            chat_id_str = request.form.get('chat_id', '').strip()
+            chat_id = None
 
-    def criar(self, nome, descricao=None, chat_id=None):
-        conn = None
-        try:
-            conn = self.get_db_connection()
-            if conn is None:
-                print("ERRO ComunidadeService: Não foi possível obter conexão com a base de dados.")
-                return None
+            # Validação do chat_id
+            if chat_id_str:
+                try:
+                    chat_id = int(chat_id_str)
+                except ValueError:
+                    flash('ID do Chat/Grupo inválido. Deve ser um número.', 'danger')
+                    # Se der erro, renderiza a página de novo com os dados que o utilizador já inseriu
+                    return render_template('editar_comunidade.html', 
+                                           comunidade=comunidade, 
+                                           nome_val=nome, 
+                                           descricao_val=descricao, 
+                                           chat_id_val=chat_id_str)
 
-            is_sqlite = isinstance(conn, sqlite3.Connection)
-            with conn:
-                cur = conn.cursor()
-                if is_sqlite:
-                    cur.execute("INSERT INTO comunidades (nome, descricao, chat_id) VALUES (?, ?, ?)",
-                                (nome, descricao, chat_id))
-                    cur.execute("SELECT last_insert_rowid()")
-                    new_id = cur.fetchone()[0]
-                else:
-                    cur.execute("INSERT INTO comunidades (nome, descricao, chat_id) VALUES (%s, %s, %s) RETURNING id",
-                                (nome, descricao, chat_id))
-                    new_id = cur.fetchone()[0]
-                
-                # Retorna os dados da nova comunidade para confirmação
-                return {"id": new_id, "nome": nome, "descricao": descricao, "chat_id": chat_id}
-        except Exception as e:
-            print(f"ERRO ComunidadeService.criar: {e}")
-            traceback.print_exc()
-            return None
-        finally:
-            if conn:
-                conn.close()
+            # Tenta editar no banco de dados
+            sucesso = comunidade_service.editar(id, nome, descricao, chat_id)
+            if sucesso:
+                flash('Comunidade atualizada com sucesso!', 'success')
+                return redirect(url_for('comunidades.comunidades'))
+            else:
+                flash('Falha ao atualizar a comunidade. Tente novamente.', 'danger')
 
-    def listar(self):
-        conn = None
-        try:
-            conn = self.get_db_connection()
-            if conn is None:
-                print("ERRO ComunidadeService: Não foi possível obter conexão com a base de dados para listar.")
-                return []
-            
-            is_sqlite = isinstance(conn, sqlite3.Connection)
-            with conn:
-                cur = conn.cursor()
-                cur.execute("SELECT * FROM comunidades ORDER BY nome")
-                return cur.fetchall()
-        except Exception as e:
-            print(f"ERRO ComunidadeService.listar: {e}")
-            traceback.print_exc()
-            return []
-        finally:
-            if conn:
-                conn.close()
+        # Se for um pedido GET (primeiro acesso à página), apenas mostra o formulário
+        return render_template('editar_comunidade.html', 
+                               comunidade=comunidade, 
+                               nome_val=comunidade['nome'], 
+                               descricao_val=comunidade['descricao'], 
+                               chat_id_val=comunidade['chat_id'] or '')
 
-    def obter(self, id):
-        conn = None
-        try:
-            conn = self.get_db_connection()
-            if conn is None:
-                print("ERRO ComunidadeService: Não foi possível obter conexão com a base de dados para obter.")
-                return None
-
-            is_sqlite = isinstance(conn, sqlite3.Connection)
-            with conn:
-                cur = conn.cursor()
-                if is_sqlite:
-                    cur.execute("SELECT * FROM comunidades WHERE id = ?", (id,))
-                else:
-                    cur.execute("SELECT * FROM comunidades WHERE id = %s", (id,))
-                return cur.fetchone()
-        except Exception as e:
-            print(f"ERRO ComunidadeService.obter: {e}")
-            traceback.print_exc()
-            return None
-        finally:
-            if conn:
-                conn.close()
-
-    def editar(self, id, nome, descricao=None, chat_id=None):
-        conn = None
-        try:
-            conn = self.get_db_connection()
-            if conn is None:
-                print("ERRO ComunidadeService: Não foi possível obter conexão com a base de dados para editar.")
-                return False
-
-            is_sqlite = isinstance(conn, sqlite3.Connection)
-            with conn:
-                cur = conn.cursor()
-                if is_sqlite:
-                    cur.execute("UPDATE comunidades SET nome = ?, descricao = ?, chat_id = ? WHERE id = ?",
-                                (nome, descricao, chat_id, id))
-                else:
-                    cur.execute("UPDATE comunidades SET nome = %s, descricao = %s, chat_id = %s WHERE id = %s",
-                                (nome, descricao, chat_id, id))
-                return cur.rowcount > 0 # Retorna True se alguma linha foi afetada
-        except Exception as e:
-            print(f"ERRO ComunidadeService.editar: {e}")
-            traceback.print_exc()
-            return False
-        finally:
-            if conn:
-                conn.close()
-
-    def deletar(self, id):
-        conn = None
-        try:
-            conn = self.get_db_connection()
-            if conn is None:
-                print("ERRO ComunidadeService: Não foi possível obter conexão com a base de dados para deletar.")
-                return False
-
-            is_sqlite = isinstance(conn, sqlite3.Connection)
-            with conn:
-                cur = conn.cursor()
-                if is_sqlite:
-                    cur.execute("DELETE FROM comunidades WHERE id = ?", (id,))
-                else:
-                    cur.execute("DELETE FROM comunidades WHERE id = %s", (id,))
-                return cur.rowcount > 0 # Retorna True se alguma linha foi afetada
-        except Exception as e:
-            print(f"ERRO ComunidadeService.deletar: {e}")
-            traceback.print_exc()
-            return False
-        finally:
-            if conn:
-                conn.close()
+    except Exception as e:
+        print(f"ERRO ao editar comunidade: {e}")
+        flash('Ocorreu um erro inesperado ao editar a comunidade.', 'danger')
+        return redirect(url_for('comunidades.comunidades'))
