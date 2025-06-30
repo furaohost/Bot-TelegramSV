@@ -1474,7 +1474,7 @@ def scheduled_message_worker():
                                         if temp_conn_for_user_update: temp_conn_for_user_update.close()
                             failed_count += 1
                         except Exception as e:
-                            print(f"ERRO UNEXPECTED BROADCAST to {user_id}: {e}")
+                            print(f"ERRO UNEXPECTED BROADCAST to  {e}")
                             traceback.print_exc()
 
                     status_to_update = "sent" if delivered_to_any_user else "failed"
