@@ -11,18 +11,15 @@
         <p class="section-description">Filtre e visualize todas as transações do seu bot.</p> {# Using section-description #}
     </div>
 
-    <!-- Seção de Filtros Avançados -->
     <div class="card mb-8"> {# Using 'card' for the filter section #}
         <h3 class="section-subtitle" style="margin-bottom: 1.5rem;">Filtros de Vendas</h3>
         <form id="filterForm" method="GET" action="{{ url_for('vendas') }}" class="form-grid-filter">
-            
-            <!-- Campo de Pesquisa -->
+
             <div>
                 <label for="pesquisa" class="form-label">Pesquisar</label>
                 <input type="text" name="pesquisa" id="pesquisa" value="{{ request.args.get('pesquisa', '') }}" class="form-input" placeholder="Nome, @usuario ou produto...">
             </div>
 
-            <!-- Filtro por Produto -->
             <div>
                 <label for="produto_id" class="form-label">Produto</label>
                 <select id="produto_id" name="produto_id" class="form-select">
@@ -33,7 +30,6 @@
                 </select>
             </div>
 
-            <!-- Filtro por Status -->
             <div>
                 <label for="status" class="form-label">Status</label>
                 <select id="status" name="status" class="form-select">
@@ -44,8 +40,7 @@
                     <option value="cancelado" {% if request.args.get('status') == 'cancelado' %}selected{% endif %}>Cancelado</option>
                 </select>
             </div>
-            
-            <!-- Filtro por Data Específica -->
+
             <div>
                 <label for="data_inicio" class="form-label">De:</label>
                 <input type="date" name="data_inicio" id="data_inicio" value="{{ request.args.get('data_inicio', '') }}" class="form-input">
@@ -55,7 +50,6 @@
                 <input type="date" name="data_fim" id="data_fim" value="{{ request.args.get('data_fim', '') }}" class="form-input">
             </div>
 
-            <!-- Botão de Limpar -->
             <div class="form-filter-actions">
                 <a href="{{ url_for('vendas') }}" class="btn btn-secondary btn-full-width">Limpar Filtros</a>
             </div>
@@ -81,7 +75,7 @@
                     <tr>
                         <td style="padding-left: 1.5rem;">{{ venda.data_venda | datetimeformat }}</td>
                         <td>{{ venda.first_name }} (@{{ venda.username }})</td>
-                        <td>{{ venda.nome }}</td>
+                        <td>{{ venda.nome_produto }}</td> {# CORREÇÃO AQUI: era venda.nome, mas o SELECT no app.py retorna nome_produto #}
                         <td>R$ {{ "%.2f"|format(venda.preco) }}</td>
                         <td>
                             <span class="status
@@ -107,7 +101,6 @@
     </div>
 </div>
 
-<!-- Modal de Detalhes -->
 <div id="details-modal" class="modal-overlay hidden"> {# A classe 'hidden' é crucial aqui para que o modal comece escondido #}
     <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"> {# Esta div é o wrapper interno do modal #}
         <div class="modal-content">
@@ -129,7 +122,7 @@
     </div> {# Fechamento da div do flex items-end justify-center #}
 </div> {# Fechamento da div do modal-overlay #}
 
-
+{# Este script deve estar dentro do bloco content ou em um bloco de scripts dedicado no layout #}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('filterForm');
@@ -184,7 +177,7 @@
                 debouncedUpdate();
             });
         });
-        
+
         // Lógica do Modal
         const closeModal = () => {
             modal.classList.add('hidden'); // Adiciona a classe 'hidden' para esconder o modal
@@ -197,10 +190,10 @@
         // Adiciona event listener ao overlay do modal para fechar ao clicar fora do conteúdo
         modal.addEventListener('click', (event) => {
             if (event.target === modal) { // Verifica se o clique foi diretamente no overlay
-                closeModal(); 
-            } 
+                closeModal();
+            }
         });
-        
+
         const openModal = async (vendaId) => {
             try {
                 const response = await fetch(`/venda_detalhes/${vendaId}`);
@@ -209,13 +202,13 @@
                     throw new Error(errorData.error || 'Venda não encontrada');
                 }
                 const data = await response.json();
-                
+
                 const formattedPrice = data.preco ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.preco) : 'N/A';
                 document.getElementById('modal-valor').textContent = formattedPrice;
                 document.getElementById('modal-payment-id').textContent = data.payment_id || 'N/A';
                 document.getElementById('modal-payer-name').textContent = data.payer_name || 'N/A';
-                document.getElementById('modal-payer-email').textContent = data.payer_id || 'N/A'; {# CORREÇÃO AQUI: era data.payer_email, mas o log mostra data.payer_id #}
-                
+                document.getElementById('modal-payer-email').textContent = data.payer_email || 'N/A'; {# MUDANÇA AQUI: de volta para data.payer_email #}
+
                 modal.classList.remove('hidden'); // Remove a classe 'hidden' para mostrar o modal
                 document.body.style.overflow = 'hidden'; // Impede o scroll no corpo da página quando o modal está aberto
             } catch (error) {
@@ -233,3 +226,4 @@
         });
     });
 </script>
+{% endblock content %} {# ADICIONEI ESTA LINHA: FECHANDO O BLOCO CONTENT #}
