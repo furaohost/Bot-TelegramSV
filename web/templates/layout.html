@@ -3,126 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Painel{% endblock %} - SvBOT | Gestão</title>
-    
-    <!-- Chamada para o seu arquivo de estilo externo -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    
-    <!-- Ícones (Google e Font Awesome) -->
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" xintegrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    
-</head>
-<body>
-    <div class="main-container">
-        <!-- Barra Lateral (Sidebar) -->
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <i class="fas fa-robot"></i> SvBOT
-            </div>
-            <nav class="sidebar-nav">
-                <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' else '' }}">
-                    <span class="material-icons">dashboard</span>Dashboard
-                </a>
-                <a href="{{ url_for('produtos') }}" class="{{ 'active' if request.endpoint == 'produtos' else '' }}">
-                    <span class="material-icons">inventory_2</span>Produtos
-                </a>
-                <a href="{{ url_for('comunidades.comunidades') }}" class="{{ 'active' if request.endpoint == 'comunidades.comunidades' else '' }}">
-                    <span class="material-icons">groups</span>Comunidades
-                </a>
-                <a href="{{ url_for('vendas') }}" class="{{ 'active' if request.endpoint == 'vendas' else '' }}">
-                    <span class="material-icons">point_of_sale</span>Vendas
-                </a>
-                <a href="{{ url_for('usuarios') }}" class="{{ 'active' if request.endpoint == 'usuarios' else '' }}">
-                    <span class="material-icons">people</span>Usuários
-                </a>
-                <a href="{{ url_for('scheduled_messages') }}" class="{{ 'active' if request.endpoint == 'scheduled_messages' else '' }}">
-                    <span class="material-icons">schedule</span>Agendamentos
-                </a>
-                <a href="{{ url_for('send_broadcast') }}" class="{{ 'active' if request.endpoint == 'send_broadcast' else '' }}">
-                    <span class="material-icons">campaign</span>Broadcast
-                </a>
-            </nav>
-            <div class="sidebar-footer">
-                <a href="{{ url_for('logout') }}" style="color: var(--danger);">
-                    <span class="material-icons">logout</span>Sair
-                </a>
-            </div>
-        </aside>
-
-        <!-- Conteúdo Principal -->
-        <div class="main-content">
-            <header class="content-header">
-                <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
-                <button class="theme-toggle" id="themeToggle" title="Alterar tema">
-                    <span class="material-icons"></span>
-                </button>
-            </header>
-
-            <main class="content-area">
-                 <!-- Mensagens Flash (Alertas de Sucesso/Erro) -->
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        <div style="margin-bottom: 1.5rem;">
-                            {% for category, message in messages %}
-                                <div style="padding: 1rem; border-radius: 8px; font-size: 0.9rem; margin-bottom: 0.75rem; border: 1px solid transparent;
-                                    {% if category == 'success' %}
-                                        background-color: rgba(var(--success-rgb), 0.1); color: var(--success); border-color: rgba(var(--success-rgb), 0.2);
-                                    {% elif category == 'danger' %}
-                                        background-color: rgba(var(--danger-rgb), 0.1); color: var(--danger); border-color: rgba(var(--danger-rgb), 0.2);
-                                    {% else %}
-                                        background-color: rgba(var(--primary-rgb), 0.1); color: var(--primary); border-color: rgba(var(--primary-rgb), 0.2);
-                                    {% endif %}">
-                                    {{ message }}
-                                </div>
-                            {% endfor %}
-                        </div>
-                    {% endif %}
-                {% endwith %}
-
-                <!-- Bloco onde o conteúdo de cada página será injetado -->
-                {% block content %}{% endblock %}
-            </main>
-        </div>
-    </div>
-
-    <script>
-        // Script para o botão de troca de tema
-        const themeToggle = document.getElementById('themeToggle');
-        const themeIcon = themeToggle.querySelector('.material-icons');
-        const body = document.body;
-
-        function applyTheme(theme) {
-            if (theme === 'dark') {
-                body.classList.add('dark');
-                themeIcon.textContent = 'light_mode';
-            } else {
-                body.classList.remove('dark');
-                themeIcon.textContent = 'dark_mode';
-            }
-        }
-
-        themeToggle.addEventListener('click', () => {
-            const isDark = body.classList.toggle('dark');
-            const newTheme = isDark ? 'dark' : 'light';
-            localStorage.setItem('theme', newTheme);
-            applyTheme(newTheme);
-        });
-
-        // Aplica o tema salvo ao carregar a página
-        const savedTheme = localStorage.getItem('theme') || 'light';
-        applyTheme(savedTheme);
-    </script>
-</body>
-</html>
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Painel{% endblock %} - SvBOT | Gestão de Vendas</title>
+    {# APENAS UM BLOCO 'title' AQUI #}
+    <title>{% block title %}Painel{% endblock %} - SvBOT | Gestão de Vendas</title> 
+    <!-- Fontes do Google -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    <!-- Ícones (Material Icons) -->
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <!-- Ícones (Font Awesome) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
         /* Definir cores para light mode */
