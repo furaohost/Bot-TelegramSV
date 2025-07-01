@@ -45,8 +45,12 @@
                         </td>
                         <td>{{ comunidade.created_at | datetimeformat }}</td>
                         <td style="text-align: center; white-space: nowrap;"> {# Centraliza os botões de ação e impede quebra de linha #}
+<<<<<<< HEAD
                             {# CORREÇÃO AQUI: 'cid' mudado para 'id' para corresponder à rota do Flask #}
                             <a href="{{ url_for('comunidades.editar', id=comunidade.id) }}" class="btn-action edit">
+=======
+                            <a href="{{ url_for('comunidades.editar_comunidade', id=comunidade.id) }}" class="btn-action edit">
+>>>>>>> f253b3805e1fa48d6d5c1a1ea980efa6ace4369a
                                 Editar
                             </a>
                             {# CORREÇÃO AQUI: 'cid' mudado para 'id' para corresponder à rota do Flask #}
