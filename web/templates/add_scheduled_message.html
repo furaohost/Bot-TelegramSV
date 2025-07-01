@@ -1,54 +1,41 @@
 {% extends "layout.html" %}
 
-{% block title %}Agendar Nova Mensagem - Bot Telegram{% endblock %}
+{% block title %}Agendar Nova Mensagem{% endblock %}
+{% block page_title %}Agendar Nova Mensagem{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-gray-100 flex items-center justify-center p-4 sm:p-6 lg:p-8">
-    <div class="w-full max-w-2xl bg-white shadow-xl rounded-lg p-6 sm:p-8">
-        <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-800 text-center mb-8">Agendar Nova Mensagem</h1>
+<div class="form-container">
+    <div class="card" style="max-width: 42rem; width: 100%;"> {# Adicionado max-width e width para simular 'max-w-2xl' #}
+        <h2 style="font-size: 1.5rem; text-align: center; margin-bottom: 1.5rem; color: var(--text);">Agendar Nova Mensagem</h2>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="mb-6 space-y-3">
-                    {% for category, message in messages %}
-                        <div class="p-4 rounded-lg text-sm {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}" role="alert">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
-
-        <form method="POST" action="{{ url_for('add_scheduled_message') }}" class="space-y-6">
+        <form method="POST" action="{{ url_for('add_scheduled_message') }}" class="form-grid">
             <div>
-                <label for="message_text" class="block text-gray-700 text-sm font-semibold mb-2">Texto da Mensagem:</label>
-                <textarea 
-                    id="message_text" 
-                    name="message_text" 
-                    rows="6" 
-                    required 
-                    class="form-textarea mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50 
-                           placeholder-gray-400 p-3" 
+                <label for="message_text" class="form-label">Texto da Mensagem:</label>
+                <textarea
+                    id="message_text"
+                    name="message_text"
+                    rows="6"
+                    required
+                    class="form-textarea"
                     placeholder="Digite o conteúdo da mensagem aqui...">{{ message_text_val | default('') }}</textarea>
-                <p class="text-xs text-gray-500 mt-1">Utilize Markdown para formatação (ex: *negrito*, _itálico_, `código`).</p>
+                <p class="form-hint">Utilize Markdown para formatação (ex: *negrito*, _itálico_, `código`).</p>
             </div>
 
             <div>
-                <label for="image_url" class="block text-gray-700 text-sm font-semibold mb-2">URL da Imagem (Opcional):</label>
-                <input 
-                    type="url" 
-                    id="image_url" 
-                    name="image_url" 
-                    class="form-input mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50 
-                           placeholder-gray-400 p-3" 
+                <label for="image_url" class="form-label">URL da Imagem (Opcional):</label>
+                <input
+                    type="url"
+                    id="image_url"
+                    name="image_url"
+                    class="form-input"
                     placeholder="Ex: https://seusite.com/imagem.jpg"
                     value="{{ image_url_val | default('') }}">
-                <p class="text-xs text-gray-500 mt-1">A imagem será enviada junto com a mensagem, se fornecida.</p>
+                <p class="form-hint">A imagem será enviada junto com a mensagem, se fornecida.</p>
             </div>
 
             <div>
-                <label for="target_chat_id" class="block text-gray-700 text-sm font-semibold mb-2">Enviar para:</label>
-                <select id="target_chat_id" name="target_chat_id" class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50 p-3">
+                <label for="target_chat_id" class="form-label">Enviar para:</label>
+                <select id="target_chat_id" name="target_chat_id" class="form-select">
                     <option value="all_users" {% if target_chat_id_val == 'all_users' or target_chat_id_val == none %}selected{% endif %}>Todos os Usuários</option>
                     {% for user in users %}
                         <option value="{{ user.id }}" {% if target_chat_id_val and target_chat_id_val == user.id %}selected{% endif %}>
@@ -56,26 +43,26 @@
                         </option>
                     {% endfor %}
                 </select>
-                <p class="text-xs text-gray-500 mt-1">Selecione um usuário específico ou 'Todos os Usuários' para um broadcast.</p>
-            </div>
-            
-            <div>
-                <label for="schedule_time" class="block text-gray-700 text-sm font-semibold mb-2">Horário de Agendamento:</label>
-                <input 
-                    type="datetime-local" 
-                    id="schedule_time" 
-                    name="schedule_time" 
-                    required 
-                    class="form-input mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50 p-3"
-                    value="{{ schedule_time_str_val | default(datetime.now().strftime('%Y-%m-%dT%H:%M')) }}">
-                <p class="text-xs text-gray-500 mt-1">A mensagem será enviada na data e hora especificadas (fuso horário do servidor).</p>
+                <p class="form-hint">Selecione um usuário específico ou 'Todos os Usuários' para um broadcast.</p>
             </div>
 
-            <div class="flex flex-col sm:flex-row justify-end space-y-4 sm:space-y-0 sm:space-x-4 pt-4">
-                <a href="{{ url_for('scheduled_messages') }}" class="w-full sm:w-auto px-6 py-3 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 text-center">
+            <div>
+                <label for="schedule_time" class="form-label">Horário de Agendamento:</label>
+                <input
+                    type="datetime-local"
+                    id="schedule_time"
+                    name="schedule_time"
+                    required
+                    class="form-input"
+                    value="{{ schedule_time_str_val | default(datetime.now().strftime('%Y-%m-%dT%H:%M')) }}">
+                <p class="form-hint">A mensagem será enviada na data e hora especificadas (fuso horário do servidor).</p>
+            </div>
+
+            <div class="form-actions">
+                <a href="{{ url_for('scheduled_messages') }}" class="btn btn-secondary">
                     Cancelar
                 </a>
-                <button type="submit" class="w-full sm:w-auto inline-flex justify-center py-3 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                <button type="submit" class="btn btn-primary">
                     Agendar Mensagem
                 </button>
             </div>
@@ -86,21 +73,20 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Pré-preenche o campo de data e hora com o horário atual + 5 minutos
-        // Isso ajuda a evitar que o usuário agende no passado por engano e torna mais intuitivo
         const scheduleTimeInput = document.getElementById('schedule_time');
-        const now = new Date();
-        now.setMinutes(now.getMinutes() + 5); // Adiciona 5 minutos
-        
-        // Formata para 'YYYY-MM-DDTHH:MM'
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        const formattedDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
-
         // Só atualiza se o campo não tiver um valor predefinido pelo backend (ex: erro de validação)
         if (!scheduleTimeInput.value) {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() + 5); // Adiciona 5 minutos
+
+            // Formata para 'YYYY-MM-DDTHH:MM'
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const formattedDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+
             scheduleTimeInput.value = formattedDateTime;
         }
     });
