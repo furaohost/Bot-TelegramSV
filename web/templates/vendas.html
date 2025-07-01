@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 
 {% block title %}Vendas{% endblock %}
-{% block page_title %}Histórico de vendas com Filtro{% endblock %} {# Title for the main header #}
+{% block page_title %}Histórico de Vendas{% endblock %} {# Title for the main header #}
 
 {% block content %}
 <div class="dashboard-content-wrapper"> {# Uses the dashboard wrapper for centering and width #}
@@ -11,15 +11,18 @@
         <p class="section-description">Filtre e visualize todas as transações do seu bot.</p> {# Using section-description #}
     </div>
 
+    <!-- Seção de Filtros Avançados -->
     <div class="card mb-8"> {# Using 'card' for the filter section #}
         <h3 class="section-subtitle" style="margin-bottom: 1.5rem;">Filtros de Vendas</h3>
         <form id="filterForm" method="GET" action="{{ url_for('vendas') }}" class="form-grid-filter">
             
+            <!-- Campo de Pesquisa -->
             <div>
                 <label for="pesquisa" class="form-label">Pesquisar</label>
                 <input type="text" name="pesquisa" id="pesquisa" value="{{ request.args.get('pesquisa', '') }}" class="form-input" placeholder="Nome, @usuario ou produto...">
             </div>
 
+            <!-- Filtro por Produto -->
             <div>
                 <label for="produto_id" class="form-label">Produto</label>
                 <select id="produto_id" name="produto_id" class="form-select">
@@ -30,6 +33,7 @@
                 </select>
             </div>
 
+            <!-- Filtro por Status -->
             <div>
                 <label for="status" class="form-label">Status</label>
                 <select id="status" name="status" class="form-select">
@@ -41,6 +45,7 @@
                 </select>
             </div>
             
+            <!-- Filtro por Data Específica -->
             <div>
                 <label for="data_inicio" class="form-label">De:</label>
                 <input type="date" name="data_inicio" id="data_inicio" value="{{ request.args.get('data_inicio', '') }}" class="form-input">
@@ -50,6 +55,7 @@
                 <input type="date" name="data_fim" id="data_fim" value="{{ request.args.get('data_fim', '') }}" class="form-input">
             </div>
 
+            <!-- Botão de Limpar -->
             <div class="form-filter-actions">
                 <a href="{{ url_for('vendas') }}" class="btn btn-secondary btn-full-width">Limpar Filtros</a>
             </div>
@@ -105,7 +111,8 @@
     </div>
 </div>
 
-<div id="details-modal" class="modal-overlay hidden"> {# Certifique-se de que a classe 'hidden' está aqui por padrão #}
+<!-- Modal de Detalhes -->
+<div id="details-modal" class="modal-overlay hidden"> {# A classe 'hidden' é crucial aqui para que o modal comece escondido #}
     <div class="modal-content">
         <div class="modal-header">
             <h3 id="modal-title" class="modal-title">Detalhes da Venda</h3>
@@ -172,12 +179,10 @@
         // Lógica do Modal
         const modal = document.getElementById('details-modal');
         const closeModalButton = document.getElementById('close-modal-button');
-        // Não precisamos de querySelectorAll para openModalButtons aqui, pois o evento é delegado.
-        // openModalButtons será usado no event listener delegado do tableBody
 
         const closeModal = () => {
-            modal.classList.add('hidden');
-            document.body.style.overflow = ''; // Restore scroll
+            modal.classList.add('hidden'); // Adiciona a classe 'hidden' para esconder o modal
+            document.body.style.overflow = ''; // Restaura o scroll do corpo da página
         }
         closeModalButton.addEventListener('click', closeModal);
         modal.addEventListener('click', (event) => {
@@ -189,22 +194,6 @@
         
         const openModal = async (vendaId) => {
             try {
-                // Aqui é CRÍTICO: Sua rota Flask 'venda_detalhes' DEVE retornar JSON com os dados da venda.
-                // Exemplo de rota Flask:
-                // @app.route('/venda_detalhes/<int:venda_id>')
-                // def venda_detalhes(venda_id):
-                //     venda = Venda.query.get(venda_id) # Ou como você busca a venda
-                //     if not venda:
-                //         return jsonify({'error': 'Venda não encontrada'}), 404
-                //     # Certifique-se de que os dados são serializáveis para JSON
-                //     return jsonify({
-                //         'preco': venda.preco,
-                //         'payment_id': venda.payment_id,
-                //         'payer_name': venda.payer_name,
-                //         'payer_email': venda.payer_email,
-                //         # Adicione outros campos que você precise no modal
-                //     })
-
                 const response = await fetch(`/venda_detalhes/${vendaId}`);
                 if (!response.ok) {
                     const errorData = await response.json();
@@ -218,8 +207,8 @@
                 document.getElementById('modal-payer-name').textContent = data.payer_name || 'N/A';
                 document.getElementById('modal-payer-email').textContent = data.payer_email || 'N/A';
                 
-                modal.classList.remove('hidden'); // Show the modal
-                document.body.style.overflow = 'hidden'; // Prevent scroll on body when modal is open
+                modal.classList.remove('hidden'); // Remove a classe 'hidden' para mostrar o modal
+                document.body.style.overflow = 'hidden'; // Impede o scroll no corpo da página quando o modal está aberto
             } catch (error) {
                 console.error("Erro ao buscar detalhes da venda:", error);
                 alert('Não foi possível carregar os detalhes da venda: ' + error.message);
@@ -236,4 +225,3 @@
         });
     });
 </script>
-{% endblock %}
