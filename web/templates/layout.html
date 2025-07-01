@@ -3,16 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    {# APENAS UM BLOCO 'title' AQUI #}
     <title>{% block title %}Painel{% endblock %} - SvBOT | Gestão de Vendas</title> 
-    <!-- Fontes do Google -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
-    <!-- Ícones (Material Icons) -->
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <!-- Ícones (Font Awesome) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
-        /* Definir cores para light mode */
         :root {
             --primary: #4F46E5;
             --primary-dark: #4338CA;
@@ -28,12 +23,10 @@
             --danger: #EF4444;
             --info: #3B82F6;
 
-            /* Cores de card para o dashboard (light) */
             --dashboard-card-blue: #E0F2FE;
             --dashboard-card-green: #D1FAE5;
             --dashboard-card-purple: #EDE9FE;
 
-            /* Helpers para pegar cores RGB de variáveis (usado no JS para rgba) */
             --primary-rgb: 79, 70, 229;
             --success-rgb: 16, 185, 129;
             --warning-rgb: 245, 158, 11;
@@ -44,28 +37,25 @@
             --card-bg-rgb: 255, 255, 255;
         }
 
-        /* Dark mode colors - EXATAMENTE COMO NA SUA IMAGEM */
         [data-theme="dark"] {
-            --primary: #6366F1; /* Azul vibrante para elementos interativos */
-            --primary-dark: #4F46E5; /* Versão mais escura da primária */
-            --text: #E5E7EB; /* Texto padrão (quase branco) */
-            --text-light: #9CA3AF; /* Texto secundário (cinza claro) */
-            --bg: #111827; /* Fundo principal, azul muito escuro */
-            --card-bg: #1F2937; /* Fundo dos cards/elementos, um pouco mais claro que o bg */
-            --sidebar-bg: #111827; /* Fundo da sidebar, igual ao bg */
-            --border: #374151; /* Cor da borda, cinza escuro */
-            --success: #34D399; /* Verde para sucesso */
-            --warning: #FBBF24; /* Amarelo para aviso */
-            --shadow: 0 4px 12px rgba(0,0,0,0.3); /* Sombra mais visível no modo escuro */
-            --danger: #DC2626; /* Vermelho para erro/perigo */
-            --info: #60A5FA; /* Azul para informação */
+            --primary: #6366F1;
+            --primary-dark: #4F46E5;
+            --text: #E5E7EB;
+            --text-light: #9CA3AF;
+            --bg: #111827;
+            --card-bg: #1F2937;
+            --sidebar-bg: #111827;
+            --border: #374151;
+            --success: #34D399;
+            --warning: #FBBF24;
+            --shadow: 0 4px 12px rgba(0,0,0,0.3);
+            --danger: #DC2626;
+            --info: #60A5FA;
 
-            /* Cores de card para o dashboard (dark) - ESTAS SÃO CRUCIAIS PARA OS CARDS DO DASHBOARD */
-            --dashboard-card-blue: #1C2B47; /* Azul escuro para card de usuários */
-            --dashboard-card-green: #1B3F38; /* Verde escuro para card de produtos */
-            --dashboard-card-purple: #2F2447; /* Roxo escuro para card de receita */
+            --dashboard-card-blue: #1C2B47;
+            --dashboard-card-green: #1B3F38;
+            --dashboard-card-purple: #2F2447;
 
-            /* Helpers para pegar cores RGB de variáveis (usado no JS para rgba) */
             --primary-rgb: 99, 102, 241;
             --success-rgb: 52, 211, 153;
             --warning-rgb: 251, 191, 36;
@@ -96,7 +86,6 @@
             color: var(--text);
         }
 
-        /* Animação para a logo (aplicada ao SVG) */
         @keyframes bounce-and-spin {
             0%, 100% { transform: translateY(0) rotate(0deg); }
             25% { transform: translateY(-2px) rotate(8deg); }
@@ -111,17 +100,15 @@
             animation: bounce-and-spin 1s ease-in-out infinite;
         }
 
-        /* Layout */
         .dashboard {
             display: grid;
             grid-template-columns: 240px 1fr;
             min-height: 100vh;
         }
 
-        /* Sidebar */
         .sidebar {
             background: var(--sidebar-bg);
-            box-shadow: 1px 0 10px rgba(0,0,0,0.05); /* Sombra para light mode, em dark pode ser mais sutil */
+            box-shadow: 1px 0 10px rgba(0,0,0,0.05);
             padding: 1.5rem;
             transition: all 0.3s ease;
             display: flex;
@@ -132,17 +119,17 @@
         .logo {
             font-family: 'Inter', sans-serif;
             font-weight: 700;
-            font-size: 1.1rem; /* AJUSTADO: Fonte menor para o texto "SvBOT" */
+            font-size: 1.1rem;
             color: var(--primary);
             margin-bottom: 2rem;
             display: flex;
             align-items: center;
-            gap: 6px; /* AJUSTADO: Espaçamento menor entre ícone e texto */
+            gap: 6px;
         }
 
         .telegram-plane {
-            width: 24px; /* AJUSTADO: Largura menor do SVG */
-            height: 24px; /* AJUSTADO: Altura menor do SVG */
+            width: 24px;
+            height: 24px;
             fill: var(--primary);
         }
 
@@ -162,19 +149,18 @@
             padding: 0.75rem;
             border-radius: 6px;
             text-decoration: none;
-            color: var(--text-light); /* Cor padrão do link é text-light */
+            color: var(--text-light);
             transition: all 0.2s;
         }
 
         .nav-link:hover, .nav-link.active {
             background-color: var(--border);
-            color: var(--primary); /* Texto do link ativo/hover é primary */
+            color: var(--primary);
         }
         .nav-link.active .material-icons, .nav-link.active .fas {
             color: var(--primary);
         }
 
-        /* User Info na Sidebar */
         .user-info {
             margin-top: auto;
             padding-top: 1.5rem;
@@ -187,7 +173,6 @@
             margin-top: 0.25rem;
         }
 
-        /* Main Content */
         .main-content {
             padding: 2rem;
             overflow-x: auto;
@@ -202,15 +187,13 @@
             gap: 1rem;
         }
 
-        /* ATENÇÃO: page-title agora é um bloco para injeção do template filho */
         .page-title {
             font-size: 1.75rem;
-            font-weight: 600; /* Certifica-se de que o estilo é aplicado */
-            color: var(--text); /* Garante a cor correta */
-            margin-bottom: 0; /* Para evitar espaçamento extra se estiver em um flex container */
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 0;
         }
 
-        /* Theme Toggle */
         .theme-toggle {
             display: flex;
             align-items: center;
@@ -231,7 +214,6 @@
             font-size: 1.2rem;
         }
 
-        /* Cards Gerais (para dashboard e outros lugares) */
         .cards-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -259,7 +241,6 @@
             font-family: 'Inter', sans-serif;
         }
 
-        /* Cards de Métricas do Dashboard com Cores Específicas */
         .metric-card {
             padding: 1.5rem;
             border-radius: 8px;
@@ -291,11 +272,10 @@
             color: var(--primary);
         }
 
-        /* Seções dentro do dashboard/cards */
         .welcome-card {
             margin-bottom: 2rem;
         }
-        .section-title { /* Geralmente H2s para títulos de seção dentro dos cards */
+        .section-title {
             font-size: 1.5rem;
             font-weight: 600;
             color: var(--text);
@@ -305,7 +285,7 @@
             color: var(--text-light);
             margin-bottom: 1rem;
         }
-        .section-subtitle { /* Geralmente H3s para subtítulos de seções */
+        .section-subtitle {
             font-size: 1.25rem;
             font-weight: 600;
             color: var(--text);
@@ -338,7 +318,6 @@
         }
 
 
-        /* Tabela */
         .data-table {
             width: 100%;
             background: var(--card-bg);
@@ -400,7 +379,6 @@
         }
 
 
-        /* Botões */
         .btn {
             padding: 0.5rem 1rem;
             border-radius: 6px;
@@ -435,13 +413,11 @@
             background-color: var(--bg);
         }
 
-        /* Botão pequeno para "Aplicar" no seletor de período */
         .btn-small {
             padding: 0.375rem 0.75rem;
             font-size: 0.875rem;
         }
 
-        /* Botões de Ação na Tabela (Editar/Deletar) - Pequenos */
         .btn-action {
             padding: 0.3rem 0.6rem;
             font-size: 0.75rem;
@@ -464,7 +440,6 @@
         .btn-action.delete:hover {
             background-color: #B91C1C;
         }
-        /* Para o botão de ativar/detalhes em usuários/vendas */
         .btn-action.success {
             background-color: var(--success);
             color: white;
@@ -472,7 +447,7 @@
         .btn-action.success:hover {
             background-color: #059669;
         }
-        .btn-action.primary { /* Para o botão Detalhes na tabela de vendas */
+        .btn-action.primary {
             background-color: var(--primary);
             color: white;
         }
@@ -481,7 +456,6 @@
         }
 
 
-        /* Mobile Menu */
         .mobile-menu-btn {
             display: none;
             background: none;
@@ -491,7 +465,6 @@
             cursor: pointer;
         }
 
-        /* Formulários */
         .form-container {
             display: flex;
             justify-content: center;
@@ -550,7 +523,6 @@
             padding-top: 1rem;
             justify-content: flex-end;
         }
-        /* New for form buttons */
         @media (min-width: 640px) {
             .form-actions {
                 flex-direction: row;
@@ -560,7 +532,7 @@
                 width: auto;
             }
         }
-        .btn-icon { /* For buttons with material icons, like 'Adicionar Produto' */
+        .btn-icon {
             padding: 0.75rem 1.25rem;
         }
         .btn-icon .material-icons {
@@ -568,32 +540,29 @@
             font-size: 1.2rem;
         }
 
-        /* Layout para formulários que aparecem/desaparecem (produtos.html) */
         .form-card-hidden {
             display: none;
         }
         .form-card-visible {
             display: block;
-            max-width: 42rem; /* Simula max-w-2xl */
+            max-width: 42rem;
             width: 100%;
             margin-left: auto;
             margin-right: auto;
-            margin-bottom: 2rem; /* mb-8 */
+            margin-bottom: 2rem;
         }
-        .inline-form { /* Para formulários de deletar inline */
+        .inline-form {
             display: inline-block;
-            margin-left: 0.5rem; /* Adiciona um pequeno espaço entre o botão de editar e o formulário */
+            margin-left: 0.5rem;
         }
 
 
-        /* Layout para o dashboard content wrapper (similar a max-w-7xl) */
         .dashboard-content-wrapper {
             max-width: 1200px;
             margin-left: auto;
             margin-right: auto;
         }
 
-        /* Grid de 2 colunas para md (tabelas de métricas, etc.) */
         .grid-2-cols-md {
             display: grid;
             grid-template-columns: 1fr;
@@ -608,7 +577,7 @@
         .gap-form {
             gap: 1rem;
         }
-        .card-inner-padded { /* Para cards menores dentro de grids, como as métricas de período */
+        .card-inner-padded {
             padding: 1rem;
             background-color: var(--sidebar-bg);
             border-radius: 8px;
@@ -625,7 +594,6 @@
             margin-bottom: 0;
         }
 
-        /* Seletor de período e inputs de data (inline) */
         .flex-wrap-gap-row-center {
             display: flex;
             flex-wrap: wrap;
@@ -662,7 +630,6 @@
             gap: 0.5rem;
         }
 
-        /* Classes para painéis de gráfico */
         .charts-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -711,7 +678,6 @@
             grid-column: span 2 / span 2;
         }
 
-        /* Container da tabela para scroll */
         .table-container {
             overflow-x: auto;
             overflow-y: auto;
@@ -721,28 +687,26 @@
             box-shadow: var(--shadow);
             background-color: var(--card-bg);
         }
-        .table-listing-card { /* Para a tabela principal de listagem, como em produtos.html */
+        .table-listing-card {
             margin-bottom: 2rem;
         }
-        /* Para células de texto que podem ser longas e precisam de truncagem */
         .truncated-text-cell {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 250px; /* Ajuste conforme necessário para o espaço da coluna */
+            max-width: 250px;
             display: inline-block;
             vertical-align: middle;
         }
-        .truncated-link { /* Para links truncados como em produtos.html */
+        .truncated-link {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 200px; /* Ajuste conforme necessário */
+            max-width: 200px;
             display: inline-block;
         }
 
 
-        /* Estilos do Modal (de vendas.html) */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -851,7 +815,6 @@
             }
         }
 
-        /* Estilos do Send Broadcast */
         .preview-section {
             border-top: 1px solid var(--border);
             padding-top: 1.5rem;
@@ -895,7 +858,6 @@
             line-height: 1.5;
         }
 
-        /* Filtros de Vendas */
         .form-grid-filter {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
