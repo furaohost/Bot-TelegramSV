@@ -77,7 +77,7 @@ def register_produtos_handlers(bot_instance: telebot.TeleBot, get_db_connection_
     # ------------------------------------------------------------------
     @bot_instance.message_handler(func=lambda message: message.text and "🔥 melhores vips" in message.text.lower())
     def handle_show_melhores_vips(message: Message):
-        logger.debug(f"Handler 'handle_show_melhores_vips' acionado por: {message.text}")
+        logger.debug(f"HANDLER ACIONADO: 'handle_show_melhores_vips' acionado pelo texto: '{message.text}'") # NOVO LOG
         mostrar_produtos_bot(message.chat.id)
 
     # ------------------------------------------------------------------
