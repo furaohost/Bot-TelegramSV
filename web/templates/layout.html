@@ -96,17 +96,17 @@
         .logo {
             font-family: 'Inter', sans-serif;
             font-weight: 700;
-            font-size: 1.5rem;
+            font-size: 1.3rem; /* CORRIGIDO: Ajustado o tamanho da fonte do texto "SvBOT" */
             color: var(--primary);
             margin-bottom: 2rem;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px; /* CORRIGIDO: Espaçamento menor entre ícone e texto */
         }
 
-        .telegram-plane { /* Manter estilo para o SVG */
-            width: 32px;
-            height: 32px;
+        .telegram-plane {
+            width: 28px; /* CORRIGIDO: Novo tamanho da largura do SVG */
+            height: 28px; /* CORRIGIDO: Novo tamanho da altura do SVG */
             fill: var(--primary);
             /* Removido transition e transform: translateY para não conflitar com animated-logo-svg */
         }
@@ -282,6 +282,17 @@
             background-color: var(--primary-dark);
         }
 
+        /* CORRIGIDO: Novo estilo para o botão secundário (Cancelar) */
+        .btn-secondary {
+            background-color: var(--card-bg);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--bg);
+        }
+
         /* Mobile Menu */
         .mobile-menu-btn {
             display: none;
@@ -291,6 +302,92 @@
             font-size: 1.5rem;
             cursor: pointer;
         }
+
+        /* CORRIGIDO: Formulários */
+        .form-container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Alinhar ao topo, não centralizar verticalmente na tela toda */
+            padding: 1.5rem; /* Ajuste o padding conforme necessário */
+            /* Min-height para garantir que o contêiner do formulário tenha altura suficiente e o footer não suba */
+            min-height: calc(100vh - 4rem - 2rem); /* Altura mínima para o conteúdo principal - header - padding */
+        }
+
+        @media (max-width: 768px) {
+            .form-container {
+                padding: 1rem;
+            }
+        }
+
+        .form-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem; /* Espaçamento entre os blocos de input/select */
+        }
+
+        .form-label {
+            display: block;
+            color: var(--text);
+            font-size: 0.875rem; /* 14px */
+            font-weight: 600; /* semibold */
+            margin-bottom: 0.5rem; /* 8px */
+        }
+
+        .form-input,
+        .form-textarea,
+        .form-select {
+            display: block;
+            width: 100%;
+            padding: 0.75rem 1rem; /* p-3 no tailwind é 12px de padding */
+            border-radius: 6px; /* rounded-md */
+            border: 1px solid var(--border); /* border-gray-300 */
+            box-shadow: var(--shadow); /* shadow-sm */
+            background-color: var(--card-bg); /* Garante que o fundo do input/select mude com o tema */
+            color: var(--text); /* Garante que o texto do input/select mude com o tema */
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .form-input:focus,
+        .form-textarea:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--primary); /* focus:border-indigo-500 */
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2); /* focus:ring com rgba para opacidade */
+        }
+
+        .form-textarea {
+            resize: vertical; /* Permite redimensionar verticalmente */
+        }
+
+        .form-input::placeholder,
+        .form-textarea::placeholder {
+            color: var(--text-light); /* placeholder-gray-400 */
+        }
+
+        .form-hint {
+            font-size: 0.75rem; /* text-xs */
+            color: var(--text-light); /* text-gray-500 */
+            margin-top: 0.25rem; /* mt-1 */
+        }
+
+        .form-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem; /* Espaçamento entre os botões */
+            padding-top: 1rem; /* pt-4 */
+            justify-content: flex-end; /* Alinha botões à direita */
+        }
+
+        @media (min-width: 640px) { /* sm:flex-row para botões lado a lado */
+            .form-actions {
+                flex-direction: row;
+                gap: 1rem; /* space-x-4 */
+            }
+            .form-actions .btn {
+                width: auto; /* sm:w-auto */
+            }
+        }
+        /* FIM DAS CORREÇÕES E ADIÇÕES DE CSS DE FORMULÁRIO */
 
         /* Responsividade */
         @media (max-width: 768px) {
@@ -403,7 +500,7 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="{{ url_for('produtos') }}" class="nav-link {% if request.endpoint == 'produtos' or request.endpoint == 'editar_produto' or request.endpoint == 'adicionar_produto' %}active{% endif %}"> {# Adicionado 'adicionar_produto' #}
+                    <a href="{{ url_for('produtos') }}" class="nav-link {% if request.endpoint == 'produtos' or request.endpoint == 'editar_produto' or request.endpoint == 'adicionar_produto' %}active{% endif %}">
                         <span class="material-icons">inventory</span>
                         Produtos
                     </a>
@@ -455,7 +552,7 @@
             {# Informações do Usuário - Parte inferior da sidebar #}
             <div class="user-info">
                 <p>Logado como:</p>
-                <p style="color: var(--warning); font-weight: 600;">{{ session.username if session.username else 'Convidado' }}</p> {# Adicionado fallback 'Convidado' #}
+                <p style="color: var(--warning); font-weight: 600;">{{ session.username if session.username else 'Convidado' }}</p>
             </div>
         </aside>
 
@@ -469,7 +566,7 @@
                 </div>
                 {# Botão de Troca de Tema #}
                 <button class="theme-toggle" id="themeToggle">
-                    <span class="material-icons theme-icon"></span> {# Ícone inicial vazio, será preenchido pelo JS #}
+                    <span class="material-icons theme-icon"></span>
                 </button>
             </div>
 
@@ -480,7 +577,7 @@
                         {% for category, message in messages %}
                             <div style="padding: 1rem; border-radius: 8px; font-size: 0.875rem; margin-bottom: 0.5rem;
                                 {% if category == 'success' %}background-color: rgba(16, 185, 129, 0.1); color: var(--success);
-                                {% elif category == 'danger' %}background-color: rgba(239, 68, 68, 0.1); color: var(--danger); /* Usando variável CSS */
+                                {% elif category == 'danger' %}background-color: rgba(239, 68, 68, 0.1); color: var(--danger);
                                 {% else %}background-color: rgba(99, 102, 241, 0.1); color: var(--primary);{% endif %}">
                                 {{ message }}
                             </div>
