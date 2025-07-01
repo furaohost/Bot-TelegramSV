@@ -75,7 +75,7 @@
                     <tr>
                         <td style="padding-left: 1.5rem;">{{ venda.data_venda | datetimeformat }}</td>
                         <td>{{ venda.first_name }} (@{{ venda.username }})</td>
-                        <td>{{ venda.nome_produto }}</td> {# CORREÇÃO AQUI: era venda.nome, mas o SELECT no app.py retorna nome_produto #}
+                        <td>{{ venda.nome_produto }}</td>
                         <td>R$ {{ "%.2f"|format(venda.preco) }}</td>
                         <td>
                             <span class="status
@@ -101,8 +101,9 @@
     </div>
 </div>
 
-<div id="details-modal" class="modal-overlay hidden"> {# A classe 'hidden' é crucial aqui para que o modal comece escondido #}
-    <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"> {# Esta div é o wrapper interno do modal #}
+{# Adicionando display: none; inline para garantir que o modal não apareça ao carregar #}
+<div id="details-modal" class="modal-overlay" style="display: none;">
+    <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
         <div class="modal-content">
             <div class="modal-header">
                 <h3 id="modal-title" class="modal-title">Detalhes da Venda</h3>
@@ -118,27 +119,69 @@
             <div class="modal-footer">
                 <button type="button" id="close-modal-button" class="btn btn-secondary">Fechar</button>
             </div>
-        </div> {# Fechamento da div do modal-content #}
-    </div> {# Fechamento da div do flex items-end justify-center #}
-</div> {# Fechamento da div do modal-overlay #}
+        </div>
+    </div>
+</div>
 
-{# Este script deve estar dentro do bloco content ou em um bloco de scripts dedicado no layout #}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('filterForm');
         const tableBody = document.getElementById('vendas-table-body');
-        const modal = document.getElementById('details-modal'); // Get modal element
-        const closeModalButton = document.getElementById('close-modal-button'); // Get close button
+        const modal = document.getElementById('details-modal');
+        const closeModalButton = document.getElementById('close-modal-button');
 
-        // Function to ensure the modal is hidden
-        const ensureModalHidden = () => {
-            modal.classList.add('hidden');
-            document.body.style.overflow = ''; // Ensure body scroll is restored
+        // FUNÇÃO PARA FECHAR O MODAL
+        const closeModal = () => {
+            modal.style.display = 'none'; // Altera para display: none;
+            document.body.style.overflow = ''; // Restaura o scroll do corpo da página
         };
 
-        // Call ensureModalHidden immediately on DOMContentLoaded
-        ensureModalHidden();
+        // FUNÇÃO PARA ABRIR O MODAL
+        const openModal = async (vendaId) => {
+            try {
+                const response = await fetch(`/venda_detalhes/${vendaId}`);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Venda não encontrada');
+                }
+                const data = await response.json();
 
+                const formattedPrice = data.preco ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.preco) : 'N/A';
+                document.getElementById('modal-valor').textContent = formattedPrice;
+                document.getElementById('modal-payment-id').textContent = data.payment_id || 'N/A';
+                document.getElementById('modal-payer-name').textContent = data.payer_name || 'N/A';
+                document.getElementById('modal-payer-email').textContent = data.payer_email || 'N/A';
+
+                modal.style.display = 'flex'; // Altera para display: flex; para mostrar o modal
+                document.body.style.overflow = 'hidden'; // Impede o scroll no corpo da página quando o modal está aberto
+            } catch (error) {
+                console.error("Erro ao buscar detalhes da venda:", error);
+                alert('Não foi possível carregar os detalhes da venda: ' + error.message);
+                closeModal(); // Garante que o modal feche em caso de erro
+            }
+        };
+
+        // EVENT LISTENERS
+
+        // Event listener para o botão de fechar do modal
+        closeModalButton.addEventListener('click', closeModal);
+
+        // Event listener para fechar o modal clicando fora do conteúdo (no overlay)
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) {
+                closeModal();
+            }
+        });
+
+        // Event listener para os botões "Detalhes" na tabela (delegação de evento)
+        tableBody.addEventListener('click', (event) => {
+            const button = event.target.closest('.open-modal-button');
+            if (button) {
+                openModal(button.dataset.id);
+            }
+        });
+
+        // Lógica de filtro (existente)
         const debounce = (func, delay) => {
             let timeout;
             return function(...args) {
@@ -177,53 +220,6 @@
                 debouncedUpdate();
             });
         });
-
-        // Lógica do Modal
-        const closeModal = () => {
-            modal.classList.add('hidden'); // Adiciona a classe 'hidden' para esconder o modal
-            document.body.style.overflow = ''; // Restaura o scroll do corpo da página
-        }
-
-        // Adiciona event listener ao botão de fechar
-        closeModalButton.addEventListener('click', closeModal);
-
-        // Adiciona event listener ao overlay do modal para fechar ao clicar fora do conteúdo
-        modal.addEventListener('click', (event) => {
-            if (event.target === modal) { // Verifica se o clique foi diretamente no overlay
-                closeModal();
-            }
-        });
-
-        const openModal = async (vendaId) => {
-            try {
-                const response = await fetch(`/venda_detalhes/${vendaId}`);
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Venda não encontrada');
-                }
-                const data = await response.json();
-
-                const formattedPrice = data.preco ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.preco) : 'N/A';
-                document.getElementById('modal-valor').textContent = formattedPrice;
-                document.getElementById('modal-payment-id').textContent = data.payment_id || 'N/A';
-                document.getElementById('modal-payer-name').textContent = data.payer_name || 'N/A';
-                document.getElementById('modal-payer-email').textContent = data.payer_email || 'N/A'; {# MUDANÇA AQUI: de volta para data.payer_email #}
-
-                modal.classList.remove('hidden'); // Remove a classe 'hidden' para mostrar o modal
-                document.body.style.overflow = 'hidden'; // Impede o scroll no corpo da página quando o modal está aberto
-            } catch (error) {
-                console.error("Erro ao buscar detalhes da venda:", error);
-                alert('Não foi possível carregar os detalhes da venda: ' + error.message);
-            }
-        };
-
-        // Delegated event listener for dynamically added rows in tableBody
-        tableBody.addEventListener('click', (event) => {
-            const button = event.target.closest('.open-modal-button');
-            if (button) {
-                openModal(button.dataset.id);
-            }
-        });
     });
 </script>
-{% endblock content %} {# ADICIONEI ESTA LINHA: FECHANDO O BLOCO CONTENT #}
+{% endblock content %}
