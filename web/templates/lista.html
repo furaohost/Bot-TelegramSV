@@ -1,82 +1,73 @@
 {% extends 'layout.html' %}
 
-{% block title %}Comunidades{% endblock %} {# Título da aba do navegador #}
-{% block page_title %}Gerenciar Comunidades{% endblock %} {# Título no header principal do dashboard #}
+{% block title %}Comunidades - Painel Administrativo{% endblock %}
 
 {% block content %}
-<div class="dashboard-content-wrapper"> {# Usa o wrapper do dashboard para centralizar e limitar largura #}
-    <div class="header" style="justify-content: space-between; align-items: center; margin-bottom: 2rem;"> {# Reutilizando header style para título e botão #}
-        <h2 class="page-title" style="margin-bottom: 0;">Gerenciar Comunidades</h2> {# Usando page-title style #}
-        <a href="{{ url_for('comunidades.nova') }}" class="btn btn-primary"> {# Assumindo que 'comunidades.nova' é a rota para adicionar uma nova #}
-            <span class="material-icons">add</span> {# Usando Material Icons para o símbolo de mais #}
-            Nova Comunidade
-        </a>
+<div class="container">
+    <h1 class="title">Gerenciamento de Comunidades</h1>
+
+    <div class="card">
+        <h2 class="subtitle">Adicionar Nova Comunidade</h2>
+        <form action="{{ url_for('comunidades.adicionar_comunidade') }}" method="POST">
+            <div class="form-group">
+                <label for="nome">Nome da Comunidade:</label>
+                <input type="text" id="nome" name="nome" required>
+            </div>
+            <div class="form-group">
+                <label for="descricao">Descrição (Opcional):</label>
+                <textarea id="descricao" name="descricao" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="chat_id">ID do Chat/Grupo Telegram (Opcional):</label>
+                <input type="text" id="chat_id" name="chat_id" placeholder="-1001234567890">
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Adicionar</button>
+            </div>
+        </form>
     </div>
 
-    {# Mensagens flash já são gerenciadas pelo layout.html, então este bloco é redundante aqui #}
-    {# Removido:
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div class="mb-4">
-                {% for category, message in messages %}
-                    <div class="p-3 rounded-md {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
-    #}
-
-    <div class="card"> {# Usando a classe 'card' para o contêiner da tabela #}
-        {% if comunidades %}
-        <div class="table-container"> {# Usa o 'table-container' para scroll e bordas #}
-            <table class="data-table"> {# Usa a classe 'data-table' #}
+    <div class="card">
+        <h2 class="subtitle">Comunidades Existentes</h2>
+        <div class="table-container">
+            <table>
                 <thead>
                     <tr>
                         <th>ID</th>
                         <th>Nome</th>
                         <th>Descrição</th>
                         <th>Chat ID</th>
-                        <th>Status</th>
-                        <th>Criado Em</th>
-                        <th style="text-align: center;">Ações</th> {# Centraliza o cabeçalho Ações #}
+                        <th>Ações</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for comunidade in comunidades %}
-                    <tr>
-                        <td>{{ comunidade.id }}</td>
-                        <td style="white-space: normal;">{{ comunidade.nome }}</td> {# Permite quebra de linha #}
-                        <td style="white-space: normal;">{{ comunidade.descricao | default('N/A', true) }}</td> {# Permite quebra de linha #}
-                        <td>{{ comunidade.chat_id | default('N/A', true) }}</td>
-                        <td>
-                            <span class="status
-                                {% if comunidade.status == 'ativa' %}status-success
-                                {% elif comunidade.status == 'inativa' %}status-danger {# Assumindo 'inativa' é um status #}
-                                {% else %}status-info{% endif %}"> {# Usa info para outros status desconhecidos #}
-                                {{ comunidade.status | capitalize }}
-                            </span>
-                        </td>
-                        <td>{{ comunidade.created_at | datetimeformat }}</td>
-                        <td style="text-align: center; white-space: nowrap;"> {# Centraliza os botões de ação e impede quebra de linha #}
-                            <a href="{{ url_for('comunidades.editar_comunidade', id=comunidade.id) }}" class="btn-action edit">
-                                Editar
-                            </a>
-                            <form action="{{ url_for('comunidades.deletar', cid=comunidade.id) }}" method="POST" class="inline-form" onsubmit="return confirm('Tem certeza que deseja desativar esta comunidade?');">
-                                <button type="submit" class="btn-action delete">
-                                    Desativar
-                                </button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
+                    {% if comunidades %}
+                        {% for comunidade in comunidades %}
+                        <tr>
+                            <td>{{ comunidade.id }}</td>
+                            <td>{{ comunidade.nome }}</td>
+                            <td>{{ comunidade.descricao | default('N/A', true) }}</td>
+                            <td>{{ comunidade.chat_id | default('N/A', true) }}</td>
+                            <td class="actions-cell">
+                                <a href="{{ url_for('comunidades.editar_comunidade', id=comunidade.id) }}" class="btn-action edit">
+                                    <i class="fas fa-edit"></i> Editar
+                                </a>
+                                <form action="{{ url_for('comunidades.deletar_comunidade', id=comunidade.id) }}" method="POST" class="inline" onsubmit="return confirm('Tem certeza que deseja deletar esta comunidade?');">
+                                    <button type="submit" class="btn-action delete">
+                                        <i class="fas fa-trash-alt"></i> Deletar
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="5" style="text-align: center;">Nenhuma comunidade encontrada.</td>
+                        </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>
-        {% else %}
-        <p class="text-light text-center" style="padding: 2rem;">Não há comunidades cadastradas ainda. <a href="{{ url_for('comunidades.nova') }}" class="text-primary hover-text-primary-dark">Crie uma nova</a>!</p> {# Usa text-light, text-primary, efeitos de hover #}
-        {% endif %}
     </div>
 </div>
 {% endblock %}
