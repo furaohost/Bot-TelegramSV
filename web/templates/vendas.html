@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 
 {% block title %}Vendas{% endblock %}
-{% block page_title %}Histórico de Vendas{% endblock %} {# Title for the main header #}
+{% block page_title %}Histórico de Vendas{% endblock %} {# Título para o cabeçalho principal #}
 
 {% block content %}
 <div class="dashboard-content-wrapper"> {# Uses the dashboard wrapper for centering and width #}
@@ -62,10 +62,10 @@
         </form>
     </div>
 
-    <div class="card table-listing-card"> {# Usa 'card' para o contêiner da tabela #}
+    <div class="card table-listing-card">
         {% if vendas %}
-        <div class="table-container"> {# Usa o 'table-container' para scroll e bordas #}
-            <table class="data-table"> {# Usa a classe 'data-table' #}
+        <div class="table-container">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th style="padding-left: 1.5rem;">Data</th>
@@ -97,11 +97,15 @@
                             <button type="button" data-id="{{ venda.id }}" class="btn-action primary open-modal-button">Detalhes</button>
                         </td>
                     </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-light text-center" style="padding: 2rem;">Nenhuma venda encontrada para os filtros selecionados.</td>
+                    </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
-        {% else %} {# AGORA ESTE ELSE ESTÁ DENTRO DO MESMO DIV DO IF #}
+        {% else %}
         <p class="text-light text-center" style="padding: 2rem;">Nenhuma venda encontrada para os filtros selecionados.</p>
         {% endif %}
     </div>
@@ -124,26 +128,16 @@
         <div class="modal-footer">
             <button type="button" id="close-modal-button" class="btn btn-secondary">Fechar</button>
         </div>
-        </div> {# <-- ADICIONADO: Fechamento da div do modal-content #}
-    </div> {# <-- ADICIONADO: Fechamento da div do modal-overlay #}
-</div> {# <-- ADICIONADO: Fechamento da div do modal #}
+    </div>
+</div>
 
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('filterForm');
         const tableBody = document.getElementById('vendas-table-body');
-        const modal = document.getElementById('details-modal'); // Get modal element
-        const closeModalButton = document.getElementById('close-modal-button'); // Get close button
-
-        // Function to ensure the modal is hidden
-        const ensureModalHidden = () => {
-            modal.classList.add('hidden');
-            document.body.style.overflow = ''; // Ensure body scroll is restored
-        };
-
-        // Call ensureModalHidden immediately on DOMContentLoaded
-        ensureModalHidden();
+        const modal = document.getElementById('details-modal');
+        const closeModalButton = document.getElementById('close-modal-button');
 
         const debounce = (func, delay) => {
             let timeout;
@@ -230,5 +224,10 @@
                 openModal(button.dataset.id);
             }
         });
+
+        // VERIFICAÇÃO INICIAL: Garante que o modal esteja escondido ao carregar a página
+        // Isso é crucial para que ele não apareça automaticamente.
+        modal.classList.add('hidden');
+        document.body.style.overflow = ''; // Garante que o scroll do body não esteja travado
     });
 </script>
