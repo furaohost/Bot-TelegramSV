@@ -1,171 +1,155 @@
 {% extends "layout.html" %}
 
-{% block title %}
-Gerenciar Produtos
-{% endblock %}
+{% block title %}Gerenciar Produtos{% endblock %}
+{% block page_title %}Gerenciar Produtos{% endblock %} {# Title for the main header #}
 
 {% block content %}
-<div class="min-h-screen bg-gray-100 p-4 sm:p-6 lg:p-8 rounded-lg shadow-inner"> {# Fundo da área de conteúdo principal #}
-    <div class="max-w-7xl mx-auto">
-        <div class="bg-white shadow-xl rounded-lg p-6 sm:p-8 mb-8 border border-gray-200"> {# Container principal da página #}
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-                <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-800 mb-4 sm:mb-0">Gerenciar Produtos</h1>
-                <button id="showAddFormBtn" class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transform transition duration-150 ease-in-out hover:scale-105">
-                    <svg class="-ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
-                    </svg>
-                    Adicionar Novo Produto
+<div class="dashboard-content-wrapper"> {# Uses the dashboard wrapper for centering and width #}
+
+    <div class="header" style="justify-content: space-between; align-items: center; margin-bottom: 2rem;"> {# Reusing header style for title and button #}
+        <h1 class="page-title" style="margin-bottom: 0;">Gerenciar Produtos</h1> {# Using page-title style #}
+        <button id="showAddFormBtn" class="btn btn-primary btn-icon"> {# btn-icon for button with icon #}
+            <span class="material-icons">add</span> {# Using Material Icons for the plus symbol #}
+            Adicionar Novo Produto
+        </button>
+    </div>
+
+    {# Flash messages are already handled by layout.html, so this block is redundant here. #}
+    {# Removed:
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="mb-6 space-y-3">
+                {% for category, message in messages %}
+                    <div class="p-4 rounded-lg text-sm {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+    #}
+
+    {# Formulário de Adição de Produto #}
+    <div id="addProductForm" class="card form-card-hidden"> {# Using 'card' and new 'form-card-hidden' class #}
+        <h2 class="section-title text-center" style="margin-bottom: 1.5rem;">Adicionar Novo Produto</h2>
+        <form action="{{ url_for('produtos') }}" method="POST" class="form-grid">
+            <div>
+                <label for="add_nome" class="form-label">Nome do Produto:</label>
+                <input type="text" name="nome" id="add_nome" required
+                       value="{{ request.args.get('nome_val', '') }}"
+                       class="form-input"
+                       placeholder="Ex: Nome do Produto">
+            </div>
+            <div>
+                <label for="add_preco" class="form-label">Preço:</label>
+                <input type="number" name="preco" id="add_preco" step="0.01" required
+                       value="{{ request.args.get('preco_val', '') }}"
+                       class="form-input"
+                       placeholder="Ex: 29.99">
+            </div>
+            <div>
+                <label for="add_link" class="form-label">Link do Produto (URL):</label>
+                <input type="url" name="link" id="add_link" required
+                       value="{{ request.args.get('link_val', '') }}"
+                       class="form-input"
+                       placeholder="Ex: https://link.do.seu.produto">
+            </div>
+            <div class="form-actions" style="margin-top: 1rem;">
+                <button type="button" id="cancelAddFormBtn" class="btn btn-secondary">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    Adicionar Produto
                 </button>
             </div>
+        </form>
+    </div>
 
-            {# Área para mensagens flash (sucesso/erro) - Estilo consistente com layout.html #}
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    <div class="mb-6 space-y-3">
-                        {% for category, message in messages %}
-                            <div class="p-4 rounded-lg text-sm {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}" role="alert">
-                                {{ message }}
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            {% endwith %}
-
-            {# Formulário de Adição de Produto #}
-            <div id="addProductForm" class="bg-white shadow-lg rounded-lg p-6 sm:p-8 mb-8 border border-gray-300" style="display: none;">
-                <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">Adicionar Novo Produto</h2>
-                <form action="{{ url_for('produtos') }}" method="POST" class="space-y-6"> {# Aponta para a rota 'produtos' que lida com POST #}
-                    <div>
-                        <label for="add_nome" class="block text-sm font-medium text-gray-700 mb-2">Nome do Produto:</label>
-                        <input type="text" name="nome" id="add_nome" required
-                               value="{{ request.args.get('nome_val', '') }}" 
-                               class="form-input mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50 p-2">
-                    </div>
-                    <div>
-                        <label for="add_preco" class="block text-sm font-medium text-gray-700 mb-2">Preço:</label>
-                        <input type="number" name="preco" id="add_preco" step="0.01" required
-                               value="{{ request.args.get('preco_val', '') }}" 
-                               class="form-input mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50 p-2">
-                    </div>
-                    <div>
-                        <label for="add_link" class="block text-sm font-medium text-gray-700 mb-2">Link do Produto (URL):</label>
-                        <input type="url" name="link" id="add_link" required
-                               value="{{ request.args.get('link_val', '') }}" 
-                               class="form-input mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50 p-2">
-                    </div>
-                    <div class="flex justify-end space-x-3 pt-4">
-                        <button type="button" id="cancelAddFormBtn" class="inline-flex justify-center py-2 px-6 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-150">
-                            Cancelar
-                        </button>
-                        <button type="submit"
-                                class="inline-flex justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-150">
-                            Adicionar Produto
-                        </button>
-                    </div>
-                </form>
+    {# Formulário de Edição de Produto #}
+    <div id="editProductForm" class="card form-card-hidden"> {# Using 'card' and 'form-card-hidden' class #}
+        <h2 class="section-title text-center" style="margin-bottom: 1.5rem;">Editar Produto</h2>
+        <form id="editProductActualForm" method="POST" class="form-grid">
+            <input type="hidden" name="produto_id" id="edit_produto_id">
+            
+            <div>
+                <label for="edit_nome" class="form-label">Nome do Produto:</label>
+                <input type="text" name="nome" id="edit_nome" required
+                       class="form-input"
+                       placeholder="Ex: Nome do Produto">
             </div>
-
-            {# Formulário de Edição de Produto #}
-            <div id="editProductForm" class="bg-white shadow-lg rounded-lg p-6 sm:p-8 mb-8 border border-gray-300" style="display: none;">
-                <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">Editar Produto</h2>
-                <form id="editProductActualForm" method="POST" class="space-y-6">
-                    <input type="hidden" name="produto_id" id="edit_produto_id">
-                    
-                    <div>
-                        <label for="edit_nome" class="block text-sm font-medium text-gray-700 mb-2">Nome do Produto:</label>
-                        <input type="text" name="nome" id="edit_nome" required
-                               class="form-input mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50 p-2">
-                    </div>
-                    <div>
-                        <label for="edit_preco" class="block text-sm font-medium text-gray-700 mb-2">Preço:</label>
-                        <input type="number" name="preco" id="edit_preco" step="0.01" required
-                               class="form-input mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50 p-2">
-                    </div>
-                    <div>
-                        <label for="edit_link" class="block text-sm font-medium text-gray-700 mb-2">Link do Produto (URL):</label>
-                        <input type="url" name="link" id="edit_link" required
-                               class="form-input mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50 p-2">
-                    </div>
-                    <div class="flex justify-end space-x-3 pt-4">
-                        <button type="button" id="cancelEditFormBtn" class="inline-flex justify-center py-2 px-6 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-150">
-                            Cancelar
-                        </button>
-                        <button type="submit"
-                                class="inline-flex justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-150">
-                            Salvar Alterações
-                        </button>
-                    </div>
-                </form>
+            <div>
+                <label for="edit_preco" class="form-label">Preço:</label>
+                <input type="number" name="preco" id="edit_preco" step="0.01" required
+                       class="form-input"
+                       placeholder="Ex: 29.99">
             </div>
-
-            {# Tabela de Produtos #}
-            {% if produtos %}
-            <div class="bg-white shadow-xl overflow-hidden sm:rounded-lg mb-8 border border-gray-200"> {# Fundo e borda para a tabela #}
-                <div class="overflow-x-auto min-w-full"> {# Garante scroll horizontal em telas pequenas #}
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    ID
-                                </th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Nome
-                                </th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Preço
-                                </th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Link
-                                </th>
-                                <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Ações
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            {% for produto in produtos %}
-                            <tr class="hover:bg-gray-50 transition-colors duration-150" 
-                                data-produto-id="{{ produto.id }}" 
-                                data-produto-nome="{{ produto.nome }}" 
-                                data-produto-preco="{{ "%.2f" | format(produto.preco) }}" 
-                                data-produto-link="{{ produto.link }}">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    {{ produto.id }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-normal text-sm text-gray-700"> {# Quebra de linha para nomes longos #}
-                                    {{ produto.nome }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                                    R${{ "%.2f" | format(produto.preco) }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 truncate max-w-xs"> {# trunca o link se for muito longo #}
-                                    <a href="{{ produto.link }}" target="_blank" class="text-indigo-600 hover:text-indigo-900 transition-colors duration-150">
-                                        {{ produto.link }}
-                                    </a>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium flex justify-center items-center space-x-3"> {# Botões lado a lado e centralizados #}
-                                    <button type="button" 
-                                        class="edit-btn text-indigo-600 hover:text-indigo-900 transform hover:scale-110 transition-transform duration-150"
-                                        data-id="{{ produto.id }}">
-                                        <i class="fas fa-edit mr-1"></i> Editar
-                                    </button>
-                                    <form action="{{ url_for('deletar_produto', produto_id=produto.id) }}" method="POST" class="inline-block" onsubmit="return confirm('Tem certeza que deseja deletar este produto?');">
-                                        <button type="submit" class="text-red-600 hover:text-red-900 transform hover:scale-110 transition-transform duration-150">
-                                            <i class="fas fa-trash-alt mr-1"></i> Deletar
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+            <div>
+                <label for="edit_link" class="form-label">Link do Produto (URL):</label>
+                <input type="url" name="link" id="edit_link" required
+                       class="form-input"
+                       placeholder="Ex: https://link.do.seu.produto">
             </div>
-            {% else %}
-            <p class="text-gray-600 text-center p-6 bg-white rounded-lg shadow-sm border border-gray-200">Nenhum produto cadastrado ainda. Use o botão "Adicionar Novo Produto" para começar!</p>
-            {% endif %}
+            <div class="form-actions" style="margin-top: 1rem;">
+                <button type="button" id="cancelEditFormBtn" class="btn btn-secondary">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-primary" style="background-color: var(--success);">
+                    Salvar Alterações
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {# Tabela de Produtos #}
+    {% if produtos %}
+    <div class="card table-listing-card"> {# Using 'card' and new 'table-listing-card' class #}
+        <div class="table-container"> {# Uses the 'table-container' for scroll and borders #}
+            <table class="data-table"> {# Uses the 'data-table' class #}
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>Preço</th>
+                        <th>Link</th>
+                        <th style="text-align: center;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for produto in produtos %}
+                    <tr class="product-row"
+                        data-produto-id="{{ produto.id }}"
+                        data-produto-nome="{{ produto.nome }}"
+                        data-produto-preco="{{ "%.2f" | format(produto.preco) }}"
+                        data-produto-link="{{ produto.link }}">
+                        <td>{{ produto.id }}</td>
+                        <td style="white-space: normal;">{{ produto.nome }}</td>
+                        <td>R${{ "%.2f" | format(produto.preco) }}</td>
+                        <td class="truncated-link"> {# New class for link truncation #}
+                            <a href="{{ produto.link }}" target="_blank" class="text-primary hover-text-primary-dark">
+                                {{ produto.link }}
+                            </a>
+                        </td>
+                        <td style="text-align: center; white-space: nowrap;">
+                            <button type="button"
+                                class="btn-action edit edit-btn"
+                                data-id="{{ produto.id }}">
+                                Editar
+                            </button>
+                            <form action="{{ url_for('deletar_produto', produto_id=produto.id) }}" method="POST" class="inline-form" onsubmit="return confirm('Tem certeza que deseja deletar este produto?');">
+                                <button type="submit" class="btn-action delete">
+                                    Deletar
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
+    {% else %}
+    <p class="card text-light text-center" style="padding: 1.5rem;">Nenhum produto cadastrado ainda. Use o botão "Adicionar Novo Produto" para começar!</p> {# Uses card, text-light, and padding #}
+    {% endif %}
 </div>
 
 <script>
@@ -179,37 +163,38 @@ Gerenciar Produtos
         const cancelEditFormBtn = document.getElementById('cancelEditFormBtn');
         const editButtons = document.querySelectorAll('.edit-btn'); 
 
-        // Campos do formulário de adição (para resetar ou preencher)
+        // Fields for add form
         const addNomeInput = document.getElementById('add_nome');
         const addPrecoInput = document.getElementById('add_preco');
         const addLinkInput = document.getElementById('add_link');
 
-        // Campos do formulário de edição
+        // Fields for edit form
         const editProdutoIdInput = document.getElementById('edit_produto_id');
         const editNomeInput = document.getElementById('edit_nome');
         const editPrecoInput = document.getElementById('edit_preco');
         const editLinkInput = document.getElementById('edit_link');
 
-
-        // Funções para mostrar/esconder formulários
+        // Function to show/hide forms
         function showForm(formElement) {
-            hideAllForms(); // Garante que apenas um formulário esteja visível
-            formElement.style.display = 'block';
-            showAddFormBtn.style.display = 'none'; // Esconde o botão "Adicionar Produto"
+            hideAllForms(); // Ensures only one form is visible
+            formElement.classList.remove('form-card-hidden');
+            formElement.classList.add('form-card-visible'); // Add a class for explicit visibility
+            showAddFormBtn.style.display = 'none'; // Hide the "Add Product" button
             formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         function hideAllForms() {
-            addProductForm.style.display = 'none';
-            editProductForm.style.display = 'none';
-            showAddFormBtn.style.display = 'inline-flex'; // Mostra o botão "Adicionar Produto"
+            addProductForm.classList.add('form-card-hidden');
+            addProductForm.classList.remove('form-card-visible');
+            editProductForm.classList.add('form-card-hidden');
+            editProductForm.classList.remove('form-card-visible');
+            showAddFormBtn.style.display = 'inline-flex'; // Show the "Add Product" button
         }
 
-
-        // Event Listeners para o formulário de adição
+        // Event Listeners for add form
         showAddFormBtn.addEventListener('click', function() {
             showForm(addProductForm);
-            // Limpa os campos do formulário de adição ao abri-lo
+            // Clear add form fields when opening
             addNomeInput.value = '';
             addPrecoInput.value = '';
             addLinkInput.value = '';
@@ -219,33 +204,34 @@ Gerenciar Produtos
             hideAllForms();
         });
 
-        // Event Listeners para o formulário de edição
+        // Event Listeners for edit form
         cancelEditFormBtn.addEventListener('click', function() {
             hideAllForms();
         });
 
         editButtons.forEach(button => {
             button.addEventListener('click', function() {
-                const row = this.closest('tr'); // Pega a linha da tabela pai
+                const row = this.closest('.product-row'); // Use the new class to find the row
                 const produtoId = row.dataset.produtoId;
                 const produtoNome = row.dataset.produtoNome;
                 const produtoPreco = row.dataset.produtoPreco;
                 const produtoLink = row.dataset.produtoLink;
 
-                // Preenche o formulário de edição
+                // Populate the edit form
                 editProdutoIdInput.value = produtoId;
                 editNomeInput.value = produtoNome;
                 editPrecoInput.value = produtoPreco;
                 editLinkInput.value = produtoLink;
 
-                // Define a action do formulário para o ID correto
+                // Set the form action for the correct ID
                 editProductActualForm.action = `/editar_produto/${produtoId}`; 
 
                 showForm(editProductForm);
             });
         });
 
-        // Lógica para exibir formulário automaticamente após um redirecionamento com erro/sucesso
+        // Logic to automatically display form after a redirect with error/success
+        // This needs to be adapted to your Flask/backend redirect logic
         const urlParams = new URLSearchParams(window.location.search);
         const editId = urlParams.get('edit_id');
         const addNewProduct = urlParams.get('add_new_product');
@@ -253,41 +239,36 @@ Gerenciar Produtos
         const precoVal = urlParams.get('preco_val');
         const linkVal = urlParams.get('link_val');
 
-        const flashMessagesContainer = document.getElementById('flash-messages');
-        const hasError = flashMessagesContainer ? Array.from(flashMessagesContainer.children).some(
-            msgDiv => msgDiv.classList.contains('bg-red-100')
-        ) : false;
+        // Check if there are any flash messages (assuming they are rendered as children of main-content block)
+        const flashMessagesContainer = document.querySelector('.main-content > div[style*="margin-bottom"]'); // Target the flash messages div
+        let hasError = false;
+        if (flashMessagesContainer) {
+            hasError = Array.from(flashMessagesContainer.children).some(
+                msgDiv => msgDiv.style.backgroundColor && msgDiv.style.backgroundColor.includes('rgba(var(--danger-rgb), 0.1)')
+            );
+        }
 
         if (hasError) {
-            if (editId) { // Erro na edição, re-preenche o formulário de edição
+            if (editId) { // Error in edit, re-populate edit form
                 editProdutoIdInput.value = editId;
                 editNomeInput.value = nomeVal || '';
                 editPrecoInput.value = precoVal || '';
                 editLinkInput.value = linkVal || '';
                 editProductActualForm.action = `/editar_produto/${editId}`; 
                 showForm(editProductForm);
-            } else if (addNewProduct) { // Erro na adição, re-preenche o formulário de adição
+            } else if (addNewProduct) { // Error in add, re-populate add form
                 addNomeInput.value = nomeVal || '';
                 addPrecoInput.value = precoVal || '';
                 addLinkInput.value = linkVal || '';
                 showForm(addProductForm);
             }
-        } else if (editId) { // Redirecionamento bem-sucedido de GET /editar_produto/<id> para exibir form de edição
-            // Essa lógica provavelmente não é mais necessária se você tem uma rota GET /editar_produto/<id> que já renderiza o formulário com os dados
-            // Caso contrário, ela tentaria preencher o formulário no carregamento da página
-            // Deixo comentado para que você avalie se sua rota de edição já faz isso
-            // editProdutoIdInput.value = editId;
-            // editNomeInput.value = nomeVal || '';
-            // editPrecoInput.value = precoVal || '';
-            // editLinkInput.value = linkVal || '';
-            // editProductActualForm.action = `/editar_produto/${editId}`; 
-            // showForm(editProductForm);
-
-        } else if (addNewProduct) { // Redirecionamento bem-sucedido de GET /adicionar_produto
-            // showForm(addProductForm); // Apenas mostra o formulário (campos estarão vazios se não houver erro)
+        } else {
+             // If coming from a successful add/edit redirect, or initial load, ensure forms are hidden
+             // This can be simplified if backend always redirects to clean URL after success.
+             hideAllForms();
         }
 
-        // Limpa os parâmetros de query para manter a URL limpa após processamento de erro/sucesso
+        // Clean up URL parameters after processing to keep the URL clean
         if (window.history.replaceState) {
             const url = new URL(window.location.href);
             url.searchParams.delete('edit_id');
@@ -295,23 +276,8 @@ Gerenciar Produtos
             url.searchParams.delete('nome_val');
             url.searchParams.delete('preco_val');
             url.searchParams.delete('link_val');
-            url.searchParams.delete('error');
+            url.searchParams.delete('error'); // Assuming 'error' param for general errors
             window.history.replaceState({path:url.href}, '', url.href);
-        }
-
-        // Se houver mensagens flash ao carregar a página, exibe o formulário de adição se for relacionado a adicionar
-        // ou o formulário de edição se for relacionado a editar.
-        // A lógica de `hasError` já trata isso, mas esta é uma verificação extra para edge cases.
-        if (flashMessagesContainer) {
-            const isAddSuccess = Array.from(flashMessagesContainer.children).some(
-                msgDiv => msgDiv.classList.contains('bg-green-100') && msgDiv.textContent.includes('adicionado com sucesso')
-            );
-            const isEditSuccess = Array.from(flashMessagesContainer.children).some(
-                msgDiv => msgDiv.classList.contains('bg-green-100') && msgDiv.textContent.includes('atualizado com sucesso')
-            );
-            if (isAddSuccess || isEditSuccess) {
-                hideAllForms(); // Garante que formulários estejam escondidos se a ação foi bem-sucedida
-            }
         }
     });
 </script>

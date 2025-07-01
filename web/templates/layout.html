@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
-        /* Definir cores para light mode (se precisar delas, mas o foco é dark agora) */
+        /* Definir cores para light mode */
         :root {
             --primary: #4F46E5;
             --primary-dark: #4338CA;
@@ -22,12 +22,22 @@
             --warning: #F59E0B;
             --shadow: 0 1px 3px rgba(0,0,0,0.1);
             --danger: #EF4444;
-            --info: #3B82F6; /* Para mensagens de informação/status como 'Pendente' */
+            --info: #3B82F6;
 
             /* Cores de card para o dashboard (light) */
             --dashboard-card-blue: #E0F2FE;
             --dashboard-card-green: #D1FAE5;
             --dashboard-card-purple: #EDE9FE;
+
+            /* Helpers para pegar cores RGB de variáveis (usado no JS para rgba) */
+            --primary-rgb: 79, 70, 229;
+            --success-rgb: 16, 185, 129;
+            --warning-rgb: 245, 158, 11;
+            --danger-rgb: 239, 68, 68;
+            --info-rgb: 59, 130, 246;
+            --text-rgb: 31, 41, 55;
+            --text-light-rgb: 107, 114, 128;
+            --card-bg-rgb: 255, 255, 255;
         }
 
         /* Dark mode colors - EXATAMENTE COMO NA SUA IMAGEM */
@@ -50,10 +60,8 @@
             --dashboard-card-blue: #1C2B47; /* Azul escuro para card de usuários */
             --dashboard-card-green: #1B3F38; /* Verde escuro para card de produtos */
             --dashboard-card-purple: #2F2447; /* Roxo escuro para card de receita */
-        }
 
-        /* Helpers para pegar cores RGB de variáveis (usado no JS para rgba) */
-        [data-theme="dark"] {
+            /* Helpers para pegar cores RGB de variáveis (usado no JS para rgba) */
             --primary-rgb: 99, 102, 241;
             --success-rgb: 52, 211, 153;
             --warning-rgb: 251, 191, 36;
@@ -62,17 +70,6 @@
             --text-rgb: 229, 231, 235;
             --text-light-rgb: 156, 163, 175;
             --card-bg-rgb: 31, 41, 55;
-        }
-        /* Para light mode, se precisar de opacidade em elementos com cor primária */
-        :root {
-             --primary-rgb: 79, 70, 229;
-             --success-rgb: 16, 185, 129;
-             --warning-rgb: 245, 158, 11;
-             --danger-rgb: 239, 68, 68;
-             --info-rgb: 59, 130, 246;
-             --text-rgb: 31, 41, 55;
-             --text-light-rgb: 107, 114, 128;
-             --card-bg-rgb: 255, 255, 255;
         }
 
         * {
@@ -254,7 +251,7 @@
             font-family: 'Inter', sans-serif;
         }
 
-        /* NOVAS CLASSES: Cards de Métricas do Dashboard com Cores Específicas */
+        /* Cards de Métricas do Dashboard com Cores Específicas */
         .metric-card {
             padding: 1.5rem;
             border-radius: 8px;
@@ -264,7 +261,7 @@
             align-items: center;
             justify-content: center;
             text-align: center;
-            color: var(--text); /* Garante que o texto dentro do card mude com o tema */
+            color: var(--text);
         }
         .metric-card-blue {
             background-color: var(--dashboard-card-blue);
@@ -283,35 +280,35 @@
         .metric-card-value {
             font-size: 3rem;
             font-weight: 800;
-            color: var(--primary); /* Mantém o primary para os valores destacados */
+            color: var(--primary);
         }
 
-        /* NOVAS CLASSES: Seções dentro do dashboard/cards */
+        /* Seções dentro do dashboard/cards */
         .welcome-card {
-            margin-bottom: 2rem; /* Espaçamento abaixo do card de boas-vindas */
+            margin-bottom: 2rem;
         }
         .section-title {
-            font-size: 1.5rem; /* Ajustado de 2xl */
-            font-weight: 600; /* semibold */
-            color: var(--text);
-            margin-bottom: 1.5rem; /* mb-6 ou mb-4 */
-        }
-        .section-description {
-            color: var(--text-light); /* text-gray-700 */
-            margin-bottom: 1rem; /* mb-4 */
-        }
-        .section-subtitle {
-            font-size: 1.25rem; /* Ajustado de text-xl/lg */
+            font-size: 1.5rem;
             font-weight: 600;
             color: var(--text);
-            margin-bottom: 1rem; /* mb-2/mb-4 */
+            margin-bottom: 1.5rem;
         }
-        .text-light { /* Para usar no lugar de text-gray-600/700 */
+        .section-description {
+            color: var(--text-light);
+            margin-bottom: 1rem;
+        }
+        .section-subtitle {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 1rem;
+        }
+        .text-light {
             color: var(--text-light);
         }
-        .value-large { /* Para valores grandes em métricas (Vendas Quantidade/Valor) */
-            font-size: 1.5rem; /* text-2xl */
-            font-weight: 700; /* font-bold */
+        .value-large {
+            font-size: 1.5rem;
+            font-weight: 700;
         }
         .text-primary {
             color: var(--primary);
@@ -323,13 +320,13 @@
             color: var(--danger);
         }
         .text-sm {
-            font-size: 0.875rem; /* 14px */
+            font-size: 0.875rem;
         }
         .font-semibold {
             font-weight: 600;
         }
         .ml-2 {
-            margin-left: 0.5rem; /* 8px */
+            margin-left: 0.5rem;
         }
 
 
@@ -365,7 +362,7 @@
             border-bottom: none;
         }
         .data-table tbody tr:hover {
-            background-color: rgba(var(--primary-rgb), 0.05); /* Usando RGB para opacidade no hover */
+            background-color: rgba(var(--primary-rgb), 0.05);
         }
 
         .status {
@@ -430,10 +427,10 @@
             background-color: var(--bg);
         }
 
-        /* NOVAS CLASSES: Botão pequeno para "Aplicar" no seletor de período */
+        /* Botão pequeno para "Aplicar" no seletor de período */
         .btn-small {
-            padding: 0.375rem 0.75rem; /* Ajuste para ser menor */
-            font-size: 0.875rem; /* Tamanho da fonte menor */
+            padding: 0.375rem 0.75rem;
+            font-size: 0.875rem;
         }
 
         /* Botões de Ação na Tabela (Editar/Deletar) - Pequenos */
@@ -459,6 +456,21 @@
         .btn-action.delete:hover {
             background-color: #B91C1C;
         }
+        /* Para o botão de ativar/detalhes em usuários/vendas */
+        .btn-action.success {
+            background-color: var(--success);
+            color: white;
+        }
+        .btn-action.success:hover {
+            background-color: #059669;
+        }
+        .btn-action.primary { /* Para o botão Detalhes na tabela de vendas */
+            background-color: var(--primary);
+            color: white;
+        }
+        .btn-action.primary:hover {
+            background-color: var(--primary-dark);
+        }
 
 
         /* Mobile Menu */
@@ -471,7 +483,7 @@
             cursor: pointer;
         }
 
-        /* Formulários (Classes reutilizadas do add_scheduled_message) */
+        /* Formulários */
         .form-container {
             display: flex;
             justify-content: center;
@@ -509,7 +521,7 @@
         .form-select:focus {
             outline: none;
             border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.2); /* Usando RGB para foco */
+            box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.2);
         }
         .form-textarea {
             resize: vertical;
@@ -530,65 +542,100 @@
             padding-top: 1rem;
             justify-content: flex-end;
         }
+        /* New for form buttons */
+        @media (min-width: 640px) {
+            .form-actions {
+                flex-direction: row;
+                gap: 1rem;
+            }
+            .form-actions .btn {
+                width: auto;
+            }
+        }
+        .btn-icon { /* For buttons with material icons, like 'Adicionar Produto' */
+            padding: 0.75rem 1.25rem;
+        }
+        .btn-icon .material-icons {
+            margin-right: 0.5rem;
+            font-size: 1.2rem;
+        }
 
-        /* NOVAS CLASSES: Para layout interno do dashboard */
+        /* Layout para formulários que aparecem/desaparecem */
+        .form-card-hidden {
+            display: none;
+        }
+        .form-card-visible {
+            display: block;
+            max-width: 42rem; /* Simula max-w-2xl */
+            width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+            margin-bottom: 2rem; /* mb-8 */
+        }
+        .inline-form { /* Para formulários de deletar inline */
+            display: inline-block;
+            margin-left: 0.5rem; /* Adiciona um pequeno espaço entre o botão de editar e o formulário */
+        }
+
+
+        /* Layout para o dashboard content wrapper (similar a max-w-7xl) */
         .dashboard-content-wrapper {
-            max-width: 1200px; /* Equivalente a max-w-7xl */
+            max-width: 1200px;
             margin-left: auto;
             margin-right: auto;
         }
 
-        .grid-2-cols-md { /* Equivalente a sm:grid-cols-2 */
+        /* Grid de 2 colunas para md (tabelas de métricas, etc.) */
+        .grid-2-cols-md {
             display: grid;
-            grid-template-columns: 1fr; /* Padrão para mobile */
-            gap: 1.5rem; /* gap-4 no Tailwind é menor, mas este é visualmente bom */
-            margin-bottom: 1.5rem; /* mb-6 */
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
         }
-        @media (min-width: 768px) { /* Corresponde a 'md' breakpoint do Tailwind */
+        @media (min-width: 768px) {
             .grid-2-cols-md {
                 grid-template-columns: repeat(2, 1fr);
             }
         }
-        .gap-form { /* Ajusta o gap para o layout do formulário */
+        .gap-form {
             gap: 1rem;
         }
-        .card-inner-padded {
-            padding: 1rem; /* p-4 */
-            background-color: var(--sidebar-bg); /* bg-gray-50 ou bg-white */
-            border-radius: 8px; /* rounded-lg */
-            box-shadow: var(--shadow); /* shadow-sm */
-            border: 1px solid var(--border); /* border-gray-200 */
+        .card-inner-padded { /* Para cards menores dentro de grids, como as métricas de período */
+            padding: 1rem;
+            background-color: var(--sidebar-bg);
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
         }
-
         .flex-row-space-between {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 0.5rem; /* mb-2 */
+            margin-bottom: 0.5rem;
         }
         .flex-row-space-between:last-child {
             margin-bottom: 0;
         }
 
-        /* Classes para o seletor de período e inputs de data (inline) */
+        /* Seletor de período e inputs de data (inline) */
         .flex-wrap-gap-row-center {
             display: flex;
             flex-wrap: wrap;
             gap: 1rem;
             align-items: center;
-            justify-content: flex-start; /* Alinhamento inicial */
+            justify-content: flex-start;
         }
         .form-label-inline {
             font-size: 0.875rem;
             font-weight: 500;
             color: var(--text-light);
-            min-width: max-content; /* Evita que o label quebre em várias linhas */
+            min-width: max-content;
         }
         .form-select-inline, .form-input-inline {
             display: inline-block;
             width: auto;
-            padding: 0.5rem 0.75rem; /* pl-3 pr-10 py-2 */
-            font-size: 0.875rem; /* text-base / sm:text-sm */
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
             border: 1px solid var(--border);
             border-radius: 6px;
             background-color: var(--card-bg);
@@ -604,70 +651,263 @@
         .flex-wrap-gap-sm {
             display: flex;
             flex-wrap: wrap;
-            gap: 0.5rem; /* gap-2 */
+            gap: 0.5rem;
         }
 
-        /* Classes para os painéis de gráfico */
+        /* Classes para painéis de gráfico */
         .charts-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* lg:grid-cols-2 */
-            gap: 1.5rem; /* gap-6 */
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
             margin-bottom: 2rem;
         }
-        @media (min-width: 1024px) { /* Equivalente a 'lg' breakpoint do Tailwind */
+        @media (min-width: 1024px) {
             .lg-grid-col-1 {
-                grid-template-columns: 1fr; /* Para quando um gráfico é expandido e ocupa toda a linha */
+                grid-template-columns: 1fr;
             }
         }
         .chart-panel {
-            background-color: var(--card-bg); /* bg-white */
-            padding: 1.5rem; /* p-6 */
-            border-radius: 8px; /* rounded-lg */
-            box-shadow: var(--shadow); /* shadow-md */
+            background-color: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
             display: flex;
             flex-direction: column;
-            border: 1px solid var(--border); /* border border-gray-200 */
+            border: 1px solid var(--border);
             position: relative;
         }
         .chart-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 1rem; /* mb-4 */
+            margin-bottom: 1rem;
         }
         .expand-btn {
             background: none;
             border: none;
-            color: var(--text-light); /* text-gray-500 */
-            font-size: 1.125rem; /* text-lg */
+            color: var(--text-light);
+            font-size: 1.125rem;
             cursor: pointer;
             transition: color 0.2s ease;
         }
         .expand-btn:hover {
-            color: var(--text); /* hover:text-gray-700 */
+            color: var(--text);
         }
         .chart-canvas-wrapper {
             position: relative;
-            height: 20rem; /* h-72 (288px) */
+            height: 20rem;
             width: 100%;
-            flex-grow: 1; /* Para que o canvas ocupe o espaço restante */
+            flex-grow: 1;
         }
-        /* Classe para o gráfico expandido */
         .expanded-chart-panel {
-            grid-column: span 2 / span 2; /* Ocupa 2 colunas */
+            grid-column: span 2 / span 2;
         }
 
         /* Container da tabela para scroll */
         .table-container {
             overflow-x: auto;
             overflow-y: auto;
-            max-height: 24rem; /* max-h-96 (384px) */
+            max-height: 24rem;
             border-radius: 8px;
             border: 1px solid var(--border);
             box-shadow: var(--shadow);
-            background-color: var(--card-bg); /* Garante que o fundo seja o do card */
+            background-color: var(--card-bg);
+        }
+        .table-listing-card { /* Para a tabela principal de listagem, como em produtos.html */
+            margin-bottom: 2rem;
+        }
+        /* Para células de texto que podem ser longas e precisam de truncagem */
+        .truncated-text-cell {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 250px; /* Ajuste conforme necessário para o espaço da coluna */
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .truncated-link { /* Para links truncados como em produtos.html */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 200px; /* Ajuste conforme necessário */
+            display: inline-block;
         }
 
+
+        /* Estilos do Modal (de vendas.html) */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(var(--text-rgb), 0.75);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.3s ease;
+        }
+        .modal-content {
+            position: relative;
+            width: 90%;
+            max-width: 32rem;
+            transform: translateY(0);
+            overflow: hidden;
+            border-radius: 8px;
+            background-color: var(--card-bg);
+            text-align: left;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+        }
+        @media (min-width: 640px) {
+            .modal-overlay {
+                align-items: center;
+                padding: 0;
+            }
+        }
+
+        .modal-header {
+            padding: 1.25rem 1.5rem;
+            background-color: var(--card-bg);
+        }
+        .modal-title {
+            font-size: 1.125rem;
+            font-weight: 500;
+            line-height: 1.5rem;
+            color: var(--text);
+        }
+        .modal-body {
+            padding: 0 1.5rem 1.25rem 1.5rem;
+            background-color: var(--card-bg);
+        }
+        .modal-details-list {
+            border-top: 1px solid var(--border);
+            margin-top: 1rem;
+            padding-top: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            background-color: var(--border);
+        }
+        .modal-detail-item {
+            display: grid;
+            grid-template-columns: repeat(1, minmax(0, 1fr));
+            gap: 1rem;
+            padding: 1rem 0;
+            background-color: var(--card-bg);
+        }
+        @media (min-width: 640px) {
+            .modal-detail-item {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+        .modal-detail-term {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-light);
+        }
+        .modal-detail-description {
+            margin-top: 0.25rem;
+            font-size: 0.875rem;
+            color: var(--text);
+            word-break: break-word;
+        }
+        @media (min-width: 640px) {
+            .modal-detail-description {
+                grid-column: span 2 / span 2;
+                margin-top: 0;
+            }
+        }
+        .word-break {
+            word-break: break-all;
+        }
+
+        .modal-footer {
+            background-color: var(--sidebar-bg);
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            flex-direction: row-reverse;
+            justify-content: flex-start;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .modal-footer .btn {
+            margin-top: 0.75rem;
+            width: 100%;
+        }
+        @media (min-width: 640px) {
+            .modal-footer .btn {
+                width: auto;
+                margin-top: 0;
+            }
+        }
+
+        /* Estilos do Send Broadcast */
+        .preview-section {
+            border-top: 1px solid var(--border);
+            padding-top: 1.5rem;
+        }
+        .preview-box {
+            background-color: var(--sidebar-bg);
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            color: var(--text);
+            min-height: 9.375rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .preview-text-content {
+            max-width: 100%;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+            color: var(--text);
+            font-size: 0.875rem;
+        }
+        .preview-image {
+            margin-top: 1rem;
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+            box-shadow: var(--shadow);
+            object-fit: contain;
+            max-height: 12rem;
+            display: block;
+        }
+        .preview-placeholder {
+            color: var(--text-light);
+            font-style: italic;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            width: 90%;
+            line-height: 1.5;
+        }
+
+        /* Filtros de Vendas */
+        .form-grid-filter {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            align-items: flex-end;
+        }
+        .form-filter-actions {
+            display: flex;
+            align-items: flex-end;
+            grid-column: span 1;
+        }
+        @media (min-width: 768px) {
+            .form-filter-actions {
+                grid-column: span 4;
+            }
+        }
+        .btn-full-width {
+            width: 100%;
+            justify-content: center;
+        }
 
         /* Responsividade Geral */
         @media (max-width: 768px) {

@@ -1,32 +1,64 @@
-{% extends 'base.html' %}
+{% extends 'layout.html' %} {# CRITICAL CORRECTION: Now extends layout.html for the sidebar dashboard look #}
 
-{% block title %}Editar Comunidade - Painel Administrativo{% endblock %}
+{% block title %}Editar Comunidade{% endblock %}
+{% block page_title %}Editar Comunidade{% endblock %} {# Title for the main header #}
 
 {% block content %}
-<div class="bg-white p-6 rounded-lg shadow-md max-w-lg mx-auto">
-    <h1 class="text-3xl font-semibold text-gray-800 mb-6 text-center">Editar Comunidade</h1>
-    
-    <form action="{{ url_for('comunidades.editar_comunidade', id=comunidade.id) }}" method="POST" class="space-y-4">
-        <input type="hidden" name="id" value="{{ comunidade.id }}">
-        
-        <div>
-            <label for="nome" class="block text-sm font-medium text-gray-700 mb-1">Nome da Comunidade</label>
-            <input type="text" id="nome" name="nome" value="{{ comunidade.nome }}" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-        </div>
-        <div>
-            <label for="descricao" class="block text-sm font-medium text-gray-700 mb-1">Descrição (Opcional)</label>
-            <textarea id="descricao" name="descricao" rows="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">{{ comunidade.descricao | default('', true) }}</textarea>
-        </div>
-        
-        <div class="flex justify-end space-x-3">
-            <a href="{{ url_for('comunidades.comunidades') }}" class="inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
-                Cancelar
-            </a>
-            <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-                Salvar Alterações
-            </button>
-        </div>
-    </form>
+<div class="form-container"> {# Uses the form container to center and style the form #}
+    <div class="card" style="max-width: 42rem; width: 100%;"> {# Reuses the card style with limited width #}
+        <h2 class="section-title" style="margin-bottom: 1.5rem;">Editar Comunidade</h2> {# Main title of the card #}
+
+        {# Flash messages are already handled by layout.html, so this block is redundant here #}
+        {# Removed:
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-4">
+                    {% for category, message in messages %}
+                        <div class="p-3 rounded-md {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        #}
+
+        <form action="{{ url_for('comunidades.editar_comunidade', id=comunidade.id) }}" method="POST" class="form-grid">
+            <input type="hidden" name="id" value="{{ comunidade.id }}">
+            
+            <div>
+                <label for="nome" class="form-label">Nome da Comunidade:</label>
+                <input type="text" id="nome" name="nome" value="{{ comunidade.nome }}" required 
+                       class="form-input"
+                       placeholder="Ex: Comunidade VIP Premium">
+            </div>
+            <div>
+                <label for="descricao" class="form-label">Descrição (Opcional):</label>
+                <textarea id="descricao" name="descricao" rows="3" 
+                          class="form-textarea"
+                          placeholder="Breve descrição sobre a comunidade...">{{ comunidade.descricao | default('', true) }}</textarea>
+            </div>
+            {# If you need to edit chat_id, add it here similar to comunidades.html #}
+            {# Example for chat_id field (if applicable for editing)
+            <div>
+                <label for="chat_id" class="form-label">ID do Chat/Grupo Telegram (Opcional):</label>
+                <input type="text" id="chat_id" name="chat_id" 
+                       class="form-input"
+                       placeholder="Ex: -1001234567890 (para grupos/canais)"
+                       value="{{ comunidade.chat_id | default('', true) }}">
+                <p class="form-hint">Este é o ID numérico do grupo ou canal no Telegram associado a esta comunidade.</p>
+            </div>
+            #}
+            
+            <div class="form-actions" style="margin-top: 1rem;"> {# flex justify-end space-x-3 #}
+                <a href="{{ url_for('comunidades.comunidades') }}" class="btn btn-secondary">
+                    Cancelar
+                </a>
+                <button type="submit" class="btn btn-primary" style="background-color: var(--success);"> {# Using success color for save button #}
+                    Salvar Alterações
+                </button>
+            </div>
+        </form>
+    </div>
 </div>
 {% endblock %}
-

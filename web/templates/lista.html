@@ -1,53 +1,82 @@
-{% extends 'base.html' %}
+{% extends 'layout.html' %}
 
-{% block title %}Comunidades - Painel Administrativo{% endblock %}
+{% block title %}Comunidades{% endblock %} {# Título da aba do navegador #}
+{% block page_title %}Gerenciar Comunidades{% endblock %} {# Título no header principal do dashboard #}
 
 {% block content %}
-<div class="bg-white p-6 rounded-lg shadow-md">
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-semibold text-gray-800">Gerenciar Comunidades</h1>
-        <a href="{{ url_for('comunidades.nova') }}" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-md shadow-sm transition-colors flex items-center">
-            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+<div class="dashboard-content-wrapper"> {# Usa o wrapper do dashboard para centralizar e limitar largura #}
+    <div class="header" style="justify-content: space-between; align-items: center; margin-bottom: 2rem;"> {# Reutilizando header style para título e botão #}
+        <h2 class="page-title" style="margin-bottom: 0;">Gerenciar Comunidades</h2> {# Usando page-title style #}
+        <a href="{{ url_for('comunidades.nova') }}" class="btn btn-primary"> {# Assumindo que 'comunidades.nova' é a rota para adicionar uma nova #}
+            <span class="material-icons">add</span> {# Usando Material Icons para o símbolo de mais #}
             Nova Comunidade
         </a>
     </div>
 
-    {% if comunidades %}
-    <div class="overflow-x-auto">
-        <table class="min-w-full bg-white border border-gray-200 rounded-lg">
-            <thead class="bg-gray-100">
-                <tr>
-                    <th class="py-3 px-4 border-b text-left text-sm font-semibold text-gray-600">ID</th>
-                    <th class="py-3 px-4 border-b text-left text-sm font-semibold text-gray-600">Nome</th>
-                    <th class="py-3 px-4 border-b text-left text-sm font-semibold text-gray-600">Descrição</th>
-                    <th class="py-3 px-4 border-b text-left text-sm font-semibold text-gray-600">Chat ID</th>
-                    <th class="py-3 px-4 border-b text-left text-sm font-semibold text-gray-600">Status</th>
-                    <th class="py-3 px-4 border-b text-left text-sm font-semibold text-gray-600">Criado Em</th>
-                    <th class="py-3 px-4 border-b text-right text-sm font-semibold text-gray-600">Ações</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for comunidade in comunidades %}
-                <tr class="hover:bg-gray-50">
-                    <td class="py-3 px-4 border-b text-sm text-gray-700">{{ comunidade.id }}</td>
-                    <td class="py-3 px-4 border-b text-sm text-gray-700">{{ comunidade.nome }}</td>
-                    <td class="py-3 px-4 border-b text-sm text-gray-700">{{ comunidade.descricao | default('N/A', true) }}</td>
-                    <td class="py-3 px-4 border-b text-sm text-gray-700">{{ comunidade.chat_id | default('N/A', true) }}</td>
-                    <td class="py-3 px-4 border-b text-sm text-gray-700 capitalize">{{ comunidade.status }}</td>
-                    <td class="py-3 px-4 border-b text-sm text-gray-700">{{ comunidade.created_at | datetimeformat }}</td>
-                    <td class="py-3 px-4 border-b text-right text-sm">
-                        <a href="{{ url_for('comunidades.editar', cid=comunidade.id) }}" class="text-indigo-600 hover:text-indigo-900 mr-3">Editar</a>
-                        <form action="{{ url_for('comunidades.deletar', cid=comunidade.id) }}" method="POST" class="inline-block" onsubmit="return confirm('Tem certeza que deseja desativar esta comunidade?');">
-                            <button type="submit" class="text-red-600 hover:text-red-900">Desativar</button>
-                        </form>
-                    </td>
-                </tr>
+    {# Mensagens flash já são gerenciadas pelo layout.html, então este bloco é redundante aqui #}
+    {# Removido:
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="mb-4">
+                {% for category, message in messages %}
+                    <div class="p-3 rounded-md {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}">
+                        {{ message }}
+                    </div>
                 {% endfor %}
-            </tbody>
-        </table>
+            </div>
+        {% endif %}
+    {% endwith %}
+    #}
+
+    <div class="card"> {# Usando a classe 'card' para o contêiner da tabela #}
+        {% if comunidades %}
+        <div class="table-container"> {# Usa o 'table-container' para scroll e bordas #}
+            <table class="data-table"> {# Usa a classe 'data-table' #}
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>Descrição</th>
+                        <th>Chat ID</th>
+                        <th>Status</th>
+                        <th>Criado Em</th>
+                        <th style="text-align: center;">Ações</th> {# Centraliza o cabeçalho Ações #}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for comunidade in comunidades %}
+                    <tr>
+                        <td>{{ comunidade.id }}</td>
+                        <td style="white-space: normal;">{{ comunidade.nome }}</td> {# Permite quebra de linha #}
+                        <td style="white-space: normal;">{{ comunidade.descricao | default('N/A', true) }}</td> {# Permite quebra de linha #}
+                        <td>{{ comunidade.chat_id | default('N/A', true) }}</td>
+                        <td>
+                            <span class="status
+                                {% if comunidade.status == 'ativa' %}status-success
+                                {% elif comunidade.status == 'inativa' %}status-danger {# Assumindo 'inativa' é um status #}
+                                {% else %}status-info{% endif %}"> {# Usa info para outros status desconhecidos #}
+                                {{ comunidade.status | capitalize }}
+                            </span>
+                        </td>
+                        <td>{{ comunidade.created_at | datetimeformat }}</td>
+                        <td style="text-align: center; white-space: nowrap;"> {# Centraliza os botões de ação e impede quebra de linha #}
+                            <a href="{{ url_for('comunidades.editar', cid=comunidade.id) }}" class="btn-action edit">
+                                Editar
+                            </a>
+                            <form action="{{ url_for('comunidades.deletar', cid=comunidade.id) }}" method="POST" class="inline-form" onsubmit="return confirm('Tem certeza que deseja desativar esta comunidade?');">
+                                <button type="submit" class="btn-action delete">
+                                    Desativar
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-light text-center" style="padding: 2rem;">Não há comunidades cadastradas ainda. <a href="{{ url_for('comunidades.nova') }}" class="text-primary hover-text-primary-dark">Crie uma nova</a>!</p> {# Usa text-light, text-primary, efeitos de hover #}
+        {% endif %}
     </div>
-    {% else %}
-    <p class="text-gray-600 text-center py-8">Não há comunidades cadastradas ainda. <a href="{{ url_for('comunidades.nova') }}" class="text-blue-600 hover:underline">Crie uma nova</a>!</p>
-    {% endif %}
 </div>
 {% endblock %}

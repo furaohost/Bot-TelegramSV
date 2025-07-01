@@ -1,11 +1,20 @@
-{% extends "layout.html" %} {# ESTA LINHA É CRÍTICA! #}
+{% extends "layout.html" %}
 
-{% block title %}Mensagens Agendadas - Bot Telegram{% endblock %}
+{% block title %}Mensagens Agendadas{% endblock %}
+{% block page_title %}Mensagens Agendadas{% endblock %} {# Title for the main header #}
 
 {% block content %}
-<div class="container mx-auto p-4">
-    <h1 class="text-3xl font-bold mb-6 text-gray-800">Mensagens Agendadas</h1>
+<div class="dashboard-content-wrapper"> {# Uses the dashboard wrapper for centering and width #}
+    <div class="header" style="justify-content: space-between; align-items: center; margin-bottom: 2rem;"> {# Reusing header style for title and button #}
+        <h1 class="page-title" style="margin-bottom: 0;">Mensagens Agendadas</h1> {# Using page-title style #}
+        <a href="{{ url_for('add_scheduled_message') }}" class="btn btn-primary btn-icon">
+            <span class="material-icons">add</span>
+            Agendar Nova Mensagem
+        </a>
+    </div>
 
+    {# Flash messages are already handled by layout.html, so this block is redundant here. #}
+    {# Removed:
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             <div class="mb-4">
@@ -17,56 +26,59 @@
             </div>
         {% endif %}
     {% endwith %}
+    #}
 
-    <div class="mb-6">
-        <a href="{{ url_for('add_scheduled_message') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white font-semibold rounded-md shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
-            Agendar Nova Mensagem
-        </a>
+    <div class="card"> {# Uses the 'card' class for the table container #}
+        {% if messages %} {# This 'messages' refers to the list of scheduled messages from Flask, NOT flash messages #}
+        <div class="table-container"> {# Uses the 'table-container' for scroll and borders #}
+            <table class="data-table"> {# Uses the 'data-table' class #}
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Mensagem</th>
+                        <th>Destino</th>
+                        <th>Horário Agendado</th>
+                        <th>Status</th>
+                        <th style="text-align: center;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for msg in messages %}
+                    <tr>
+                        <td>{{ msg.id }}</td>
+                        <td class="truncated-text-cell" title="{{ msg.message_text }}"> {# New class for text truncation #}
+                            {{ msg.message_text }}
+                        </td>
+                        <td>{{ msg.target_username if msg.target_username else 'Todos os usuários' }}</td>
+                        <td>{{ msg.schedule_time.strftime('%Y-%m-%d %H:%M') }}</td> {# Make sure datetimeformat is available or use strftime #}
+                        <td>
+                            <span class="status
+                                {% if msg.status == 'pending' %}status-warning
+                                {% elif msg.status == 'sent' %}status-success
+                                {% elif msg.status == 'failed' %}status-danger
+                                {% elif msg.status == 'cancelled' %}status-info {# Added 'cancelled' status #}
+                                {% else %}status-info{% endif %}">
+                                {{ msg.status | capitalize }}
+                            </span>
+                        </td>
+                        <td style="text-align: center; white-space: nowrap;">
+                            <a href="{{ url_for('edit_scheduled_message', message_id=msg.id) }}" class="btn-action edit">
+                                Editar
+                            </a>
+                            <form action="{{ url_for('delete_scheduled_message', message_id=msg.id) }}" method="POST" class="inline-form" onsubmit="return confirm('Tem certeza que deseja deletar esta mensagem agendada?');">
+                                <button type="submit" class="btn-action delete">
+                                    Deletar
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-light text-center" style="padding: 2rem;">Nenhuma mensagem agendada encontrada. <a href="{{ url_for('add_scheduled_message') }}" class="text-primary hover-text-primary-dark">Agende sua primeira mensagem!</a></p>
+        {% endif %}
     </div>
-
-    {% if messages %} {# Esta variável 'messages' vem do Flask com a lista de mensagens agendadas #}
-    <div class="bg-white shadow-md rounded-lg overflow-hidden">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mensagem</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Destino</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Horário Agendado</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-                {% for msg in messages %}
-                <tr>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ msg.id }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 max-w-xs overflow-hidden truncate" title="{{ msg.message_text }}">{{ msg.message_text }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ msg.target_username if msg.target_username else 'Todos os usuários' }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ msg.schedule_time.strftime('%Y-%m-%d %H:%M') }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                            {% if msg.status == 'pending' %}bg-yellow-100 text-yellow-800
-                            {% elif msg.status == 'sent' %}bg-green-100 text-green-800
-                            {% elif msg.status == 'failed' %}bg-red-100 text-red-800
-                            {% else %}bg-gray-100 text-gray-800{% endif %}">
-                            {{ msg.status }}
-                        </span>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                        <a href="{{ url_for('edit_scheduled_message', message_id=msg.id) }}" class="text-indigo-600 hover:text-indigo-900 mr-4">Editar</a>
-                        <form action="{{ url_for('delete_scheduled_message', message_id=msg.id) }}" method="POST" class="inline-block" onsubmit="return confirm('Tem certeza que deseja deletar esta mensagem agendada?');">
-                            <button type="submit" class="text-red-600 hover:text-red-900">Deletar</button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <p class="text-gray-600">Nenhuma mensagem agendada encontrada. <a href="{{ url_for('add_scheduled_message') }}" class="text-blue-600 hover:underline">Agende sua primeira mensagem!</a></p>
-    {% endif %}
 </div>
 {% endblock %}

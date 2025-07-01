@@ -1,30 +1,43 @@
 {% extends "layout.html" %}
 
 {% block title %}Vendas{% endblock %}
+{% block page_title %}Histórico de Vendas{% endblock %} {# Title for the main header #}
 
 {% block content %}
-<div class="sm:flex sm:items-center sm:justify-between">
-    <div class="sm:flex-auto">
-        <h1 class="text-2xl font-semibold text-gray-900">Histórico de Vendas</h1>
-        <p class="mt-2 text-sm text-gray-700">Filtre e visualize todas as transações do seu bot.</p>
-    </div>
-</div>
+<div class="dashboard-content-wrapper"> {# Uses the dashboard wrapper for centering and width #}
 
-<!-- Seção de Filtros Avançados -->
-<div class="mt-6 p-4 bg-white rounded-lg shadow">
-    <form id="filterForm" method="GET" action="{{ url_for('vendas') }}">
-        <div class="grid grid-cols-1 md:grid-cols-12 gap-x-4 gap-y-6 items-end">
+    <div class="header" style="justify-content: flex-start; margin-bottom: 2rem; align-items: flex-start; flex-direction: column;"> {# Adjusted header for title and description #}
+        <h1 class="page-title" style="margin-bottom: 0.5rem;">Histórico de Vendas</h1> {# Using page-title style #}
+        <p class="section-description">Filtre e visualize todas as transações do seu bot.</p> {# Using section-description #}
+    </div>
+
+    {# Flash messages are already handled by layout.html, so this block is redundant here. #}
+    {# Removed:
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="mb-4">
+                {% for category, message in messages %}
+                    <div class="p-3 mb-2 rounded-md {{ 'bg-green-100 text-green-800' if category == 'success' else ('bg-red-100 text-red-800' if category == 'danger' else 'bg-blue-100 text-blue-800') }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+    #}
+
+    <div class="card mb-8"> {# Using 'card' for the filter section #}
+        <h3 class="section-subtitle" style="margin-bottom: 1.5rem;">Filtros de Vendas</h3>
+        <form id="filterForm" method="GET" action="{{ url_for('vendas') }}" class="form-grid-filter"> {# New grid class for filters #}
             
-            <!-- Campo de Pesquisa -->
-            <div class="md:col-span-4">
-                <label for="pesquisa" class="block text-sm font-medium text-gray-700">Pesquisar</label>
-                <input type="text" name="pesquisa" id="pesquisa" value="{{ request.args.get('pesquisa', '') }}" class="filter-input mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Nome, @usuario ou produto...">
+            <div>
+                <label for="pesquisa" class="form-label">Pesquisar</label>
+                <input type="text" name="pesquisa" id="pesquisa" value="{{ request.args.get('pesquisa', '') }}" class="form-input" placeholder="Nome, @usuario ou produto...">
             </div>
 
-            <!-- Filtro por Produto -->
-            <div class="md:col-span-4">
-                <label for="produto_id" class="block text-sm font-medium text-gray-700">Produto</label>
-                <select id="produto_id" name="produto_id" class="filter-input mt-1 block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm">
+            <div>
+                <label for="produto_id" class="form-label">Produto</label>
+                <select id="produto_id" name="produto_id" class="form-select">
                     <option value="">Todos</option>
                     {% for produto in produtos_disponiveis %}
                         <option value="{{ produto.id }}" {% if request.args.get('produto_id')|int == produto.id %}selected{% endif %}>{{ produto.nome }}</option>
@@ -32,102 +45,96 @@
                 </select>
             </div>
 
-            <!-- Filtro por Status ATUALIZADO -->
-            <div class="md:col-span-4">
-                <label for="status" class="block text-sm font-medium text-gray-700">Status</label>
-                <select id="status" name="status" class="filter-input mt-1 block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm">
+            <div>
+                <label for="status" class="form-label">Status</label>
+                <select id="status" name="status" class="form-select">
                     <option value="">Todos</option>
                     <option value="aprovado" {% if request.args.get('status') == 'aprovado' %}selected{% endif %}>Aprovado</option>
                     <option value="pendente" {% if request.args.get('status') == 'pendente' %}selected{% endif %}>Pendente</option>
                     <option value="expirado" {% if request.args.get('status') == 'expirado' %}selected{% endif %}>Expirado</option>
+                    <option value="cancelado" {% if request.args.get('status') == 'cancelado' %}selected{% endif %}>Cancelado</option> {# Added 'cancelado' if applicable #}
                 </select>
             </div>
             
-            <!-- Filtro por Data Específica -->
-            <div class="md:col-span-4">
-                <label for="data_inicio" class="block text-sm font-medium text-gray-700">De:</label>
-                <input type="date" name="data_inicio" id="data_inicio" value="{{ request.args.get('data_inicio', '') }}" class="filter-input mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            <div>
+                <label for="data_inicio" class="form-label">De:</label>
+                <input type="date" name="data_inicio" id="data_inicio" value="{{ request.args.get('data_inicio', '') }}" class="form-input">
             </div>
-            <div class="md:col-span-4">
-                <label for="data_fim" class="block text-sm font-medium text-gray-700">Até:</label>
-                <input type="date" name="data_fim" id="data_fim" value="{{ request.args.get('data_fim', '') }}" class="filter-input mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            <div>
+                <label for="data_fim" class="form-label">Até:</label>
+                <input type="date" name="data_fim" id="data_fim" value="{{ request.args.get('data_fim', '') }}" class="form-input">
             </div>
 
-            <!-- Botão de Limpar -->
-            <div class="md:col-span-4 flex items-end">
-                <a href="{{ url_for('vendas') }}" class="flex w-full justify-center rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">Limpar Filtros</a>
+            <div class="form-filter-actions"> {# New class for filter actions #}
+                <a href="{{ url_for('vendas') }}" class="btn btn-secondary btn-full-width">Limpar Filtros</a> {# Added btn-full-width #}
             </div>
-        </div>
-    </form>
-</div>
+        </form>
+    </div>
 
-
-<div class="mt-8 flow-root">
-    <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-      <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
-        <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
-          <table class="min-w-full divide-y divide-gray-300">
-            <thead class="bg-gray-50">
-              <tr>
-                <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Data</th>
-                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Comprador</th>
-                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Produto</th>
-                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Preço</th>
-                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
-                <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6"><span class="sr-only">Ações</span></th>
-              </tr>
-            </thead>
-            <!-- O corpo da tabela agora tem um ID para ser atualizado pelo JavaScript -->
-            <tbody id="vendas-table-body" class="divide-y divide-gray-200 bg-white">
-              {% for venda in vendas %}
-              <tr>
-                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-500 sm:pl-6">{{ venda.data_venda }}</td>
-                <td class="whitespace-nowrap px-3 py-4 text-sm font-medium text-gray-900">{{ venda.first_name }} (@{{ venda.username }})</td>
-                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ venda.nome }}</td>
-                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">R$ {{ "%.2f"|format(venda.preco) }}</td>
-                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                    {% if venda.status == 'aprovado' %}
-                        <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">Aprovado</span>
-                    {% elif venda.status == 'expirado' %}
-                        <span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">Expirado</span>
+    <div class="card table-listing-card"> {# Uses 'card' for the table container #}
+        {% if vendas %}
+        <div class="table-container"> {# Uses 'table-container' for scroll and borders #}
+            <table class="data-table"> {# Uses 'data-table' class #}
+                <thead>
+                    <tr>
+                        <th style="padding-left: 1.5rem;">Data</th>
+                        <th>Comprador</th>
+                        <th>Produto</th>
+                        <th>Preço</th>
+                        <th>Status</th>
+                        <th style="text-align: center; padding-right: 1.5rem;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="vendas-table-body">
+                    {% for venda in vendas %}
+                    <tr>
+                        <td style="padding-left: 1.5rem;">{{ venda.data_venda | datetimeformat }}</td> {# Assuming datetimeformat filter #}
+                        <td>{{ venda.first_name }} (@{{ venda.username }})</td>
+                        <td>{{ venda.nome }}</td>
+                        <td>R$ {{ "%.2f"|format(venda.preco) }}</td>
+                        <td>
+                            <span class="status
+                                {% if venda.status == 'aprovado' %}status-success
+                                {% elif venda.status == 'expirado' %}status-danger
+                                {% elif venda.status == 'pendente' %}status-warning
+                                {% elif venda.status == 'cancelado' %}status-danger {# Assuming 'cancelado' is also danger #}
+                                {% else %}status-info{% endif %}">
+                                {{ venda.status | capitalize }}
+                            </span>
+                        </td>
+                        <td style="text-align: center; white-space: nowrap; padding-right: 1.5rem;">
+                            <button type="button" data-id="{{ venda.id }}" class="btn-action primary open-modal-button">Detalhes</button> {# Using btn-action primary for details #}
+                        </td>
+                    </tr>
                     {% else %}
-                        <span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">Pendente</span>
-                    {% endif %}
-                </td>
-                <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                    <button data-id="{{ venda.id }}" class="open-modal-button text-indigo-600 hover:text-indigo-900">Detalhes</button>
-                </td>
-              </tr>
-              {% else %}
-              <tr>
-                <td colspan="5" class="py-4 text-center text-sm text-gray-500">Nenhuma venda encontrada para os filtros selecionados.</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+                    <tr>
+                        <td colspan="6" class="text-light text-center" style="padding: 2rem;">Nenhuma venda encontrada para os filtros selecionados.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-      </div>
+        {% else %}
+        <p class="text-light text-center" style="padding: 2rem;">Nenhuma venda encontrada para os filtros selecionados.</p>
+        {% endif %}
     </div>
 </div>
 
-<!-- Modal de Detalhes -->
-<div id="details-modal" class="fixed inset-0 z-10 hidden overflow-y-auto bg-gray-500 bg-opacity-75 transition-opacity">
-    <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-        <div class="relative w-full max-w-lg transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all">
-            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <h3 class="text-lg font-medium leading-6 text-gray-900" id="modal-title">Detalhes da Venda</h3>
-                <div class="mt-4 border-t border-gray-200">
-                    <dl class="divide-y divide-gray-200">
-                        <div class="py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:py-5"><dt class="text-sm font-medium text-gray-500">Valor do Pagamento</dt><dd id="modal-valor" class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0"></dd></div>
-                        <div class="py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:py-5"><dt class="text-sm font-medium text-gray-500">ID da Transação (MP)</dt><dd id="modal-payment-id" class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0 break-words"></dd></div>
-                        <div class="py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:py-5"><dt class="text-sm font-medium text-gray-500">Nome do Pagador (MP)</dt><dd id="modal-payer-name" class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0"></dd></div>
-                        <div class="py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:py-5"><dt class="text-sm font-medium text-gray-500">E-mail do Pagador (MP)</dt><dd id="modal-payer-email" class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0"></dd></div>
-                    </dl>
-                </div>
-            </div>
-            <div class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
-                <button type="button" id="close-modal-button" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto">Fechar</button>
-            </div>
+<div id="details-modal" class="modal-overlay hidden"> {# New classes for modal #}
+    <div class="modal-content"> {# New class for modal content #}
+        <div class="modal-header">
+            <h3 id="modal-title" class="modal-title">Detalhes da Venda</h3>
+        </div>
+        <div class="modal-body">
+            <dl class="modal-details-list"> {# New class for description list #}
+                <div class="modal-detail-item"><dt class="modal-detail-term">Valor do Pagamento</dt><dd id="modal-valor" class="modal-detail-description"></dd></div>
+                <div class="modal-detail-item"><dt class="modal-detail-term">ID da Transação (MP)</dt><dd id="modal-payment-id" class="modal-detail-description word-break"></dd></div> {# word-break for long IDs #}
+                <div class="modal-detail-item"><dt class="modal-detail-term">Nome do Pagador (MP)</dt><dd id="modal-payer-name" class="modal-detail-description"></dd></div>
+                <div class="modal-detail-item"><dt class="modal-detail-term">E-mail do Pagador (MP)</dt><dd id="modal-payer-email" class="modal-detail-description"></dd></div>
+            </dl>
+        </div>
+        <div class="modal-footer">
+            <button type="button" id="close-modal-button" class="btn btn-secondary">Fechar</button>
         </div>
     </div>
 </div>
@@ -149,10 +156,11 @@
         const updateResults = async () => {
             const formData = new FormData(form);
             const params = new URLSearchParams(formData).toString();
-            tableBody.style.opacity = '0.5';
+            tableBody.style.opacity = '0.5'; // Visual feedback for loading
             try {
                 const response = await fetch(`${form.action}?${params}`);
                 const htmlText = await response.text();
+                // We need to parse the response as a full HTML document and extract only the table body
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(htmlText, 'text/html');
                 const newTableBody = doc.getElementById('vendas-table-body');
@@ -162,14 +170,15 @@
                 history.pushState(null, '', `${form.action}?${params}`);
             } catch (error) {
                 console.error('Erro ao atualizar os filtros:', error);
+                // Optionally display an error message to the user
             } finally {
-                tableBody.style.opacity = '1';
+                tableBody.style.opacity = '1'; // Reset opacity
             }
         };
 
         const debouncedUpdate = debounce(updateResults, 400);
 
-        document.querySelectorAll('.filter-input').forEach(input => {
+        document.querySelectorAll('.form-input, .form-select').forEach(input => { // Using new form classes
             const eventType = (input.tagName === 'INPUT' && input.type === 'text') ? 'input' : 'change';
             input.addEventListener(eventType, (e) => {
                 e.preventDefault();
@@ -177,30 +186,35 @@
             });
         });
         
-        // Lógica do Modal
+        // Modal Logic
         const modal = document.getElementById('details-modal');
         const closeModalButton = document.getElementById('close-modal-button');
+        const openModalButtons = document.querySelectorAll('.open-modal-button'); // Select all detail buttons
+
         const closeModal = () => modal.classList.add('hidden');
         closeModalButton.addEventListener('click', closeModal);
-        modal.addEventListener('click', (event) => { if (event.target === modal) { closeModal(); } });
+        modal.addEventListener('click', (event) => { if (event.target === modal) { closeModal(); } }); // Close on outside click
         
         const openModal = async (vendaId) => {
             try {
-                const response = await fetch(`/venda_detalhes/${vendaId}`);
+                const response = await fetch(`/venda_detalhes/${vendaId}`); // Ensure this Flask route exists and returns JSON
                 if (!response.ok) throw new Error('Venda não encontrada');
                 const data = await response.json();
+                
                 const formattedPrice = data.preco ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.preco) : 'N/A';
                 document.getElementById('modal-valor').textContent = formattedPrice;
                 document.getElementById('modal-payment-id').textContent = data.payment_id || 'N/A';
                 document.getElementById('modal-payer-name').textContent = data.payer_name || 'N/A';
                 document.getElementById('modal-payer-email').textContent = data.payer_email || 'N/A';
-                modal.classList.remove('hidden');
+                
+                modal.classList.remove('hidden'); // Show the modal
             } catch (error) {
                 console.error("Erro ao buscar detalhes da venda:", error);
                 alert('Não foi possível carregar os detalhes da venda.');
             }
         };
 
+        // Delegated event listener for dynamically added rows in tableBody
         tableBody.addEventListener('click', (event) => {
             if (event.target.classList.contains('open-modal-button')) {
                 openModal(event.target.dataset.id);

@@ -1,54 +1,60 @@
-{% extends "layout.html" %}.
+{% extends "layout.html" %}
 
-{% block title %}Configurações de Mensagens - Bot Telegram{% endblock %}
+{% block title %}Configurações de Mensagens{% endblock %}
+{% block page_title %}Configurações de Mensagens{% endblock %} {# Título para o cabeçalho principal #}
 
 {% block content %}
-<div class="container mx-auto p-4">
-    <h1 class="text-3xl font-bold mb-6 text-gray-800">Configurações de Mensagens</h1>
+<div class="form-container"> {# Usa o container de formulário para centralizar e estilizar #}
+    <div class="card" style="max-width: 42rem; width: 100%;"> {# Reutiliza o estilo de card com largura limitada #}
+        <h2 class="section-title" style="margin-bottom: 1.5rem;">Configurações de Mensagens</h2> {# Título principal do card #}
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div class="mb-4">
-                {% for category, message in messages %}
-                    <div class="p-3 rounded-md {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}">
-                        {{ message }}
-                    </div>
-                {% endfor %}
+        {# Mensagens flash já são gerenciadas pelo layout.html, então este bloco é redundante aqui #}
+        {# Removido:
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-4">
+                    {% for category, message in messages %}
+                        <div class="p-3 rounded-md {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        #}
+
+        <form method="POST" action="{{ url_for('config_messages') }}" class="form-grid">
+            <div>
+                <h3 class="section-subtitle" style="margin-bottom: 1rem;">Mensagem de Boas-Vindas ao Bot</h3>
+                <label for="welcome_message_bot" class="form-label">
+                    Crie uma mensagem personalizada para ser enviada ao seu cliente na primeira interação com o bot (comando /start).
+                </label>
+                <textarea id="welcome_message_bot" name="welcome_message_bot" rows="4" required
+                    class="form-textarea"
+                    placeholder="Ex: Olá, {first_name}! Bem-vindo(a) ao bot de vendas!">{{ welcome_message_bot }}</textarea>
+                <p class="form-hint">Use <code>{first_name}</code> para incluir o primeiro nome do usuário.</p>
             </div>
-        {% endif %}
-    {% endwith %}
 
-    <form method="POST" action="{{ url_for('config_messages') }}" class="bg-white shadow-md rounded-lg p-6 mb-6">
-        <h2 class="text-xl font-semibold mb-4 text-gray-700">Mensagem de Boas-Vindas ao Bot</h2>
-        <div class="mb-6">
-            <label for="welcome_message_bot" class="block text-gray-700 text-sm font-bold mb-2">
-                Crie uma mensagem personalizada para ser enviada ao seu cliente na primeira interação com o bot (comando /start).
-            </label>
-            <textarea id="welcome_message_bot" name="welcome_message_bot" rows="4" required
-                class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline resize-y"
-                placeholder="Ex: Olá, {first_name}! Bem-vindo(a) ao bot de vendas!">{{ welcome_message_bot }}</textarea>
-            <p class="text-xs text-gray-500 mt-1">Use <code>{first_name}</code> para incluir o primeiro nome do usuário.</p>
-        </div>
+            <div>
+                <h3 class="section-subtitle" style="margin-bottom: 1rem;">Mensagem de Boas-Vindas à Comunidade</h3>
+                <label for="welcome_message_community" class="form-label">
+                    Configure a mensagem que será enviada no grupo da sua comunidade quando um novo membro entrar.
+                </label>
+                <textarea id="welcome_message_community" name="welcome_message_community" rows="4" required
+                    class="form-textarea"
+                    placeholder="Ex: Bem-vindo(a) à nossa comunidade, {first_name}!">{{ welcome_message_community }}</textarea>
+                <p class="form-hint">Use <code>{first_name}</code> para incluir o primeiro nome do novo membro.</p>
+            </div>
 
-        <h2 class="text-xl font-semibold mb-4 text-gray-700">Mensagem de Boas-Vindas à Comunidade</h2>
-        <div class="mb-6">
-            <label for="welcome_message_community" class="block text-gray-700 text-sm font-bold mb-2">
-                Configure a mensagem que será enviada no grupo da sua comunidade quando um novo membro entrar.
-            </label>
-            <textarea id="welcome_message_community" name="welcome_message_community" rows="4" required
-                class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline resize-y"
-                placeholder="Ex: Bem-vindo(a) à nossa comunidade, {first_name}!">{{ welcome_message_community }}</textarea>
-            <p class="text-xs text-gray-500 mt-1">Use <code>{first_name}</code> para incluir o primeiro nome do novo membro.</p>
-        </div>
-
-        <div class="flex items-center justify-between">
-            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
-                Salvar Configurações
-            </button>
-            <a href="{{ url_for('index') }}" class="inline-block align-baseline font-bold text-sm text-gray-600 hover:text-gray-800">
-                Voltar ao Dashboard
-            </a>
-        </div>
-    </form>
+            <div class="form-actions" style="margin-top: 1rem;"> {# flex items-center justify-between #}
+                <button type="submit" class="btn btn-primary">
+                    Salvar Configurações
+                </button>
+                <a href="{{ url_for('index') }}" class="btn btn-secondary" style="font-size: 0.875rem; color: var(--text-light);"> {# inline-block align-baseline font-bold text-sm text-gray-600 hover:text-gray-800 #}
+                    Voltar ao Dashboard
+                </a>
+            </div>
+        </form>
+    </div>
 </div>
 {% endblock %}
