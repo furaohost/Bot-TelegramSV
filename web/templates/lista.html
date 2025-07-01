@@ -4,7 +4,7 @@
 {% block page_title %}Gerenciar Comunidades{% endblock %} {# Título no header principal do dashboard #}
 
 {% block content %}
-<div class="dashboard-content-wrapper"> {# Usa o wrapper do dashboard para centralizar e limitar largura #}
+<div class="dashboard-content-wrapper"> {# Uses the dashboard wrapper for centering and limiting width #}
     <div class="header" style="justify-content: space-between; align-items: center; margin-bottom: 2rem;"> {# Reutilizando header style para título e botão #}
         <h2 class="page-title" style="margin-bottom: 0;">Gerenciar Comunidades</h2> {# Usando page-title style #}
         <a href="{{ url_for('comunidades.nova') }}" class="btn btn-primary"> {# Assumindo que 'comunidades.nova' é a rota para adicionar uma nova #}
@@ -12,21 +12,6 @@
             Nova Comunidade
         </a>
     </div>
-
-    {# Mensagens flash já são gerenciadas pelo layout.html, então este bloco é redundante aqui #}
-    {# Removido:
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div class="mb-4">
-                {% for category, message in messages %}
-                    <div class="p-3 rounded-md {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
-    #}
 
     <div class="card"> {# Usando a classe 'card' para o contêiner da tabela #}
         {% if comunidades %}
@@ -60,10 +45,12 @@
                         </td>
                         <td>{{ comunidade.created_at | datetimeformat }}</td>
                         <td style="text-align: center; white-space: nowrap;"> {# Centraliza os botões de ação e impede quebra de linha #}
-                            <a href="{{ url_for('comunidades.editar', cid=comunidade.id) }}" class="btn-action edit">
+                            {# CORREÇÃO AQUI: 'cid' mudado para 'id' para corresponder à rota do Flask #}
+                            <a href="{{ url_for('comunidades.editar', id=comunidade.id) }}" class="btn-action edit">
                                 Editar
                             </a>
-                            <form action="{{ url_for('comunidades.deletar', cid=comunidade.id) }}" method="POST" class="inline-form" onsubmit="return confirm('Tem certeza que deseja desativar esta comunidade?');">
+                            {# CORREÇÃO AQUI: 'cid' mudado para 'id' para corresponder à rota do Flask #}
+                            <form action="{{ url_for('comunidades.deletar', id=comunidade.id) }}" method="POST" class="inline-form" onsubmit="return confirm('Tem certeza que deseja desativar esta comunidade?');">
                                 <button type="submit" class="btn-action delete">
                                     Desativar
                                 </button>
