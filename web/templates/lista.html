@@ -43,6 +43,9 @@
                 <tbody>
                     {% if comunidades %}
                         {% for comunidade in comunidades %}
+                        
+                        {# AQUI ESTÁ A CORREÇÃO: Verifica se o ID é um número antes de criar a linha #}
+                        {% if comunidade.id is number %}
                         <tr>
                             <td>{{ comunidade.id }}</td>
                             <td>{{ comunidade.nome }}</td>
@@ -59,6 +62,9 @@
                                 </form>
                             </td>
                         </tr>
+                        {% endif %}
+                        {# FIM DA CORREÇÃO #}
+
                         {% endfor %}
                     {% else %}
                         <tr>
