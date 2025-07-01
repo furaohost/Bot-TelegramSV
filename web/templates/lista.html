@@ -60,7 +60,7 @@
                         </td>
                         <td>{{ comunidade.created_at | datetimeformat }}</td>
                         <td style="text-align: center; white-space: nowrap;"> {# Centraliza os botões de ação e impede quebra de linha #}
-                            <a href="{{ url_for('comunidades.comunidades', id=comunidade.id) }}" class="btn-action edit">
+                            <a href="{{ url_for('comunidades.comunidades' instead', id=comunidade.id) }}" class="btn-action edit">
                                 Editar
                             </a>
                             <form action="{{ url_for('comunidades.deletar', cid=comunidade.id) }}" method="POST" class="inline-form" onsubmit="return confirm('Tem certeza que deseja desativar esta comunidade?');">

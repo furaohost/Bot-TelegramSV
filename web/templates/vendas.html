@@ -62,10 +62,10 @@
         </form>
     </div>
 
-    <div class="card table-listing-card">
+    <div class="card table-listing-card"> {# Usa 'card' para o contêiner da tabela #}
         {% if vendas %}
-        <div class="table-container">
-            <table class="data-table">
+        <div class="table-container"> {# Usa o 'table-container' para scroll e bordas #}
+            <table class="data-table"> {# Usa a classe 'data-table' #}
                 <thead>
                     <tr>
                         <th style="padding-left: 1.5rem;">Data</th>
@@ -97,15 +97,11 @@
                             <button type="button" data-id="{{ venda.id }}" class="btn-action primary open-modal-button">Detalhes</button>
                         </td>
                     </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="6" class="text-light text-center" style="padding: 2rem;">Nenhuma venda encontrada para os filtros selecionados.</td>
-                    </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
-        {% else %}
+        {% else %} {# AGORA ESTE ELSE ESTÁ DENTRO DO MESMO DIV DO IF #}
         <p class="text-light text-center" style="padding: 2rem;">Nenhuma venda encontrada para os filtros selecionados.</p>
         {% endif %}
     </div>
@@ -128,14 +124,26 @@
         <div class="modal-footer">
             <button type="button" id="close-modal-button" class="btn btn-secondary">Fechar</button>
         </div>
-    </div>
-</div>
+        </div> {# <-- ADICIONADO: Fechamento da div do modal-content #}
+    </div> {# <-- ADICIONADO: Fechamento da div do modal-overlay #}
+</div> {# <-- ADICIONADO: Fechamento da div do modal #}
 
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('filterForm');
         const tableBody = document.getElementById('vendas-table-body');
+        const modal = document.getElementById('details-modal'); // Get modal element
+        const closeModalButton = document.getElementById('close-modal-button'); // Get close button
+
+        // Function to ensure the modal is hidden
+        const ensureModalHidden = () => {
+            modal.classList.add('hidden');
+            document.body.style.overflow = ''; // Ensure body scroll is restored
+        };
+
+        // Call ensureModalHidden immediately on DOMContentLoaded
+        ensureModalHidden();
 
         const debounce = (func, delay) => {
             let timeout;
@@ -177,17 +185,17 @@
         });
         
         // Lógica do Modal
-        const modal = document.getElementById('details-modal');
-        const closeModalButton = document.getElementById('close-modal-button');
-
         const closeModal = () => {
             modal.classList.add('hidden'); // Adiciona a classe 'hidden' para esconder o modal
             document.body.style.overflow = ''; // Restaura o scroll do corpo da página
         }
+
+        // Adiciona event listener ao botão de fechar
         closeModalButton.addEventListener('click', closeModal);
+
+        // Adiciona event listener ao overlay do modal para fechar ao clicar fora do conteúdo
         modal.addEventListener('click', (event) => {
-             // Fecha o modal apenas se clicar no overlay (não no conteúdo do modal)
-            if (event.target === modal) { 
+            if (event.target === modal) { // Verifica se o clique foi diretamente no overlay
                 closeModal(); 
             } 
         });
@@ -217,7 +225,6 @@
 
         // Delegated event listener for dynamically added rows in tableBody
         tableBody.addEventListener('click', (event) => {
-            // Check if the clicked element or any of its parents is the "Detalhes" button
             const button = event.target.closest('.open-modal-button');
             if (button) {
                 openModal(button.dataset.id);
