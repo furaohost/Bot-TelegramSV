@@ -24,11 +24,16 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
         # Verifica se o comando foi enviado em um grupo ou canal, onde ele pode ser útil
         if message.chat.type in ['group', 'supergroup', 'channel']:
             # Pede o nome da comunidade
-            msg = bot_instance.send_message(chat_id, "Por favor, digite o *nome* da nova comunidade (ex: 'Comunidade VIP'):", parse_mode='Markdown')
-            # Armazena o estado do usuário para o próximo passo
-            user_states[chat_id] = {"step": "awaiting_new_community_name", "chat_type": message.chat.type, "chat_title": message.chat.title}
+            bot_instance.send_message(chat_id, "Por favor, digite o *nome* da nova comunidade (ex: 'Comunidade VIP'):", parse_mode='Markdown')
+            # Armazena o estado do usuário para o próximo passo, incluindo o chat_id do grupo/canal
+            user_states[chat_id] = {
+                "step": "awaiting_new_community_name",
+                "chat_type": message.chat.type,
+                "target_chat_id": message.chat.id, # O ID do grupo/canal
+                "chat_title": message.chat.title # Título do grupo/canal
+            }
         else:
-            bot_instance.send_message(chat_id, "Este comando `/nova_comunidade` deve ser usado dentro de um grupo ou canal que você deseja gerenciar.", parse_mode='Markdown')
+            bot_instance.send_message(chat_id, "Este comando `/nova_comunidade` deve ser usado dentro de um grupo ou canal que você deseja gerenciar. Por favor, adicione-me a um grupo e use o comando lá.", parse_mode='Markdown')
 
 
     @bot_instance.message_handler(func=lambda message: user_states.get(message.chat.id, {}).get("step") == "awaiting_new_community_name")
@@ -41,9 +46,9 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
             return
 
         # Pede a descrição da comunidade
-        msg = bot_instance.send_message(chat_id, f"Nome da comunidade: *{nome_comunidade}*\nAgora, digite uma *descrição* para esta comunidade (opcional, ou 'pular' para deixar em branco):", parse_mode='Markdown')
+        bot_instance.send_message(chat_id, f"Nome da comunidade: *{nome_comunidade}*\nAgora, digite uma *descrição* para esta comunidade (opcional, ou 'pular' para deixar em branco):", parse_mode='Markdown')
         
-        # Armazena o nome e avança para o próximo passo
+        # Armazena o nome e avança para o próximo passo, mantendo os dados anteriores
         user_states[chat_id]["step"] = "awaiting_new_community_description"
         user_states[chat_id]["data"] = {"nome": nome_comunidade}
 
@@ -57,19 +62,24 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
         if descricao_comunidade.lower() == 'pular':
             descricao_comunidade = None
 
-        # Recupera os dados armazenados
-        data = user_states[chat_id]["data"]
-        nome_comunidade = data["nome"]
+        # Recupera os dados armazenados, incluindo o target_chat_id
+        state_data = user_states.get(chat_id, {})
+        comunidade_data = state_data.get("data", {})
         
-        try:
-            # Cria a comunidade no DB, usando o chat_id do grupo/canal
-            # Se o comando foi iniciado em um grupo, o chat_id é o ID do grupo.
-            target_chat_id = chat_id if user_states[chat_id]["chat_type"] in ['group', 'supergroup', 'channel'] else None
+        nome_comunidade = comunidade_data.get("nome")
+        target_chat_id = state_data.get("target_chat_id") # O chat_id do grupo/canal
 
+        if not nome_comunidade:
+            bot_instance.send_message(chat_id, "Erro interno: Nome da comunidade não encontrado no estado. Por favor, reinicie o processo com /nova_comunidade.", parse_mode='Markdown')
+            if chat_id in user_states:
+                del user_states[chat_id]
+            return
+
+        try:
             nova_comunidade = comunidade_svc.criar(
                 nome=nome_comunidade, 
                 descricao=descricao_comunidade, 
-                chat_id=target_chat_id
+                chat_id=target_chat_id # Passa o chat_id do grupo/canal
             )
 
             if nova_comunidade:
@@ -130,7 +140,7 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
         for com in comunidades:
             markup.add(types.KeyboardButton(f"{com['nome']} (ID: {com['id']})"))
         
-        msg = bot_instance.send_message(
+        bot_instance.send_message(
             chat_id, 
             "Qual comunidade você deseja editar? Selecione ou digite o ID/Nome:", 
             reply_markup=markup,
@@ -157,20 +167,27 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
                     break
 
         if not selected_com:
-            bot_instance.send_message(chat_id, "Comunidade não encontrada. Por favor, digite o ID ou nome exato, ou tente selecionar novamente.", parse_mode='Markdown')
+            bot_instance.send_message(chat_id, "Comunidade não encontrada. Por favor, digite o *ID ou nome exato*, ou *reinicie* o processo de edição com /editar_comunidade.", parse_mode='Markdown')
+            # Limpa o estado se não encontrar para evitar que o usuário fique preso
             if chat_id in user_states:
-                del user_states[chat_id] # Limpa o estado para evitar loop
+                del user_states[chat_id]
             return
 
         # Armazena a comunidade selecionada e pede o novo nome
         user_states[chat_id] = {
             "step": "awaiting_edited_community_name",
-            "data": {"comunidade_id": selected_com['id'], "current_nome": selected_com['nome'], "current_descricao": selected_com['descricao']}
+            "data": {
+                "comunidade_id": selected_com['id'],
+                "current_nome": selected_com['nome'],
+                "current_descricao": selected_com['descricao'],
+                "current_chat_id": selected_com['chat_id'] # Armazena também o chat_id atual do grupo
+            }
         }
         bot_instance.send_message(
             chat_id, 
             f"Você selecionou a comunidade *'{selected_com['nome']}'* (ID: `{selected_com['id']}`).\n"
-            f"Digite o *novo nome* para esta comunidade (nome atual: {selected_com['nome']}):",
+            f"Digite o *novo nome* para esta comunidade (nome atual: {selected_com['nome']}).\n"
+            f"Ou digite `pular` para manter o nome atual:", # Adicionado opção de pular
             parse_mode='Markdown'
         )
     
@@ -178,9 +195,16 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
     def handle_edited_community_name(message):
         chat_id = message.chat.id
         novo_nome = message.text.strip()
+        
+        state_data = user_states.get(chat_id, {})
+        data = state_data.get("data", {})
+        current_nome = data.get("current_nome")
 
-        if not novo_nome:
-            bot_instance.send_message(chat_id, "O novo nome da comunidade não pode ser vazio. Por favor, digite o nome:", parse_mode='Markdown')
+        if novo_nome.lower() == 'pular':
+            novo_nome = current_nome # Mantém o nome atual
+
+        if not novo_nome: # Se o usuário digitou pular e o nome atual é vazio, ou digitou algo inválido
+            bot_instance.send_message(chat_id, "O novo nome da comunidade não pode ser vazio. Por favor, digite o nome novamente ou `pular`.", parse_mode='Markdown')
             return
         
         # Armazena o novo nome e pede a nova descrição
@@ -189,8 +213,9 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
 
         bot_instance.send_message(
             chat_id, 
-            f"Nome atualizado para: *{novo_nome}*\n"
-            f"Agora, digite a *nova descrição* (opcional, descrição atual: {user_states[chat_id]['data']['current_descricao'] or 'N/A'}, ou 'pular' para deixar igual):",
+            f"Nome da comunidade será: *{novo_nome}*\n"
+            f"Agora, digite a *nova descrição* (descrição atual: {user_states[chat_id]['data']['current_descricao'] or 'N/A'}).\n"
+            f"Ou digite `pular` para manter a descrição atual:",
             parse_mode='Markdown'
         )
 
@@ -200,24 +225,80 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
         nova_descricao = message.text.strip()
         
         # Recupera os dados armazenados
-        data = user_states[chat_id]["data"]
-        comunidade_id = data["comunidade_id"]
-        novo_nome = data["novo_nome"]
-        current_descricao = data["current_descricao"]
+        state_data = user_states.get(chat_id, {})
+        data = state_data.get("data", {})
+
+        comunidade_id = data.get("comunidade_id")
+        novo_nome = data.get("novo_nome")
+        current_descricao = data.get("current_descricao")
+        current_chat_id = data.get("current_chat_id") # O chat_id atual do grupo/canal
 
         # Se o usuário digitou "pular", mantém a descrição atual
         if nova_descricao.lower() == 'pular':
             nova_descricao = current_descricao
+        
+        if not novo_nome: # Sanidade caso algum estado anterior tenha sido perdido
+            bot_instance.send_message(chat_id, "Erro interno: Dados da comunidade para edição não encontrados. Por favor, reinicie o processo com /editar_comunidade.", parse_mode='Markdown')
+            if chat_id in user_states:
+                del user_states[chat_id]
+            return
+
+        # Agora, o bot pergunta se deseja atualizar o Chat ID (opcional)
+        user_states[chat_id]["step"] = "awaiting_edited_community_chat_id"
+        user_states[chat_id]["data"]["nova_descricao"] = nova_descricao # Armazena a nova descrição
+        
+        bot_instance.send_message(
+            chat_id,
+            f"Nome: *{novo_nome}*\nDescrição: *{nova_descricao or 'N/A'}*\n\n"
+            f"Agora, digite o *novo Chat ID* para esta comunidade (ID atual: `{current_chat_id or 'N/A'}`).\n"
+            f"Ou digite `pular` para manter o ID atual.\n"
+            f"Se você quiser remover o Chat ID, digite `remover`.",
+            parse_mode='Markdown'
+        )
+
+
+    @bot_instance.message_handler(func=lambda message: user_states.get(message.chat.id, {}).get("step") == "awaiting_edited_community_chat_id")
+    def handle_edited_community_chat_id(message):
+        chat_id = message.chat.id
+        novo_chat_id_input = message.text.strip()
+
+        state_data = user_states.get(chat_id, {})
+        data = state_data.get("data", {})
+
+        comunidade_id = data.get("comunidade_id")
+        novo_nome = data.get("novo_nome")
+        nova_descricao = data.get("nova_descricao")
+        current_chat_id = data.get("current_chat_id")
+
+        final_chat_id = None # Padrão para None, para permitir remover ou manter N/A
+
+        if novo_chat_id_input.lower() == 'pular':
+            final_chat_id = current_chat_id # Mantém o chat ID atual
+        elif novo_chat_id_input.lower() == 'remover':
+            final_chat_id = None # Define como None para remover
+        else:
+            try:
+                # Tenta converter para int, pois Chat IDs são numéricos
+                final_chat_id = int(novo_chat_id_input)
+            except ValueError:
+                bot_instance.send_message(chat_id, "O Chat ID deve ser um número inteiro, 'pular' ou 'remover'. Por favor, digite um valor válido.", parse_mode='Markdown')
+                return # Permanece no mesmo passo para tentar novamente
 
         try:
-            sucesso = comunidade_svc.editar(comunidade_id, novo_nome, nova_descricao)
+            sucesso = comunidade_svc.editar(
+                comunidade_id=comunidade_id,
+                nome=novo_nome,
+                descricao=nova_descricao,
+                chat_id=final_chat_id # Passa o chat_id final
+            )
 
             if sucesso:
                 bot_instance.send_message(
                     chat_id, 
                     f"Comunidade com ID `{comunidade_id}` editada com sucesso!\n"
-                    f"Novo Nome: *{novo_nome}*\n"
-                    f"Nova Descrição: {nova_descricao or 'N/A'}",
+                    f"Nome: *{novo_nome}*\n"
+                    f"Descrição: {nova_descricao or 'N/A'}\n"
+                    f"Chat ID: `{final_chat_id or 'N/A'}`", # Exibe o chat ID final
                     parse_mode='Markdown'
                 )
             else:
@@ -227,5 +308,70 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
             bot_instance.send_message(chat_id, "Houve um erro inesperado. Por favor, tente novamente.", parse_mode='Markdown')
         finally:
             # Limpa o estado do usuário
+            if chat_id in user_states:
+                del user_states[chat_id]
+
+    # ------------------------------------------------------------------
+    # COMANDO /desativar_comunidade (ou deletar)
+    # ------------------------------------------------------------------
+    @bot_instance.message_handler(commands=['desativar_comunidade', 'deletar_comunidade'])
+    def handle_desativar_comunidade(message):
+        chat_id = message.chat.id
+        comunidades = comunidade_svc.listar(ativos_apenas=True) # Lista apenas comunidades ativas para desativar
+
+        if not comunidades:
+            bot_instance.send_message(chat_id, "Nenhuma comunidade ativa para desativar.")
+            return
+
+        markup = types.ReplyKeyboardMarkup(row_width=1, one_time_keyboard=True, resize_keyboard=True)
+        for com in comunidades:
+            markup.add(types.KeyboardButton(f"{com['nome']} (ID: {com['id']})"))
+        
+        bot_instance.send_message(
+            chat_id, 
+            "Qual comunidade você deseja desativar? Selecione ou digite o ID/Nome:", 
+            reply_markup=markup,
+            parse_mode='Markdown'
+        )
+        user_states[chat_id] = {"step": "awaiting_community_to_deactivate"}
+
+    @bot_instance.message_handler(func=lambda message: user_states.get(message.chat.id, {}).get("step") == "awaiting_community_to_deactivate")
+    def handle_select_community_to_deactivate(message):
+        chat_id = message.chat.id
+        input_text = message.text.strip()
+        
+        selected_com = None
+        try:
+            com_id = int(input_text)
+            selected_com = comunidade_svc.obter(com_id)
+        except ValueError:
+            comunidades = comunidade_svc.listar(ativos_apenas=True)
+            for com in comunidades:
+                if input_text.lower() in com['nome'].lower() or f"(ID: {com['id']})" in input_text:
+                    selected_com = com
+                    break
+
+        if not selected_com:
+            bot_instance.send_message(chat_id, "Comunidade não encontrada. Por favor, digite o *ID ou nome exato*, ou *reinicie* o processo com /desativar_comunidade.", parse_mode='Markdown')
+            if chat_id in user_states:
+                del user_states[chat_id]
+            return
+
+        try:
+            # A função de "deletar" no serviço deve na verdade "desativar" (mudar o status, não remover do DB)
+            sucesso = comunidade_svc.desativar(selected_com['id'])
+
+            if sucesso:
+                bot_instance.send_message(
+                    chat_id, 
+                    f"Comunidade *'{selected_com['nome']}'* (ID: `{selected_com['id']}`) desativada com sucesso.",
+                    parse_mode='Markdown'
+                )
+            else:
+                bot_instance.send_message(chat_id, "Ocorreu um erro ao desativar a comunidade. Tente novamente.", parse_mode='Markdown')
+        except Exception as e:
+            print(f"Erro ao desativar comunidade: {e}")
+            bot_instance.send_message(chat_id, "Houve um erro inesperado. Por favor, tente novamente.", parse_mode='Markdown')
+        finally:
             if chat_id in user_states:
                 del user_states[chat_id]
