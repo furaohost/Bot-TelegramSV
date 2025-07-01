@@ -1,36 +1,29 @@
 {% extends "layout.html" %}
 
 {% block title %}Gerenciar Produtos{% endblock %}
-{% block page_title %}Gerenciar Produtos{% endblock %} {# Title for the main header #}
+{% block page_title %}Gerenciar Produtos{% endblock %} {# Este bloco define o título que aparece no cabeçalho principal do dashboard #}
 
 {% block content %}
 <div class="dashboard-content-wrapper"> {# Uses the dashboard wrapper for centering and width #}
 
     <div class="header" style="justify-content: space-between; align-items: center; margin-bottom: 2rem;"> {# Reusing header style for title and button #}
-        <h1 class="page-title" style="margin-bottom: 0;">Gerenciar Produtos</h1> {# Using page-title style #}
-        <button id="showAddFormBtn" class="btn btn-primary btn-icon"> {# btn-icon for button with icon #}
-            <span class="material-icons">add</span> {# Using Material Icons for the plus symbol #}
+        {# REMOVIDO: O H1 que causava a duplicação. O título principal já é definido pelo block page_title acima. #}
+        {# Removido: <h1 class="page-title" style="margin-bottom: 0;">Gerenciar Produtos</h1> #}
+        {# A linha acima era o H1 que estava causando a duplicação, pois o page_title já exibe "Gerenciar Produtos" no topo. #}
+        
+        {# Mantenha o espaço para o título principal que vem do layout.html #}
+        <h1 class="page-title" style="margin-bottom: 0;">{% block page_title_inside_header %}{% endblock page_title_inside_header %}</h1>
+        {# Colocamos um novo block aqui caso você queira um título diferente dentro do header da página específica,
+           mas para o seu caso, ele pode ficar vazio e o título virá do page_title principal. #}
+
+        <button id="showAddFormBtn" class="btn btn-primary btn-icon">
+            <span class="material-icons">add</span>
             Adicionar Novo Produto
         </button>
     </div>
 
-    {# Flash messages are already handled by layout.html, so this block is redundant here. #}
-    {# Removed:
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div class="mb-6 space-y-3">
-                {% for category, message in messages %}
-                    <div class="p-4 rounded-lg text-sm {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}" role="alert">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
-    #}
-
     {# Formulário de Adição de Produto #}
-    <div id="addProductForm" class="card form-card-hidden"> {# Using 'card' and new 'form-card-hidden' class #}
+    <div id="addProductForm" class="card form-card-hidden">
         <h2 class="section-title text-center" style="margin-bottom: 1.5rem;">Adicionar Novo Produto</h2>
         <form action="{{ url_for('produtos') }}" method="POST" class="form-grid">
             <div>
@@ -66,7 +59,7 @@
     </div>
 
     {# Formulário de Edição de Produto #}
-    <div id="editProductForm" class="card form-card-hidden"> {# Using 'card' and 'form-card-hidden' class #}
+    <div id="editProductForm" class="card form-card-hidden">
         <h2 class="section-title text-center" style="margin-bottom: 1.5rem;">Editar Produto</h2>
         <form id="editProductActualForm" method="POST" class="form-grid">
             <input type="hidden" name="produto_id" id="edit_produto_id">
@@ -102,9 +95,10 @@
 
     {# Tabela de Produtos #}
     {% if produtos %}
-    <div class="card table-listing-card"> {# Using 'card' and new 'table-listing-card' class #}
-        <div class="table-container"> {# Uses the 'table-container' for scroll and borders #}
-            <table class="data-table"> {# Uses the 'data-table' class #}
+    <div class="card table-listing-card">
+        <h2 class="section-title" style="margin-bottom: 1.5rem;">Lista de Produtos</h2> {# Título da tabela #}
+        <div class="table-container">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>ID</th>
@@ -124,7 +118,7 @@
                         <td>{{ produto.id }}</td>
                         <td style="white-space: normal;">{{ produto.nome }}</td>
                         <td>R${{ "%.2f" | format(produto.preco) }}</td>
-                        <td class="truncated-link"> {# New class for link truncation #}
+                        <td class="truncated-link">
                             <a href="{{ produto.link }}" target="_blank" class="text-primary hover-text-primary-dark">
                                 {{ produto.link }}
                             </a>
@@ -148,7 +142,7 @@
         </div>
     </div>
     {% else %}
-    <p class="card text-light text-center" style="padding: 1.5rem;">Nenhum produto cadastrado ainda. Use o botão "Adicionar Novo Produto" para começar!</p> {# Uses card, text-light, and padding #}
+    <p class="card text-light text-center" style="padding: 1.5rem;">Nenhum produto cadastrado ainda. Use o botão "Adicionar Novo Produto" para começar!</p>
     {% endif %}
 </div>
 
@@ -178,7 +172,7 @@
         function showForm(formElement) {
             hideAllForms(); // Ensures only one form is visible
             formElement.classList.remove('form-card-hidden');
-            formElement.classList.add('form-card-visible'); // Add a class for explicit visibility
+            formElement.classList.add('form-card-visible');
             showAddFormBtn.style.display = 'none'; // Hide the "Add Product" button
             formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
@@ -211,7 +205,7 @@
 
         editButtons.forEach(button => {
             button.addEventListener('click', function() {
-                const row = this.closest('.product-row'); // Use the new class to find the row
+                const row = this.closest('.product-row');
                 const produtoId = row.dataset.produtoId;
                 const produtoNome = row.dataset.produtoNome;
                 const produtoPreco = row.dataset.produtoPreco;
@@ -231,7 +225,6 @@
         });
 
         // Logic to automatically display form after a redirect with error/success
-        // This needs to be adapted to your Flask/backend redirect logic
         const urlParams = new URLSearchParams(window.location.search);
         const editId = urlParams.get('edit_id');
         const addNewProduct = urlParams.get('add_new_product');
@@ -239,8 +232,7 @@
         const precoVal = urlParams.get('preco_val');
         const linkVal = urlParams.get('link_val');
 
-        // Check if there are any flash messages (assuming they are rendered as children of main-content block)
-        const flashMessagesContainer = document.querySelector('.main-content > div[style*="margin-bottom"]'); // Target the flash messages div
+        const flashMessagesContainer = document.querySelector('.main-content > div[style*="margin-bottom"]');
         let hasError = false;
         if (flashMessagesContainer) {
             hasError = Array.from(flashMessagesContainer.children).some(
@@ -249,22 +241,20 @@
         }
 
         if (hasError) {
-            if (editId) { // Error in edit, re-populate edit form
+            if (editId) {
                 editProdutoIdInput.value = editId;
                 editNomeInput.value = nomeVal || '';
                 editPrecoInput.value = precoVal || '';
                 editLinkInput.value = linkVal || '';
                 editProductActualForm.action = `/editar_produto/${editId}`; 
                 showForm(editProductForm);
-            } else if (addNewProduct) { // Error in add, re-populate add form
+            } else if (addNewProduct) {
                 addNomeInput.value = nomeVal || '';
                 addPrecoInput.value = precoVal || '';
                 addLinkInput.value = linkVal || '';
                 showForm(addProductForm);
             }
         } else {
-             // If coming from a successful add/edit redirect, or initial load, ensure forms are hidden
-             // This can be simplified if backend always redirects to clean URL after success.
              hideAllForms();
         }
 
@@ -276,7 +266,7 @@
             url.searchParams.delete('nome_val');
             url.searchParams.delete('preco_val');
             url.searchParams.delete('link_val');
-            url.searchParams.delete('error'); // Assuming 'error' param for general errors
+            url.searchParams.delete('error');
             window.history.replaceState({path:url.href}, '', url.href);
         }
     });

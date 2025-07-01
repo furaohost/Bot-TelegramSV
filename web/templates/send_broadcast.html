@@ -1,78 +1,68 @@
 {% extends "layout.html" %}
 
 {% block title %}Enviar Broadcast{% endblock %}
-{% block page_title %}Enviar Broadcast{% endblock %} {# Title for the main header #}
+{% block page_title %}Enviar Broadcast{% endblock %} {# Este bloco define o título que aparece no cabeçalho principal do dashboard #}
 
 {% block content %}
 <div class="form-container"> {# Uses the form container for centering and styling #}
-    <div class="card" style="max-width: 48rem; width: 100%; padding: 2.5rem;"> {# Adjust max-width and padding to match original Tailwind #}
+    <div class="card" style="max-width: 48rem; width: 100%; padding: 2.5rem;">
+        {# REMOVIDO: O H1 que causava a duplicação. O título principal já é definido pelo block page_title acima. #}
+        {# Removido:
+        <h1 class="text-4xl font-extrabold text-gray-900 mb-8 text-center">
+            <span class="block">🚀 Enviar Mensagem de Broadcast</span>
+            <span class="block text-xl font-medium text-indigo-700 mt-2">Alcance todos os seus usuários ativos!</span>
+        </h1>
+        #}
         <h2 class="section-title text-center" style="margin-bottom: 2rem;">
-            <span style="display: block; font-size: 2.25rem; font-weight: 800; color: var(--text);">🚀 Enviar Mensagem de Broadcast</span> {# text-4xl font-extrabold text-gray-900 #}
-            <span style="display: block; font-size: 1.25rem; font-weight: 500; color: var(--primary); margin-top: 0.5rem;">Alcance todos os seus usuários ativos!</span> {# text-xl font-medium text-indigo-700 #}
+            <span style="display: block; font-size: 2.25rem; font-weight: 800; color: var(--text);">🚀 Enviar Mensagem de Broadcast</span>
+            <span style="display: block; font-size: 1.25rem; font-weight: 500; color: var(--primary); margin-top: 0.5rem;">Alcance todos os seus usuários ativos!</span>
         </h2>
 
-        {# Flash messages are already handled by layout.html, so this block is redundant here. #}
-        {# Removed:
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="mb-6 space-y-3">
-                    {% for category, message in messages %}
-                        <div class="p-4 rounded-lg shadow-md flex items-center {{ 'bg-green-100 text-green-800' if category == 'success' else ('bg-red-100 text-red-800' if category == 'danger' else 'bg-blue-100 text-blue-800') }}">
-                            <svg class="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                ...
-                            </svg>
-                            <p class="text-sm font-medium">{{ message }}</p>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
-        #}
 
-        <form method="POST" action="{{ url_for('send_broadcast') }}" class="form-grid"> {# space-y-6 #}
+        <form method="POST" action="{{ url_for('send_broadcast') }}" class="form-grid">
             <div>
-                <label for="message_text" class="form-label" style="font-size: 1.125rem;"> {# text-lg font-semibold #}
+                <label for="message_text" class="form-label" style="font-size: 1.125rem;">
                     Conteúdo da Mensagem <span style="color: var(--danger);">*</span>
                 </label>
                 <textarea name="message_text" id="message_text" rows="8" required
                           class="form-textarea"
                           placeholder="Digite a mensagem que deseja enviar para todos os usuários..."
                 >{{ message_text_val | default('', true) }}</textarea>
-                <p class="form-hint" style="margin-top: 0.5rem;"> {# mt-2 text-sm #}
+                <p class="form-hint" style="margin-top: 0.5rem;">
                     Suporta formatação Markdown (ex: *negrito*, _itálico_, `código`).
                 </p>
             </div>
 
             <div>
-                <label for="image_url" class="form-label" style="font-size: 1.125rem;"> {# text-lg font-semibold #}
+                <label for="image_url" class="form-label" style="font-size: 1.125rem;">
                     URL da Imagem (Opcional)
                 </label>
                 <input type="url" name="image_url" id="image_url"
                        class="form-input"
                        placeholder="Ex: https://seusite.com/imagem.jpg"
                        value="{{ image_url_val | default('', true) }}">
-                <p class="form-hint" style="margin-top: 0.5rem;"> {# mt-2 text-sm #}
+                <p class="form-hint" style="margin-top: 0.5rem;">
                     Cole o link direto de uma imagem para enviar junto com a mensagem.
                 </p>
             </div>
 
-            <div class="preview-section"> {# New class for preview section #}
-                <h3 class="section-subtitle" style="margin-bottom: 1rem;">Pré-visualização da Mensagem</h3> {# text-xl font-bold #}
-                <div id="preview-area" class="preview-box"> {# New classes for preview box #}
-                    <p id="preview-text" class="preview-text-content"></p> {# New class for text content #}
-                    <img id="preview-image" src="" alt="Pré-visualização da Imagem" class="preview-image hidden"> {# New class for image #}
+            <div class="preview-section">
+                <h3 class="section-subtitle" style="margin-bottom: 1rem;">Pré-visualização da Mensagem</h3>
+                <div id="preview-area" class="preview-box">
+                    <p id="preview-text" class="preview-text-content"></p>
+                    <img id="preview-image" src="" alt="Pré-visualização da Imagem" class="preview-image hidden">
                     <p id="preview-placeholder" class="preview-placeholder">
                         Digite sua mensagem ou adicione uma URL de imagem para pré-visualizar aqui.
                     </p>
                 </div>
             </div>
 
-            <div class="form-actions" style="justify-content: flex-end; gap: 1rem; padding-top: 1.5rem;"> {# flex justify-end gap-x-4 pt-6 #}
+            <div class="form-actions" style="justify-content: flex-end; gap: 1rem; padding-top: 1.5rem;">
                 <a href="{{ url_for('index') }}" class="btn btn-secondary">
                     Cancelar
                 </a>
-                <button type="submit" class="btn btn-primary btn-icon"> {# Added btn-icon for consistent styling #}
-                    <span class="material-icons" style="margin-right: 0.5rem;">send</span> {# Material Icons send icon #}
+                <button type="submit" class="btn btn-primary btn-icon">
+                    <span class="material-icons" style="margin-right: 0.5rem;">send</span>
                     Enviar Broadcast
                 </button>
             </div>
@@ -92,12 +82,11 @@
             const messageText = messageTextInput.value;
             const imageUrl = imageUrlInput.value;
 
-            // Simple Markdown to HTML conversion (for bold and italic)
             let formattedText = messageText
-                .replace(/\*(.*?)\*/g, '<strong>$1</strong>') // Bold
-                .replace(/_(.*?)_/g, '<em>$1</em>')     // Italic
-                .replace(/`(.*?)`/g, '<code>$1</code>') // Code
-                .replace(/\n/g, '<br>'); // Handle new lines for preview
+                .replace(/\*(.*?)\*/g, '<strong>$1</strong>')
+                .replace(/_(.*?)_/g, '<em>$1</em>')
+                .replace(/`(.*?)`/g, '<code>$1</code>')
+                .replace(/\n/g, '<br>');
 
             previewTextArea.innerHTML = formattedText || '';
 
@@ -106,15 +95,14 @@
                 previewImage.classList.remove('hidden');
                 previewImage.onload = () => {
                     previewPlaceholder.classList.add('hidden');
-                    // Ensure text content is not empty if image loads and text is also there
-                    if (!messageText.trim()) { // If only spaces, treat as empty
-                        previewPlaceholder.classList.add('hidden'); // Placeholder hidden if image loads
+                    if (!messageText.trim()) {
+                        previewPlaceholder.classList.add('hidden');
                     }
                 };
                 previewImage.onerror = () => {
                     previewImage.classList.add('hidden');
                     previewImage.src = '';
-                    if (!messageText.trim()) { // If no text and image fails, show placeholder
+                    if (!messageText.trim()) {
                         previewPlaceholder.classList.remove('hidden');
                     }
                 };
@@ -123,7 +111,6 @@
                 previewImage.src = '';
             }
 
-            // Show/hide placeholder based on content
             if (!messageText.trim() && !imageUrl) {
                 previewPlaceholder.classList.remove('hidden');
             } else {
@@ -131,10 +118,8 @@
             }
         }
 
-        // Initial preview update
         updatePreview();
 
-        // Listen for input changes
         messageTextInput.addEventListener('input', updatePreview);
         imageUrlInput.addEventListener('input', updatePreview);
     });

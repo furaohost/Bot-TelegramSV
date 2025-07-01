@@ -1,57 +1,47 @@
 {% extends "layout.html" %}
 
 {% block title %}Usuários{% endblock %}
-{% block page_title %}Gerenciar Usuários{% endblock %} {# Title for the main header #}
+{% block page_title %}Gerenciar Usuários{% endblock %} {# Este bloco define o título que aparece no cabeçalho principal do dashboard #}
 
 {% block content %}
 <div class="dashboard-content-wrapper"> {# Uses the dashboard wrapper for centering and width #}
-    <h1 class="page-title" style="margin-bottom: 2rem;">Gerenciar Usuários do Bot</h1> {# Using page-title style #}
+    {# REMOVIDO: O H1 que causava a duplicação. O título principal já é definido pelo block page_title acima. #}
+    {# Removido: <h1 class="page-title" style="margin-bottom: 2rem;">Gerenciar Usuários do Bot</h1> #}
+    {# A linha acima era o H1 que estava causando a duplicação. #}
 
-    {# Flash messages are already handled by layout.html, so this block is redundant here. #}
-    {# Removed:
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div class="mb-4">
-                {% for category, message in messages %}
-                    <div class="p-3 mb-2 rounded-md {{ 'bg-green-100 text-green-800' if category == 'success' else ('bg-red-100 text-red-800' if category == 'danger' else 'bg-blue-100 text-blue-800') }}">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
-    #}
+    <div class="card table-listing-card"> {# Uses the 'card' class for the table container #}
+        {# Você pode adicionar um h2/h3 aqui se quiser um subtítulo para a tabela, mas não o título principal #}
+        <h2 class="section-title" style="margin-bottom: 1.5rem;">Lista de Usuários do Bot</h2> {# Exemplo de subtítulo #}
 
-    <div class="card"> {# Uses the 'card' class for the table container #}
         {% if usuarios %}
         <div class="table-container"> {# Uses the 'table-container' for scroll and borders #}
             <table class="data-table"> {# Uses the 'data-table' class #}
                 <thead>
                     <tr>
-                        <th scope="col" style="padding-left: 1.5rem;">ID</th> {# px-6 #}
-                        <th scope="col">Username</th>
-                        <th scope="col">Nome Completo</th>
-                        <th scope="col">Data de Registro</th>
-                        <th scope="col">Status</th>
-                        <th scope="col" style="text-align: right; padding-right: 1.5rem;">Ações</th> {# sm:pr-6 #}
+                        <th style="padding-left: 1.5rem;">ID</th>
+                        <th>Username</th>
+                        <th>Nome Completo</th>
+                        <th>Data de Registro</th>
+                        <th>Status</th>
+                        <th style="text-align: right; padding-right: 1.5rem;">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for usuario in usuarios %}
                     <tr>
-                        <td style="padding-left: 1.5rem;">{{ usuario.id }}</td> {# sm:pl-6 #}
+                        <td style="padding-left: 1.5rem;">{{ usuario.id }}</td>
                         <td>@{{ usuario.username if usuario.username else 'N/A' }}</td>
-                        <td>{{ usuario.first_name }} {{ usuario.last_name if usuario.last_name else '' }}</td>
+                        <td style="white-space: normal;">{{ usuario.first_name }} {{ usuario.last_name if usuario.last_name else '' }}</td> {# Added normal whitespace for long names #}
                         <td>{{ usuario.data_registro.strftime('%d/%m/%Y %H:%M') if usuario.data_registro else 'N/A' }}</td>
                         <td>
                             <span class="status {% if usuario.is_active %}status-success{% else %}status-danger{% endif %}">
                                 {{ 'Ativo' if usuario.is_active else 'Inativo' }}
                             </span>
                         </td>
-                        <td style="text-align: right; white-space: nowrap; padding-right: 1.5rem;"> {# sm:pr-6 #}
+                        <td style="text-align: right; white-space: nowrap; padding-right: 1.5rem;">
                             {# Call to toggle_user_status route that activates/deactivates the user #}
                             <form action="{{ url_for('toggle_user_status', user_id=usuario.id) }}" method="POST" class="inline-form">
-                                <button type="submit" class="btn-action {% if usuario.is_active %}delete{% else %}success{% endif %}"> {# Using delete for deactivate, success for activate #}
+                                <button type="submit" class="btn-action {% if usuario.is_active %}delete{% else %}success{% endif %}">
                                     {{ 'Desativar' if usuario.is_active else 'Ativar' }}
                                 </button>
                             </form>

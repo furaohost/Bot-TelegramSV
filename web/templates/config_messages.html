@@ -1,27 +1,14 @@
 {% extends "layout.html" %}
 
 {% block title %}Configurações de Mensagens{% endblock %}
-{% block page_title %}Configurações de Mensagens{% endblock %} {# Título para o cabeçalho principal #}
+{% block page_title %}Configurações de Mensagens{% endblock %} {# Este bloco define o título que aparece no cabeçalho principal do dashboard #}
 
 {% block content %}
-<div class="form-container"> {# Usa o container de formulário para centralizar e estilizar #}
-    <div class="card" style="max-width: 42rem; width: 100%;"> {# Reutiliza o estilo de card com largura limitada #}
-        <h2 class="section-title" style="margin-bottom: 1.5rem;">Configurações de Mensagens</h2> {# Título principal do card #}
-
-        {# Mensagens flash já são gerenciadas pelo layout.html, então este bloco é redundante aqui #}
-        {# Removido:
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="mb-4">
-                    {% for category, message in messages %}
-                        <div class="p-3 rounded-md {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
-        #}
+<div class="form-container"> {# Uses the form container for centering and styling #}
+    <div class="card" style="max-width: 42rem; width: 100%;">
+        {# REMOVIDO: O H2 que causava a duplicação. O título principal já é definido pelo block page_title acima. #}
+        {# Removido: <h2 class="section-title" style="margin-bottom: 1.5rem;">Configurações de Mensagens</h2> #}
+        <h2 class="section-title" style="margin-bottom: 1.5rem;">Configurações de Mensagens</h2> {# Mantendo este h2 para título interno do card #}
 
         <form method="POST" action="{{ url_for('config_messages') }}" class="form-grid">
             <div>
@@ -46,11 +33,11 @@
                 <p class="form-hint">Use <code>{first_name}</code> para incluir o primeiro nome do novo membro.</p>
             </div>
 
-            <div class="form-actions" style="margin-top: 1rem;"> {# flex items-center justify-between #}
+            <div class="form-actions" style="margin-top: 1rem;">
                 <button type="submit" class="btn btn-primary">
                     Salvar Configurações
                 </button>
-                <a href="{{ url_for('index') }}" class="btn btn-secondary" style="font-size: 0.875rem; color: var(--text-light);"> {# inline-block align-baseline font-bold text-sm text-gray-600 hover:text-gray-800 #}
+                <a href="{{ url_for('index') }}" class="btn btn-secondary" style="font-size: 0.875rem; color: var(--text-light);">
                     Voltar ao Dashboard
                 </a>
             </div>

@@ -1,12 +1,14 @@
 {% extends "layout.html" %}
 
 {% block title %}Agendar Nova Mensagem{% endblock %}
-{% block page_title %}Agendar Nova Mensagem{% endblock %}
+{% block page_title %}Agendar Nova Mensagem{% endblock %} {# Este bloco define o título que aparece no cabeçalho principal do dashboard #}
 
 {% block content %}
-<div class="form-container">
-    <div class="card" style="max-width: 42rem; width: 100%;"> {# Adicionado max-width e width para simular 'max-w-2xl' #}
-        <h2 style="font-size: 1.5rem; text-align: center; margin-bottom: 1.5rem; color: var(--text);">Agendar Nova Mensagem</h2>
+<div class="form-container"> {# Uses the form container for centering and styling #}
+    <div class="card" style="max-width: 42rem; width: 100%;">
+        {# REMOVIDO: O H2 que causava a duplicação. O título principal já é definido pelo block page_title acima. #}
+        {# Removido: <h2 style="font-size: 1.5rem; text-align: center; margin-bottom: 1.5rem; color: var(--text);">Agendar Nova Mensagem</h2> #}
+        <h2 class="section-title text-center" style="margin-bottom: 1.5rem;">Agendar Nova Mensagem</h2> {# Mantendo este h2 para título interno do card #}
 
         <form method="POST" action="{{ url_for('add_scheduled_message') }}" class="form-grid">
             <div>

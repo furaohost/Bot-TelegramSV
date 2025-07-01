@@ -11,24 +11,9 @@
         <p class="section-description">Filtre e visualize todas as transações do seu bot.</p> {# Using section-description #}
     </div>
 
-    {# Flash messages are already handled by layout.html, so this block is redundant here. #}
-    {# Removed:
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div class="mb-4">
-                {% for category, message in messages %}
-                    <div class="p-3 mb-2 rounded-md {{ 'bg-green-100 text-green-800' if category == 'success' else ('bg-red-100 text-red-800' if category == 'danger' else 'bg-blue-100 text-blue-800') }}">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
-    #}
-
     <div class="card mb-8"> {# Using 'card' for the filter section #}
         <h3 class="section-subtitle" style="margin-bottom: 1.5rem;">Filtros de Vendas</h3>
-        <form id="filterForm" method="GET" action="{{ url_for('vendas') }}" class="form-grid-filter"> {# New grid class for filters #}
+        <form id="filterForm" method="GET" action="{{ url_for('vendas') }}" class="form-grid-filter">
             
             <div>
                 <label for="pesquisa" class="form-label">Pesquisar</label>
@@ -52,7 +37,7 @@
                     <option value="aprovado" {% if request.args.get('status') == 'aprovado' %}selected{% endif %}>Aprovado</option>
                     <option value="pendente" {% if request.args.get('status') == 'pendente' %}selected{% endif %}>Pendente</option>
                     <option value="expirado" {% if request.args.get('status') == 'expirado' %}selected{% endif %}>Expirado</option>
-                    <option value="cancelado" {% if request.args.get('status') == 'cancelado' %}selected{% endif %}>Cancelado</option> {# Added 'cancelado' if applicable #}
+                    <option value="cancelado" {% if request.args.get('status') == 'cancelado' %}selected{% endif %}>Cancelado</option>
                 </select>
             </div>
             
@@ -65,16 +50,16 @@
                 <input type="date" name="data_fim" id="data_fim" value="{{ request.args.get('data_fim', '') }}" class="form-input">
             </div>
 
-            <div class="form-filter-actions"> {# New class for filter actions #}
-                <a href="{{ url_for('vendas') }}" class="btn btn-secondary btn-full-width">Limpar Filtros</a> {# Added btn-full-width #}
+            <div class="form-filter-actions">
+                <a href="{{ url_for('vendas') }}" class="btn btn-secondary btn-full-width">Limpar Filtros</a>
             </div>
         </form>
     </div>
 
-    <div class="card table-listing-card"> {# Uses 'card' for the table container #}
+    <div class="card table-listing-card">
         {% if vendas %}
-        <div class="table-container"> {# Uses 'table-container' for scroll and borders #}
-            <table class="data-table"> {# Uses 'data-table' class #}
+        <div class="table-container">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th style="padding-left: 1.5rem;">Data</th>
@@ -88,7 +73,7 @@
                 <tbody id="vendas-table-body">
                     {% for venda in vendas %}
                     <tr>
-                        <td style="padding-left: 1.5rem;">{{ venda.data_venda | datetimeformat }}</td> {# Assuming datetimeformat filter #}
+                        <td style="padding-left: 1.5rem;">{{ venda.data_venda | datetimeformat }}</td>
                         <td>{{ venda.first_name }} (@{{ venda.username }})</td>
                         <td>{{ venda.nome }}</td>
                         <td>R$ {{ "%.2f"|format(venda.preco) }}</td>
@@ -97,13 +82,13 @@
                                 {% if venda.status == 'aprovado' %}status-success
                                 {% elif venda.status == 'expirado' %}status-danger
                                 {% elif venda.status == 'pendente' %}status-warning
-                                {% elif venda.status == 'cancelado' %}status-danger {# Assuming 'cancelado' is also danger #}
+                                {% elif venda.status == 'cancelado' %}status-danger
                                 {% else %}status-info{% endif %}">
                                 {{ venda.status | capitalize }}
                             </span>
                         </td>
                         <td style="text-align: center; white-space: nowrap; padding-right: 1.5rem;">
-                            <button type="button" data-id="{{ venda.id }}" class="btn-action primary open-modal-button">Detalhes</button> {# Using btn-action primary for details #}
+                            <button type="button" data-id="{{ venda.id }}" class="btn-action primary open-modal-button">Detalhes</button>
                         </td>
                     </tr>
                     {% else %}
@@ -120,15 +105,15 @@
     </div>
 </div>
 
-<div id="details-modal" class="modal-overlay hidden"> {# New classes for modal #}
-    <div class="modal-content"> {# New class for modal content #}
+<div id="details-modal" class="modal-overlay hidden"> {# Certifique-se de que a classe 'hidden' está aqui por padrão #}
+    <div class="modal-content">
         <div class="modal-header">
             <h3 id="modal-title" class="modal-title">Detalhes da Venda</h3>
         </div>
         <div class="modal-body">
-            <dl class="modal-details-list"> {# New class for description list #}
+            <dl class="modal-details-list">
                 <div class="modal-detail-item"><dt class="modal-detail-term">Valor do Pagamento</dt><dd id="modal-valor" class="modal-detail-description"></dd></div>
-                <div class="modal-detail-item"><dt class="modal-detail-term">ID da Transação (MP)</dt><dd id="modal-payment-id" class="modal-detail-description word-break"></dd></div> {# word-break for long IDs #}
+                <div class="modal-detail-item"><dt class="modal-detail-term">ID da Transação (MP)</dt><dd id="modal-payment-id" class="modal-detail-description word-break"></dd></div>
                 <div class="modal-detail-item"><dt class="modal-detail-term">Nome do Pagador (MP)</dt><dd id="modal-payer-name" class="modal-detail-description"></dd></div>
                 <div class="modal-detail-item"><dt class="modal-detail-term">E-mail do Pagador (MP)</dt><dd id="modal-payer-email" class="modal-detail-description"></dd></div>
             </dl>
@@ -156,11 +141,10 @@
         const updateResults = async () => {
             const formData = new FormData(form);
             const params = new URLSearchParams(formData).toString();
-            tableBody.style.opacity = '0.5'; // Visual feedback for loading
+            tableBody.style.opacity = '0.5';
             try {
                 const response = await fetch(`${form.action}?${params}`);
                 const htmlText = await response.text();
-                // We need to parse the response as a full HTML document and extract only the table body
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(htmlText, 'text/html');
                 const newTableBody = doc.getElementById('vendas-table-body');
@@ -170,15 +154,14 @@
                 history.pushState(null, '', `${form.action}?${params}`);
             } catch (error) {
                 console.error('Erro ao atualizar os filtros:', error);
-                // Optionally display an error message to the user
             } finally {
-                tableBody.style.opacity = '1'; // Reset opacity
+                tableBody.style.opacity = '1';
             }
         };
 
         const debouncedUpdate = debounce(updateResults, 400);
 
-        document.querySelectorAll('.form-input, .form-select').forEach(input => { // Using new form classes
+        document.querySelectorAll('.form-input, .form-select').forEach(input => {
             const eventType = (input.tagName === 'INPUT' && input.type === 'text') ? 'input' : 'change';
             input.addEventListener(eventType, (e) => {
                 e.preventDefault();
@@ -186,19 +169,47 @@
             });
         });
         
-        // Modal Logic
+        // Lógica do Modal
         const modal = document.getElementById('details-modal');
         const closeModalButton = document.getElementById('close-modal-button');
-        const openModalButtons = document.querySelectorAll('.open-modal-button'); // Select all detail buttons
+        // Não precisamos de querySelectorAll para openModalButtons aqui, pois o evento é delegado.
+        // openModalButtons será usado no event listener delegado do tableBody
 
-        const closeModal = () => modal.classList.add('hidden');
+        const closeModal = () => {
+            modal.classList.add('hidden');
+            document.body.style.overflow = ''; // Restore scroll
+        }
         closeModalButton.addEventListener('click', closeModal);
-        modal.addEventListener('click', (event) => { if (event.target === modal) { closeModal(); } }); // Close on outside click
+        modal.addEventListener('click', (event) => {
+             // Fecha o modal apenas se clicar no overlay (não no conteúdo do modal)
+            if (event.target === modal) { 
+                closeModal(); 
+            } 
+        });
         
         const openModal = async (vendaId) => {
             try {
-                const response = await fetch(`/venda_detalhes/${vendaId}`); // Ensure this Flask route exists and returns JSON
-                if (!response.ok) throw new Error('Venda não encontrada');
+                // Aqui é CRÍTICO: Sua rota Flask 'venda_detalhes' DEVE retornar JSON com os dados da venda.
+                // Exemplo de rota Flask:
+                // @app.route('/venda_detalhes/<int:venda_id>')
+                // def venda_detalhes(venda_id):
+                //     venda = Venda.query.get(venda_id) # Ou como você busca a venda
+                //     if not venda:
+                //         return jsonify({'error': 'Venda não encontrada'}), 404
+                //     # Certifique-se de que os dados são serializáveis para JSON
+                //     return jsonify({
+                //         'preco': venda.preco,
+                //         'payment_id': venda.payment_id,
+                //         'payer_name': venda.payer_name,
+                //         'payer_email': venda.payer_email,
+                //         # Adicione outros campos que você precise no modal
+                //     })
+
+                const response = await fetch(`/venda_detalhes/${vendaId}`);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Venda não encontrada');
+                }
                 const data = await response.json();
                 
                 const formattedPrice = data.preco ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.preco) : 'N/A';
@@ -208,16 +219,19 @@
                 document.getElementById('modal-payer-email').textContent = data.payer_email || 'N/A';
                 
                 modal.classList.remove('hidden'); // Show the modal
+                document.body.style.overflow = 'hidden'; // Prevent scroll on body when modal is open
             } catch (error) {
                 console.error("Erro ao buscar detalhes da venda:", error);
-                alert('Não foi possível carregar os detalhes da venda.');
+                alert('Não foi possível carregar os detalhes da venda: ' + error.message);
             }
         };
 
         // Delegated event listener for dynamically added rows in tableBody
         tableBody.addEventListener('click', (event) => {
-            if (event.target.classList.contains('open-modal-button')) {
-                openModal(event.target.dataset.id);
+            // Check if the clicked element or any of its parents is the "Detalhes" button
+            const button = event.target.closest('.open-modal-button');
+            if (button) {
+                openModal(button.dataset.id);
             }
         });
     });
