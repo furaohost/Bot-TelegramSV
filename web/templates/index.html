@@ -1,446 +1,188 @@
-{% extends 'layout.html' %}
-{# Removido import de macros.html, Jinja2 pode precisar de configuração se format_currency não for um filtro global #}
-
-{% block title %}Dashboard{% endblock %}
-{% block page_title %}Dashboard{% endblock %} {# Define o título para o header principal #}
-
-{% block content %}
-<div class="dashboard-content-wrapper"> {# Novo wrapper para o conteúdo do dashboard #}
-    <div class="card welcome-card"> {# Novo card para a mensagem de boas-vindas #}
-        <h2 class="section-title">Bem-vindo(a) ao Painel Administrativo, {{ session.username | default('Usuário', true) }}!</h2>
-        <p class="section-description">Este é o painel de controle do seu Bot TelegramSV. Use o menu ao lado para navegar pelas funcionalidades.</p>
-    </div>
-
-    <div class="cards-grid"> {# Container para os cards de métricas principais #}
-        <div class="metric-card metric-card-blue">
-            <h3 class="metric-card-title">Total de Usuários</h3>
-            <p class="metric-card-value">{{ total_usuarios }}</p>
-        </div>
-
-        <div class="metric-card metric-card-green">
-            <h3 class="metric-card-title">Total de Produtos</h3>
-            <p class="metric-card-value">{{ total_produtos }}</p>
-        </div>
-
-        <div class="metric-card metric-card-purple">
-            <h3 class="metric-card-title">Receita Total (Aprovado)</h3>
-            <p class="metric-card-value">R$ {{ receita_total | round(2) }}</p> {# Se format_currency for um filtro Jinja, use: {{ receita_total | format_currency }} #}
-        </div>
-    </div>
-
-    <div class="card"> {# Card para Métricas de Vendas por Período #}
-        <h2 class="section-title">Métricas de Vendas por Período</h2>
-        <div class="grid-2-cols-md gap-form mb-6"> {# Nova classe para grid de 2 colunas responsivo #}
-            <div class="card-inner-padded"> {# Novo estilo para padding interno #}
-                <h3 class="section-subtitle">Período Atual ({{ data_inicio_periodo_atual }} a {{ data_fim_periodo_atual }})</h3>
-                <div class="flex-row-space-between mb-2">
-                    <p class="text-light">Vendas (Quantidade):</p>
-                    <span class="value-large text-primary">{{ periodo_atual_vendas_quantidade }}</span>
-                    {% if variacao_vendas_quantidade is not defined or variacao_vendas_quantidade == '0.0' %}
-                        <span class="text-sm text-light"> -- </span>
-                    {% elif variacao_vendas_quantidade[0] == '-' %}
-                        <span class="text-danger text-sm font-semibold ml-2"> {{ variacao_vendas_quantidade }}% <i class="fas fa-arrow-down"></i></span>
-                    {% else %}
-                        <span class="text-success text-sm font-semibold ml-2"> +{{ variacao_vendas_quantidade }}% <i class="fas fa-arrow-up"></i></span>
-                    {% endif %}
-                </div>
-                <div class="flex-row-space-between">
-                    <p class="text-light">Vendas (Valor):</p>
-                    <span class="value-large text-primary">R$ {{ periodo_atual_vendas_valor | round(2) }}</span> {# Usar format_currency se disponível #}
-                    {% if variacao_vendas_valor is not defined or variacao_vendas_valor == '0.0' %}
-                        <span class="text-sm text-light"> -- </span>
-                    {% elif variacao_vendas_valor[0] == '-' %}
-                        <span class="text-danger text-sm font-semibold ml-2"> {{ variacao_vendas_valor }}% <i class="fas fa-arrow-down"></i></span>
-                    {% else %}
-                        <span class="text-success text-sm font-semibold ml-2"> +{{ variacao_vendas_valor }}% <i class="fas fa-arrow-up"></i></span>
-                    {% endif %}
-                </div>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Painel{% endblock %} - SvBOT | Gestão de Vendas</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    {# Link para o seu arquivo CSS principal #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"> 
+</head>
+<body>
+    <div class="dashboard">
+        <aside class="sidebar" id="sidebar">
+            <div class="logo">
+                {# Logo SvBOT com SVG animado #}
+                <svg class="animated-logo-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 0a12 12 0 1 0 0 24 12 12 0 0 0 0-24zm5.89 7.33l-1.45 6.8c-.1.48-.37.6-.76.37l-3.08-2.28-1.47 1.4c-.16.16-.3.3-.6.3l.22-3.1 5.7-5.15c.25-.22-.05-.34-.38-.12l-7.05 4.45-3.03-.95c-.48-.15-.49-.48.1-.7l11.7-4.5c.2-.08.38.05.36.25z"/>
+                </svg>
+                SvBOT
             </div>
-
-            <div class="card-inner-padded">
-                <h3 class="section-subtitle">Período Anterior</h3>
-                <div class="flex-row-space-between mb-2">
-                    <p class="text-light">Vendas (Quantidade):</p>
-                    <span class="value-large">{{ periodo_anterior_vendas_quantidade }}</span>
-                </div>
-                <div class="flex-row-space-between">
-                    <p class="text-light">Vendas (Valor):</p>
-                    <span class="value-large">R$ {{ periodo_anterior_vendas_valor | round(2) }}</span> {# Usar format_currency se disponível #}
-                </div>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">
+                        <span class="material-icons">dashboard</span>
+                        Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('produtos') }}" class="nav-link {% if request.endpoint == 'produtos' or request.endpoint == 'editar_produto' or request.endpoint == 'adicionar_produto' %}active{% endif %}">
+                        <span class="material-icons">inventory</span>
+                        Produtos
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('vendas') }}" class="nav-link {% if request.endpoint == 'vendas' %}active{% endif %}">
+                        <span class="material-icons">shopping_cart</span>
+                        Vendas
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('usuarios') }}" class="nav-link {% if request.endpoint == 'usuarios' %}active{% endif %}">
+                        <span class="material-icons">people</span>
+                        Usuários
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('comunidades.comunidades') }}" class="nav-link {% if request.endpoint.startswith('comunidades') %}active{% endif %}">
+                        <span class="material-icons">groups</span>
+                        Comunidades
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('scheduled_messages') }}" class="nav-link {% if request.endpoint.startswith('scheduled_messages') or request.endpoint == 'add_scheduled_message' or request.endpoint == 'edit_scheduled_message' %}active{% endif %}">
+                        <span class="material-icons">schedule</span>
+                        Mensagens Agendadas
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('send_broadcast') }}" class="nav-link {% if request.endpoint == 'send_broadcast' %}active{% endif %}">
+                        <span class="material-icons">campaign</span>
+                        Enviar Broadcast
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('config_messages') }}" class="nav-link {% if request.endpoint == 'config_messages' %}active{% endif %}">
+                        <span class="material-icons">settings</span>
+                        Configurações
+                    </a>
+                </li>
+                {# Link de Sair (Logout) #}
+                <li class="nav-item">
+                    <a href="{{ url_for('logout') }}" class="nav-link">
+                        <span class="material-icons">logout</span>
+                        Sair
+                    </a>
+                </li>
+            </ul>
+            {# Informações do Usuário - Parte inferior da sidebar #}
+            <div class="user-info">
+                <p>Logado como:</p>
+                <p style="color: var(--warning); font-weight: 600;">{{ session.username if session.username else 'Convidado' }}</p>
             </div>
-        </div>
-    </div>
+        </aside>
 
-    <div class="card"> {# Card para Performance de Vendas (Gráficos) #}
-        <h2 class="section-title">Performance de Vendas</h2>
-
-        <div class="flex-wrap-gap-row-center mb-6"> {# Nova classe para o seletor de período #}
-            <label for="periodSelect" class="form-label-inline">Visualizar por:</label>
-            <select id="periodSelect" class="form-select-inline">
-                <option value="7">Últimos 7 Dias</option>
-                <option value="30">Últimos 30 Dias</option>
-                <option value="90">Últimos 90 Dias</option>
-                <option value="current_month">Mês Corrente</option>
-                <option value="last_month">Mês Anterior</option>
-                <option value="custom">Período Personalizado</option>
-            </select>
-            <div id="customDateRange" class="flex-wrap-gap-sm hidden"> {# Nova classe para o range de data customizado #}
-                <input type="date" id="startDate" class="form-input-inline">
-                <input type="date" id="endDate" class="form-input-inline">
-                <button id="applyCustomDate" class="btn btn-primary btn-small">Aplicar</button> {# Novo estilo para botão pequeno #}
-            </div>
-        </div>
-
-        <div id="chartsContainer" class="charts-grid"> {# Container para os gráficos #}
-            {# Receita Diária Chart #}
-            <div id="revenueChartPanel" class="card chart-panel"> {# Reutilizando 'card' e nova 'chart-panel' #}
-                <div class="chart-header">
-                    <h3 class="section-subtitle">Receita Diária (R$)</h3>
-                    <button class="expand-btn" data-target="revenue">
-                        <i class="fas fa-expand-alt"></i>
+        <main class="main-content">
+            <div class="header">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    {# Botão sanduíche para mobile, visibilidade controlada pelo CSS #}
+                    <button class="mobile-menu-btn" id="mobileMenuBtn">
+                        <span class="material-icons">menu</span>
                     </button>
+                    {# O título da página será inserido AQUI #}
+                    <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
                 </div>
-                <div class="chart-canvas-wrapper">
-                    <canvas id="dailyRevenueChart"></canvas>
-                </div>
+                {# Botão de Troca de Tema #}
+                <button class="theme-toggle" id="themeToggle">
+                    <span class="material-icons theme-icon"></span>
+                </button>
             </div>
 
-            {# Quantidade de Vendas Diárias Chart #}
-            <div id="quantityChartPanel" class="card chart-panel">
-                <div class="chart-header">
-                    <h3 class="section-subtitle">Quantidade de Vendas Diárias</h3>
-                    <button class="expand-btn" data-target="quantity">
-                        <i class="fas fa-expand-alt"></i>
-                    </button>
-                </div>
-                <div class="chart-canvas-wrapper">
-                    <canvas id="dailyQuantityChart"></canvas>
-                </div>
-            </div>
-        </div>
+            {# Área para mensagens flash (sucesso/erro) #}
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-message-container">
+                        {% for category, message in messages %}
+                            <div class="flash-message flash-{{ category }}">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            {# Este é o bloco onde o conteúdo específico de cada página será injetado #}
+            {% block content %}{% endblock %}
+        </main>
     </div>
 
-    <div class="card"> {# Card para Vendas Recentes #}
-        <h2 class="section-title">Vendas Recentes</h2>
-        {% if vendas_recentes %}
-        <div class="table-container"> {# Novo container para tabela com scroll e bordas #}
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>ID Venda</th>
-                        <th>Comprador</th>
-                        <th>Produto</th>
-                        <th style="text-align: right;">Preço</th>
-                        <th>Status</th>
-                        <th>Data</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for venda in vendas_recentes %}
-                    <tr>
-                        <td>{{ venda.id }}</td>
-                        <td>{{ venda.first_name | default(venda.username, true) }}</td>
-                        <td>{{ venda.nome }}</td>
-                        <td style="text-align: right;">R$ {{ venda.preco | round(2) }}</td> {# Usar format_currency se disponível #}
-                        <td>
-                            <span class="status
-                                {% if venda.status == 'aprovado' %}status-success
-                                {% elif venda.status == 'pendente' %}status-warning
-                                {% elif venda.status == 'expirado' %}status-danger {# Usando danger para expirado #}
-                                {% else %}status-info{% endif %}"> {# Usando info para outros status desconhecidos #}
-                                {{ venda.status }}
-                            </span>
-                        </td>
-                        <td>{{ venda.data_venda | datetimeformat }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <p class="text-light">Nenhuma venda recente encontrada.</p> {# Usando text-light #}
-        {% endif %}
-    </div>
-</div> {# Fim do dashboard-content-wrapper #}
+    {# INÍCIO DO BLOCO DE SCRIPTS GLOBAIS DO LAYOUT #}
+    <script>
+        // Função para aplicar o tema (movida para cá)
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            const iconSpan = document.querySelector('#themeToggle .theme-icon');
+            if (iconSpan) {
+                iconSpan.textContent = theme === 'dark' ? 'dark_mode' : 'light_mode';
+            }
+            // Chama a função de atualização de cores dos gráficos se ela existir (definida no index.html)
+            if (typeof updateChartColors === 'function') {
+                updateChartColors();
+            }
+        }
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dayjs@1.10.7/dayjs.min.js"></script>
-<script>
-    let dailyRevenueChart;
-    let dailyQuantityChart;
-
-    // Define uma cor para os títulos dos eixos dos gráficos que se adapta ao tema
-    function getAxisTitleColor() {
-        return document.documentElement.getAttribute('data-theme') === 'dark' ? 'var(--text-light)' : '#4a4a4a';
-    }
-
-    // Define a cor da grade dos gráficos
-    function getGridColor() {
-        return document.documentElement.getAttribute('data-theme') === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(200, 200, 200, 0.2)';
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-        // Inicialização dos gráficos com os dados padrão (últimos 7 dias)
-        renderCharts(JSON.parse(`{{ chart_labels | safe }}`),
-                     JSON.parse(`{{ chart_data_receita | safe }}`),
-                     JSON.parse(`{{ chart_data_quantidade | safe }}`));
-
-        const periodSelect = document.getElementById('periodSelect');
-        const customDateRange = document.getElementById('customDateRange');
-        const startDateInput = document.getElementById('startDate');
-        const endDateInput = document.getElementById('endDate');
-        const applyCustomDateBtn = document.getElementById('applyCustomDate');
-
-        // Define as datas padrão no seletor de data personalizada
-        const today = dayjs();
-        startDateInput.value = today.subtract(6, 'day').format('YYYY-MM-DD');
-        endDateInput.value = today.format('YYYY-MM-DD');
-
-        periodSelect.addEventListener('change', function() {
-            if (this.value === 'custom') {
-                customDateRange.classList.remove('hidden');
+        // Ao carregar a página:
+        document.addEventListener('DOMContentLoaded', () => {
+            // Lógica para aplicar o tema inicial
+            const storedTheme = localStorage.getItem('theme');
+            if (storedTheme) {
+                applyTheme(storedTheme);
+            } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                applyTheme('dark'); // Padrão do sistema
             } else {
-                customDateRange.classList.add('hidden');
-                fetchAndRenderCharts();
-            }
-        });
-
-        applyCustomDateBtn.addEventListener('click', fetchAndRenderCharts);
-
-        async function fetchAndRenderCharts() {
-            const period = periodSelect.value;
-            let startDate, endDate;
-
-            if (period === '7') {
-                endDate = dayjs();
-                startDate = dayjs().subtract(6, 'day');
-            } else if (period === '30') {
-                endDate = dayjs();
-                startDate = dayjs().subtract(29, 'day');
-            } else if (period === '90') {
-                endDate = dayjs();
-                startDate = dayjs().subtract(89, 'day');
-            } else if (period === 'current_month') {
-                startDate = dayjs().startOf('month');
-                endDate = dayjs().endOf('month');
-            } else if (period === 'last_month') {
-                startDate = dayjs().subtract(1, 'month').startOf('month');
-                endDate = dayjs().subtract(1, 'month').endOf('month');
-            } else if (period === 'custom') {
-                startDate = dayjs(startDateInput.value);
-                endDate = dayjs(endDateInput.value);
+                applyTheme('dark'); // SEU PADRÃO DEFAULT AGORA É DARK PARA IGUALAR A IMAGEM
             }
 
-            if (period === 'custom' && (startDate.isAfter(endDate) || !startDate.isValid() || !endDate.isValid())) {
-                alert('Por favor, selecione um período personalizado válido (data de início anterior ou igual à data de fim).');
-                return;
+            // Modo Escuro/Claro Toggle
+            const themeToggle = document.getElementById('themeToggle');
+            if (themeToggle) {
+                themeToggle.addEventListener('click', () => {
+                    const currentTheme = document.documentElement.getAttribute('data-theme');
+                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                    applyTheme(newTheme);
+                    localStorage.setItem('theme', newTheme); // Salva a preferência
+                });
             }
 
-            const start_date_param = startDate.format('YYYY-MM-DD');
-            const end_date_param = endDate.format('YYYY-MM-DD');
+            // Menu Mobile Toggle
+            const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+            const sidebar = document.getElementById('sidebar');
 
-            try {
-                const response = await fetch(`/api/sales_data?start_date=${start_date_param}&end_date=${end_date_param}`);
-                const data = await response.json();
-
-                if (response.ok) {
-                    renderCharts(data.labels, data.data_receita, data.data_quantidade);
-                } else {
-                    console.error('Erro ao buscar dados da API:', data.error);
-                    alert('Erro ao carregar dados dos gráficos: ' + (data.error || 'Erro desconhecido.'));
-                }
-            } catch (error) {
-                console.error('Erro na requisição Fetch:', error);
-                alert('Não foi possível conectar ao servidor para carregar os gráficos.');
-            }
-        }
-
-        function renderCharts(labels, dataReceita, dataQuantidade) {
-            if (dailyRevenueChart) {
-                dailyRevenueChart.destroy();
-            }
-            if (dailyQuantityChart) {
-                dailyQuantityChart.destroy();
+            if (mobileMenuBtn && sidebar) {
+                mobileMenuBtn.addEventListener('click', () => {
+                    sidebar.classList.toggle('active');
+                });
             }
 
-            const ctxRevenue = document.getElementById('dailyRevenueChart').getContext('2d');
-            const ctxQuantity = document.getElementById('dailyQuantityChart').getContext('2d');
-
-            // Gradiente para Receita (usa a cor primária do tema)
-            const gradientRevenue = ctxRevenue.createLinearGradient(0, 0, 0, 400);
-            gradientRevenue.addColorStop(0, getComputedStyle(document.documentElement).getPropertyValue('--primary') + 'D0'); // Adiciona opacidade
-            gradientRevenue.addColorStop(1, getComputedStyle(document.documentElement).getPropertyValue('--primary') + '00');
-
-            dailyRevenueChart = new Chart(ctxRevenue, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Receita Diária (R$)',
-                        data: dataReceita,
-                        borderColor: 'var(--primary)',
-                        backgroundColor: gradientRevenue,
-                        fill: true,
-                        tension: 0.4,
-                        pointBackgroundColor: 'var(--primary)',
-                        pointBorderColor: 'var(--card-bg)', /* Cor do tema */
-                        pointHoverBackgroundColor: 'var(--card-bg)',
-                        pointHoverBorderColor: 'var(--primary)',
-                        pointRadius: 5,
-                        pointHoverRadius: 7,
-                        pointHitRadius: 10,
-                        pointBorderWidth: 2
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: true, position: 'top', labels: { color: 'var(--text)', font: { size: 14 }}}, /* Cor da legenda */
-                        tooltip: {
-                            mode: 'index',
-                            intersect: false,
-                            callbacks: {
-                                title: function(context) { return `Data: ${context[0].label}`; },
-                                label: function(context) {
-                                    let label = context.dataset.label || '';
-                                    if (label) { label += ': '; }
-                                    if (context.parsed.y !== null) { label += 'R$ ' + context.parsed.y.toFixed(2).replace('.', ','); }
-                                    return label;
-                                }
-                            },
-                            backgroundColor: 'var(--card-bg)', /* Fundo do tooltip */
-                            titleColor: 'var(--text)', /* Cor do título do tooltip */
-                            bodyColor: 'var(--text-light)', /* Cor do corpo do tooltip */
-                            borderColor: 'var(--border)', /* Cor da borda do tooltip */
-                            borderWidth: 1
+            // Fechar menu ao clicar em um link (mobile)
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.addEventListener('click', () => {
+                    // Pequeno delay para a navegação começar antes de fechar o menu
+                    setTimeout(() => {
+                        if (window.innerWidth <= 768) {
+                            sidebar.classList.remove('active');
                         }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: { display: true, text: 'Receita (R$)', font: { size: 16, weight: 'bold' }, color: getAxisTitleColor() },
-                            ticks: { callback: function(value) { return 'R$ ' + value.toFixed(2).replace('.', ','); }, font: { size: 12 }, color: 'var(--text-light)'}, /* Cor dos ticks */
-                            grid: { color: getGridColor() }
-                        },
-                        x: {
-                            title: { display: true, text: 'Período', font: { size: 16, weight: 'bold' }, color: getAxisTitleColor() },
-                            ticks: { font: { size: 12 }, color: 'var(--text-light)'}, /* Cor dos ticks */
-                            grid: { display: false }
-                        }
-                    },
-                    animation: { duration: 1000, easing: 'easeOutQuart' }
-                }
-            });
-
-            // Gráfico de Quantidade de Vendas (usa a cor success do tema)
-            dailyQuantityChart = new Chart(ctxQuantity, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Vendas (Quantidade)',
-                        data: dataQuantidade,
-                        backgroundColor: 'var(--success)', /* Usando a cor de sucesso do tema */
-                        borderColor: 'var(--success)',
-                        borderWidth: 1,
-                        borderRadius: 5
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: true, position: 'top', labels: { color: 'var(--text)', font: { size: 14 }}},
-                        tooltip: {
-                            mode: 'index',
-                            intersect: false,
-                            callbacks: {
-                                title: function(context) { return `Data: ${context[0].label}`; },
-                                label: function(context) {
-                                    let label = context.dataset.label || '';
-                                    if (label) { label += ': '; }
-                                    if (context.parsed.y !== null) { label += context.parsed.y + ' vendas'; }
-                                    return label;
-                                }
-                            },
-                            backgroundColor: 'var(--card-bg)',
-                            titleColor: 'var(--text)',
-                            bodyColor: 'var(--text-light)',
-                            borderColor: 'var(--border)',
-                            borderWidth: 1
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: { display: true, text: 'Quantidade de Vendas', font: { size: 16, weight: 'bold' }, color: getAxisTitleColor() },
-                            ticks: { precision: 0, font: { size: 12 }, color: 'var(--text-light)'},
-                            grid: { color: getGridColor() }
-                        },
-                        x: {
-                            title: { display: true, text: 'Período', font: { size: 16, weight: 'bold' }, color: getAxisTitleColor() },
-                            ticks: { font: { size: 12 }, color: 'var(--text-light)'},
-                            grid: { display: false }
-                        }
-                    },
-                    animation: { duration: 1000, easing: 'easeOutQuart' }
-                }
-            });
-        }
-
-        // --- Lógica de Expansão dos Gráficos ---
-        const revenueChartPanel = document.getElementById('revenueChartPanel');
-        const quantityChartPanel = document.getElementById('quantityChartPanel');
-        const chartsContainer = document.getElementById('chartsContainer');
-        const expandButtons = document.querySelectorAll('.expand-btn');
-
-        expandButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const targetChart = this.dataset.target;
-                const isExpanded = this.classList.contains('expanded');
-                const icon = this.querySelector('i');
-
-                if (isExpanded) {
-                    chartsContainer.classList.remove('lg-grid-col-1');
-                    chartsContainer.classList.add('charts-grid'); // Volta para o grid de 2 colunas
-                    
-                    revenueChartPanel.classList.remove('expanded-chart-panel');
-                    quantityChartPanel.classList.remove('expanded-chart-panel');
-                    
-                    revenueChartPanel.classList.remove('hidden');
-                    quantityChartPanel.classList.remove('hidden');
-
-                    icon.classList.remove('fa-compress-alt');
-                    icon.classList.add('fa-expand-alt');
-                    this.classList.remove('expanded');
-
-                } else {
-                    chartsContainer.classList.remove('charts-grid'); // Remove o grid de 2 colunas
-                    chartsContainer.classList.add('lg-grid-col-1'); // Faz o container agir como 1 coluna (para o filho ocupar 100%)
-
-                    if (targetChart === 'revenue') {
-                        revenueChartPanel.classList.add('expanded-chart-panel');
-                        quantityChartPanel.classList.add('hidden');
-                    } else {
-                        quantityChartPanel.classList.add('expanded-chart-panel');
-                        revenueChartPanel.classList.add('hidden');
-                    }
-                    
-                    icon.classList.remove('fa-expand-alt');
-                    icon.classList.add('fa-compress-alt');
-                    this.classList.add('expanded');
-                }
-
-                // É melhor atualizar os gráficos após as mudanças de tamanho para que o Chart.js recalcule
-                // Se o componente Chart.js já tem os dados, um simples update pode ser suficiente.
-                // Mas recriar é mais garantido para mudanças de tamanho drásticas.
-                const currentLabels = dailyRevenueChart.data.labels;
-                const currentDataReceita = dailyRevenueChart.data.datasets[0].data;
-                const currentDataQuantidade = dailyQuantityChart.data.datasets[0].data;
-                renderCharts(currentLabels, currentDataReceita, currentDataQuantidade);
+                    }, 150);
+                });
             });
         });
-    });
-</script>
-{% endblock %}
+    </script>
+    {# FIM DO BLOCO DE SCRIPTS GLOBAIS DO LAYOUT #}
+
+    {# ESTE BLOCO PERMITE QUE PÁGINAS FILHAS ADICIONEM SEUS PRÓPRIOS SCRIPTS #}
+    {% block extra_scripts %}{% endblock %}
+
+</body>
+</html>
