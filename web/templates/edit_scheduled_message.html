@@ -45,13 +45,8 @@
                 <p class="form-hint">A mensagem será enviada na data e hora especificadas (fuso horário do servidor).</p>
             </div>
             <div>
-                <label for="status" class="form-label">Status:</label>
-                <select id="status" name="status" class="form-select">
-                    <option value="pending" {% if message.status == 'pending' %}selected{% endif %}>Pendente</option>
-                    <option value="sent" {% if message.status == 'sent' %}selected{% endif %}>Enviada</option>
-                    <option value="failed" {% if message.status == 'failed' %}selected{% endif %}>Falha</option>
-                    <option value="cancelled" {% if message.status == 'cancelled' %}selected{% endif %}>Cancelada</option> {# Adicionei um status 'cancelled' como exemplo #}
-                </select>
+                <label class="form-label">Status Atual:</label>
+                <p class="form-input" style="background-color: #f3f4f6; color: #4b5563;">{{ message.status | capitalize }}</p>
             </div>
             <div class="form-actions" style="margin-top: 1rem;">
                 <button type="submit" class="btn btn-primary" style="background-color: var(--success);"> {# Cor de sucesso para o botão de atualizar #}

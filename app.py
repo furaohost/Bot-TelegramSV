@@ -1274,59 +1274,44 @@ def edit_scheduled_message(message_id):
         # Se a requisição for POST, tenta salvar as alterações
         if request.method == 'POST':
             message_text = request.form.get('message_text')
-            target_chat_id_str = request.form.get('target_chat_id', '').strip() # Pega como string
+            target_chat_id_str = request.form.get('target_chat_id', '').strip()
             image_url = request.form.get('image_url')
             schedule_time_str = request.form.get('schedule_time')
-            status = request.form.get('status')
+            # A linha que pegava o 'status' foi removida.
 
             if not message_text or not schedule_time_str:
                 flash('Texto da mensagem e tempo de agendamento são obrigatórios!', 'danger')
-                # É preciso buscar os usuários novamente para re-renderizar o template com erro
-                with conn.cursor() as cur:
-                    cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
-                    users = cur.fetchall()
-                return render_template('edit_scheduled_message.html', message=message, users=users)
+                return render_template('edit_scheduled_message.html', message=message)
 
-            # --- LÓGICA CORRIGIDA ---
             target_chat_id_db = None
-            if target_chat_id_str: # Só tenta converter se o campo não estiver vazio
+            if target_chat_id_str:
                 try:
                     target_chat_id_db = int(target_chat_id_str)
                 except ValueError:
                     flash('ID do chat de destino inválido. Deve ser um número.', 'danger')
-                    with conn.cursor() as cur:
-                        cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
-                        users = cur.fetchall()
-                    return render_template('edit_scheduled_message.html', message=message, users=users)
+                    return render_template('edit_scheduled_message.html', message=message)
             
             schedule_time = datetime.strptime(schedule_time_str, '%Y-%m-%dT%H:%M')
 
-            # Atualiza o banco de dados
+            # Atualiza o banco de dados SEM ALTERAR O STATUS
             with conn.cursor() as cur:
                 if is_sqlite:
                     cur.execute(
-                        "UPDATE scheduled_messages SET message_text = ?, target_chat_id = ?, image_url = ?, schedule_time = ?, status = ? WHERE id = ?",
-                        (message_text, target_chat_id_db, image_url or None, schedule_time, status, message_id)
+                        "UPDATE scheduled_messages SET message_text = ?, target_chat_id = ?, image_url = ?, schedule_time = ? WHERE id = ?",
+                        (message_text, target_chat_id_db, image_url or None, schedule_time, message_id)
                     )
                 else:
                     cur.execute(
-                        "UPDATE scheduled_messages SET message_text = %s, target_chat_id = %s, image_url = %s, schedule_time = %s, status = %s WHERE id = %s",
-                        (message_text, target_chat_id_db, image_url or None, schedule_time, status, message_id)
+                        "UPDATE scheduled_messages SET message_text = %s, target_chat_id = %s, image_url = %s, schedule_time = %s WHERE id = %s",
+                        (message_text, target_chat_id_db, image_url or None, schedule_time, message_id)
                     )
             conn.commit()
             flash('Mensagem agendada atualizada com sucesso!', 'success')
             return redirect(url_for('scheduled_messages'))
 
         # Se a requisição for GET, apenas exibe o formulário
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
-            else:
-                cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
-            users = cur.fetchall()
-
         message['schedule_time_formatted'] = message['schedule_time'].strftime('%Y-%m-%dT%H:%M') if message['schedule_time'] else ''
-        return render_template('edit_scheduled_message.html', message=message, users=users)
+        return render_template('edit_scheduled_message.html', message=message)
 
     except Exception as e:
         print(f"ERRO EDIT_SCHEDULED_MESSAGE: Falha ao editar mensagem agendada: {e}")
