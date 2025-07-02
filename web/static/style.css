@@ -88,25 +88,28 @@ a:hover {
     animation: bounce-and-spin 1s ease-in-out infinite;
 }
 
-/* Estrutura Principal do Layout */
-.main-container {
-    display: flex;
+/* Estrutura Principal do Dashboard */
+.dashboard {
+    display: grid;
+    grid-template-columns: 240px 1fr; /* Sidebar de 240px + conteúdo */
     min-height: 100vh;
 }
 
-/* Barra Lateral (Sidebar) */
+/* Sidebar (Barra Lateral) */
 .sidebar {
-    width: 260px;
-    background-color: var(--card-light);
-    border-right: 1px solid var(--border-light);
+    background: var(--sidebar-bg);
+    box-shadow: 1px 0 10px rgba(0,0,0,0.05);
+    padding: 1.5rem;
+    transition: all 0.3s ease;
     display: flex;
     flex-direction: column;
-    position: fixed; /* Mudei para fixed para ficar sempre visível */
+    justify-content: space-between;
+    /* Adições para o comportamento fixo em desktop e transição em mobile */
+    position: fixed; /* Fixa a sidebar em desktop */
     top: 0;
-    left: 0;
+    left: 0; /* Visível por padrão em desktop */
     bottom: 0;
-    transition: background-color 0.3s, border-color 0.3s;
-    z-index: 100; /* Garante que a sidebar fique acima do conteúdo em mobile */
+    z-index: 100; /* Garante que a sidebar fique acima do conteúdo */
 }
 
 .sidebar-header {
@@ -145,6 +148,10 @@ a:hover {
     list-style: none; /* Remover marcadores de lista */
 }
 
+.nav-item {
+    margin-bottom: 0.5rem;
+}
+
 .sidebar-nav a {
     display: flex;
     align-items: center;
@@ -153,7 +160,6 @@ a:hover {
     color: var(--text-light);
     text-decoration: none;
     font-weight: 500;
-    margin-bottom: 0.5rem;
     transition: background-color 0.2s, color 0.2s;
 }
 
@@ -171,66 +177,79 @@ a:hover {
 }
 
 
-.sidebar-footer {
-    padding: 1rem;
-    border-top: 1px solid var(--border-light);
+.user-info {
+    margin-top: auto;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-light); /* Usando var do style.css */
     text-align: center; /* Centraliza o texto no rodapé da sidebar */
     font-size: 0.875rem;
     color: var(--text-light);
 }
-.sidebar-footer p:last-child {
+.user-info p:last-child {
     margin-top: 0.25rem; /* Pequeno espaçamento entre os parágrafos */
     font-weight: 600; /* Deixa o username mais destacado */
 }
 
-/* Conteúdo Principal */
+/* Conteúdo Principal (Desktop) */
 .main-content {
-    margin-left: 260px; /* Mesmo que a largura da sidebar */
+    margin-left: 240px; /* Desloca o conteúdo para compensar a sidebar */
     flex-grow: 1;
     display: flex;
     flex-direction: column;
+    padding: 2rem; /* Padding padrão para desktop */
     background-color: var(--bg-light); /* Garante que o fundo do conteúdo seja o do tema */
-    padding: 0; /* O padding virá do content-area */
 }
 
-.content-header {
+/* Header do Conteúdo Principal */
+.header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1.5rem 2rem; /* Ajuste do padding */
-    background-color: var(--card-light);
-    border-bottom: 1px solid var(--border-light);
-    box-shadow: var(--shadow);
-    position: sticky; /* Cabeçalho fixo ao rolar */
-    top: 0;
-    z-index: 50; /* Abaixo da sidebar, mas acima do conteúdo */
+    margin-bottom: 2rem;
+    flex-wrap: wrap; /* Permite quebrar linha em telas pequenas */
+    gap: 1rem;
 }
 
+/* Título da Página */
 .page-title {
     font-size: 1.75rem;
-    font-weight: 700;
-    color: var(--text-dark);
+    font-weight: 600;
+    color: var(--text-dark); /* Usando var(--text-dark) para consistência */
+    margin-bottom: 0;
 }
 
+/* Tema Toggle Button */
 .theme-toggle {
-    background: none;
-    border: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--card-light); /* Usando var(--card-light) para consistência */
+    border: 1px solid var(--border-light); /* Usando var(--border-light) para consistência */
+    padding: 0.5rem;
+    border-radius: 9999px;
     cursor: pointer;
-    font-size: 1.5rem;
-    color: var(--text-light);
-    transition: color 0.2s; /* Transição de cor no toggle */
+    transition: all 0.2s;
+    color: var(--text-dark); /* Usando var(--text-dark) para consistência */
 }
 .theme-toggle:hover {
-    color: var(--text-dark); /* Cor mais escura no hover */
+    background-color: var(--border-light); /* Usando var(--border-light) para consistência */
+}
+.theme-icon {
+    font-size: 1.2rem;
+}
+
+/* Mobile Menu Button - Escondido por padrão em desktop */
+.mobile-menu-btn {
+    display: none; /* Escondido em telas maiores que 768px */
+    background: none;
+    border: none;
+    color: var(--text-dark); /* Usando var(--text-dark) para consistência */
+    font-size: 1.5rem;
+    cursor: pointer;
 }
 
 
-.content-area {
-    padding: 2rem;
-    flex-grow: 1;
-}
-
-/* Componentes Comuns */
+/* Componentes Comuns (Cards, Subtitles) */
 .card {
     background-color: var(--card-light);
     border-radius: 12px;
@@ -506,40 +525,58 @@ tbody tr:hover {
     margin-top: 0.25rem;
 }
 
-
-/* Responsividade Geral */
+/* RESPONSIVIDADE GERAL - Mobile */
 @media (max-width: 768px) {
+    .dashboard {
+        grid-template-columns: 1fr; /* Apenas uma coluna em mobile */
+    }
+
     .sidebar {
-        left: -260px; /* Esconde a sidebar em mobile */
-        width: 260px;
-        transition: left 0.3s ease-in-out;
+        position: fixed; /* Continua fixo */
+        top: 0;
+        left: -240px; /* Esconde a sidebar fora da tela por padrão */
+        width: 240px; /* Largura da sidebar em mobile */
+        height: 100vh;
+        z-index: 150; /* Z-index mais alto para garantir que fique acima de tudo */
+        box-shadow: 2px 0 10px rgba(0,0,0,0.2); /* Sombra para destacar quando aberto */
+        /* Transição já definida na regra geral da sidebar */
     }
+
     .sidebar.active {
-        left: 0; /* Mostra a sidebar quando ativa */
+        left: 0; /* Mostra a sidebar quando a classe 'active' é adicionada */
     }
+
     .main-content {
         margin-left: 0; /* Conteúdo principal ocupa 100% da largura em mobile */
+        padding: 1rem; /* Reduz o padding em mobile */
     }
-    .content-header {
-        padding: 1rem; /* Reduz padding do cabeçalho em mobile */
-        justify-content: flex-start; /* Alinha à esquerda para dar espaço ao botão do menu */
+
+    .header {
+        flex-direction: row; /* Volta a ser row em mobile */
+        justify-content: flex-start; /* Alinha o menu button e título à esquerda */
+        align-items: center;
+        gap: 1rem; /* Espaçamento entre o botão e o título */
     }
+
     .page-title {
         font-size: 1.5rem; /* Reduz o tamanho do título em mobile */
     }
-    .mobile-menu-toggle { /* Botão para abrir/fechar sidebar em mobile */
-        display: block; /* Mostra o botão em mobile */
-        background: none;
-        border: none;
-        font-size: 1.5rem;
-        cursor: pointer;
-        color: var(--text-dark);
+
+    /* Mobile Menu Button - Visível em mobile */
+    .mobile-menu-btn {
+        display: block; /* Torna o botão visível em telas menores */
         margin-right: 1rem; /* Espaçamento entre o botão e o título */
     }
+    
     .theme-toggle {
         margin-left: auto; /* Empurra o toggle para a direita */
     }
-    /* Ajustes para a tabela em mobile */
+
+    /* Remover o padding-right na última célula da tabela em mobile para evitar excesso */
+    th:last-child, td:last-child {
+        padding-right: 1rem;
+    }
+
     .table-container {
         border-radius: 0; /* Remove border-radius em mobile para ocupar largura total */
         border-left: none;
@@ -566,8 +603,91 @@ tbody tr:hover {
     .form-actions .btn {
         width: 100%; /* Botões do formulário 100% em mobile */
     }
+    .form-grid .form-actions-full-width {
+        justify-content: center; /* Centraliza o botão em telas muito pequenas */
+    }
 }
-/* Estilo para um botão mobile-menu-toggle (se você tiver no layout.html) */
-.mobile-menu-toggle {
-    display: none; /* Escondido por padrão no desktop */
+
+/* --- ESTILOS ADICIONAIS PARA MELHORAR LAYOUT DE COMUNIDADES (INÍCIO DO BLOCO) --- */
+
+/* Ajustes para o layout do formulário em grid */
+/* form-grid já define o grid; form-group faz o espaçamento vertical entre eles */
+.form-grid .form-group {
+    /* Por padrão, cada form-group ocupará uma coluna */
+    /* Em telas maiores, o grid definirá múltiplas colunas automaticamente */
+}
+
+/* Força o elemento (geralmente um botão) a ocupar a largura total do grid do formulário */
+.form-grid .form-actions-full-width {
+    grid-column: 1 / -1; /* Ocupa todas as colunas do grid */
+    display: flex;
+    justify-content: flex-end; /* Alinha o botão à direita */
+    margin-top: 0; /* Anula margin-top padrão de form-actions para controle mais fino */
+    padding-top: 1.5rem; /* Adiciona um padding em cima para separar dos campos do form-group acima */
+}
+
+/* Ajustes de largura das colunas da tabela de comunidades */
+/* Usamos larguras percentuais e min-width para um layout mais responsivo */
+.data-table th.column-id, .data-table td:nth-child(1) { /* Corresponde ao ID */
+    width: 5%;
+    min-width: 50px;
+    text-align: center; /* ID geralmente é centralizado */
+}
+
+.data-table th.column-name, .data-table td:nth-child(2) { /* Corresponde ao Nome */
+    width: 20%;
+    min-width: 150px;
+}
+
+.data-table th.column-description, .data-table td:nth-child(3) { /* Corresponde à Descrição */
+    width: 35%; /* Ligeiramente menos que 40% para dar mais espaço às ações */
+    min-width: 200px;
+}
+
+.data-table th.column-chatid, .data-table td:nth-child(4) { /* Corresponde ao Chat ID */
+    width: 15%;
+    min-width: 120px;
+    white-space: nowrap; /* Tenta manter o Chat ID em uma linha */
+    text-overflow: ellipsis; /* Corta com reticências se exceder */
+    overflow: hidden;
+}
+
+.data-table th.column-status, .data-table td:nth-child(5) { /* Corresponde ao Status */
+    width: 10%;
+    min-width: 80px;
+    text-align: center; /* Status centralizado */
+}
+
+.data-table th.column-createdat, .data-table td:nth-child(6) { /* Corresponde ao Criado Em */
+    width: 10%;
+    min-width: 100px;
+}
+
+/* Garante que o texto dentro das células da tabela quebre corretamente */
+.data-table td.break-word {
+    white-space: normal;
+    word-break: break-word;
+}
+
+/* Media query para ajustar as colunas em telas médias */
+@media (max-width: 1024px) {
+    .data-table th.column-description, .data-table td:nth-child(3) {
+        width: 30%; /* Reduz a descrição um pouco para telas médias */
+    }
+}
+
+/* Media query para ajustar os botões de ação em telas pequenas */
+@media (max-width: 768px) {
+    .data-table th.actions-cell, .data-table td.actions-cell {
+        min-width: 100px; /* Reduz o min-width das ações em mobile */
+        text-align: left; /* Em mobile, pode ser melhor alinhar à esquerda */
+    }
+    .data-table td .btn-action {
+        padding: 0.3rem 0.5rem; /* Reduz padding dos botões de ação */
+        font-size: 0.75rem; /* Reduz fonte dos botões de ação */
+    }
+    /* Para o botão "Adicionar" no formulário em mobile */
+    .form-grid .form-actions-full-width {
+        justify-content: center; /* Centraliza o botão em telas muito pequenas */
+    }
 }
