@@ -1,60 +1,48 @@
-{% extends 'layout.html' %} {# CRITICAL CORRECTION: Now extends layout.html for the sidebar dashboard look #}
+{% extends 'layout.html' %}
 
 {% block title %}Editar Comunidade{% endblock %}
 {% block page_title %}Editar Comunidade{% endblock %} {# Title for the main header #}
 
 {% block content %}
 <div class="form-container"> {# Uses the form container to center and style the form #}
-    <div class="card" style="max-width: 42rem; width: 100%;"> {# Reuses the card style with limited width #}
+    <div class="card form-card-visible"> {# Reuses the card style with limited width, and ensures visibility #}
         <h2 class="section-title" style="margin-bottom: 1.5rem;">Editar Comunidade</h2> {# Main title of the card #}
 
-        {# Flash messages are already handled by layout.html, so this block is redundant here #}
-        {# Removed:
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="mb-4">
-                    {% for category, message in messages %}
-                        <div class="p-3 rounded-md {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
-        #}
+        {# Mensagens flash já são tratadas pelo layout.html, este bloco está comentado por padrão e deve permanecer assim. #}
 
         <form action="{{ url_for('comunidades.editar_comunidade', id=comunidade.id) }}" method="POST" class="form-grid">
             <input type="hidden" name="id" value="{{ comunidade.id }}">
-            
-            <div>
+
+            <div class="form-group"> {# Usamos form-group para cada campo #}
                 <label for="nome" class="form-label">Nome da Comunidade:</label>
-                <input type="text" id="nome" name="nome" value="{{ comunidade.nome }}" required 
+                <input type="text" id="nome" name="nome" value="{{ comunidade.nome }}" required
                        class="form-input"
                        placeholder="Ex: Comunidade VIP Premium">
             </div>
-            <div>
+            <div class="form-group"> {# Usamos form-group para cada campo #}
                 <label for="descricao" class="form-label">Descrição (Opcional):</label>
-                <textarea id="descricao" name="descricao" rows="3" 
+                <textarea id="descricao" name="descricao" rows="3"
                           class="form-textarea"
                           placeholder="Breve descrição sobre a comunidade...">{{ comunidade.descricao | default('', true) }}</textarea>
             </div>
-            {# If you need to edit chat_id, add it here similar to comunidades.html #}
-            {# Example for chat_id field (if applicable for editing)
-            <div>
+
+            {# Exemplo para o campo chat_id, se você decidir ativá-lo para edição #}
+            {% comment %}
+            <div class="form-group">
                 <label for="chat_id" class="form-label">ID do Chat/Grupo Telegram (Opcional):</label>
-                <input type="text" id="chat_id" name="chat_id" 
+                <input type="text" id="chat_id" name="chat_id"
                        class="form-input"
                        placeholder="Ex: -1001234567890 (para grupos/canais)"
                        value="{{ comunidade.chat_id | default('', true) }}">
                 <p class="form-hint">Este é o ID numérico do grupo ou canal no Telegram associado a esta comunidade.</p>
             </div>
-            #}
-            
-            <div class="form-actions" style="margin-top: 1rem;"> {# flex justify-end space-x-3 #}
+            {% endcomment %}
+
+            <div class="form-actions"> {# A classe form-actions já tem justify-content: flex-end e gap: 1rem no CSS #}
                 <a href="{{ url_for('comunidades.comunidades') }}" class="btn btn-secondary">
                     Cancelar
                 </a>
-                <button type="submit" class="btn btn-primary" style="background-color: var(--success);"> {# Using success color for save button #}
+                <button type="submit" class="btn btn-primary" style="background-color: var(--success);"> {# Mantive o estilo inline aqui para o background, mas a cor primary já é var(--primary) #}
                     Salvar Alterações
                 </button>
             </div>
