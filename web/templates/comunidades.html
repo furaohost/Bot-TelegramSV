@@ -9,21 +9,14 @@
     <div class="header flex-between" style="margin-bottom: 2rem;">
         <h2 class="page-title" style="margin-bottom: 0;">Gerenciar Comunidades</h2>
         {# Removido o botão "Nova Comunidade" pois o formulário estará inline #}
-        {# <a href="{{ url_for('comunidades.nova') }}" class="btn btn-primary">
-            <span class="material-icons">add</span>
-            Nova Comunidade
-        </a> #}
     </div>
 
     {# SEÇÃO DO FORMULÁRIO DE ADICIONAR NOVA COMUNIDADE (INLINE AQUI!) #}
     <div class="card form-card-visible"> {# Reutilizamos o estilo de card com largura limitada, e garantimos visibilidade #}
         <h3 class="subtitle" style="margin-bottom: 1.5rem;">Adicionar Nova Comunidade</h3> {# Título para o formulário #}
 
-        {# Este é o conteúdo DO FORMULÁRIO. Se ele vem de nova.html via include, o Flask o insere aqui.
-           Se não for um include, você precisa copiar o formulário do nova.html aqui.
-           Vou colar o HTML do formulário de nova.html aqui para refletir sua imagem. #}
-        
         <form action="{{ url_for('comunidades.nova') }}" method="POST" class="form-grid">
+            {# CAMPOS DO FORMULÁRIO: ORGANIZADOS EM form-group para o GRID #}
             <div class="form-group">
                 <label for="nome" class="form-label">Nome da Comunidade:</label>
                 <input type="text" id="nome" name="nome" value="{{ nome | default('', true) }}" required
@@ -32,6 +25,7 @@
             </div>
             <div class="form-group">
                 <label for="descricao" class="form-label">Descrição (Opcional):</label>
+                {# Mantido como textarea, como no seu código enviado #}
                 <textarea id="descricao" name="descricao" rows="3"
                           class="form-textarea"
                           placeholder="Uma breve descrição sobre a comunidade...">{{ descricao | default('', true) }}</textarea>
@@ -45,7 +39,9 @@
                 <p class="form-hint">Este é o ID numérico do grupo ou canal no Telegram associado a esta comunidade.</p>
             </div>
 
-            <div class="form-actions" style="grid-column: 1 / -1;"> {# Faz o botão de Adicionar ocupar a largura total do grid #}
+            {# BOTÃO DO FORMULÁRIO #}
+            {# A classe form-actions-full-width garante que o botão ocupe a largura completa do grid em mobile e se alinhe à direita em desktop #}
+            <div class="form-actions form-actions-full-width">
                 <button type="submit" class="btn btn-primary">
                     Adicionar
                 </button>
@@ -61,12 +57,12 @@
             <table class="data-table"> {# Usa 'data-table' #}
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Nome</th>
-                        <th>Descrição</th>
-                        <th>Chat ID</th>
-                        <th>Status</th>
-                        <th>Criado Em</th>
+                        <th class="column-id">ID</th> {# Adicionando classes de coluna para controle de largura no CSS #}
+                        <th class="column-name">Nome</th>
+                        <th class="column-description">Descrição</th>
+                        <th class="column-chatid">Chat ID</th>
+                        <th class="column-status">Status</th>
+                        <th class="column-createdat">Criado Em</th>
                         <th class="actions-cell">Ações</th> {# Aplicando a classe actions-cell para centralizar #}
                     </tr>
                 </thead>
