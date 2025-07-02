@@ -1325,10 +1325,10 @@ def edit_scheduled_message(message_id):
 @app.route('/resend_scheduled_message/<int:message_id>', methods=['POST'])
 def resend_scheduled_message(message_id):
     """
-    Redefine o status de uma mensagem para 'pendente' para permitir que seja
-    reenviada, e redireciona para a página de edição.
+    Cria uma CÓPIA de uma mensagem existente (clona) e redireciona 
+    para a página de edição da NOVA mensagem.
     """
-    print(f"DEBUG RESEND_SCHEDULED_MESSAGE: Requisição para reenviar a mensagem ID {message_id}.")
+    print(f"DEBUG CLONE_SCHEDULED_MESSAGE: Requisição para clonar a mensagem ID {message_id}.")
     conn = None
     try:
         conn = get_db_connection()
@@ -1337,24 +1337,46 @@ def resend_scheduled_message(message_id):
             return redirect(url_for('scheduled_messages'))
 
         with conn.cursor() as cur:
-            # Atualiza o status para 'pendente' e limpa a data de envio
+            # 1. Busca os dados da mensagem original que será copiada.
+            cur.execute("SELECT * FROM scheduled_messages WHERE id = %s", (message_id,))
+            original_message = cur.fetchone()
+
+            if not original_message:
+                flash('Mensagem original não encontrada para clonar.', 'warning')
+                return redirect(url_for('scheduled_messages'))
+
+            # 2. Insere uma nova mensagem no banco com os dados da original.
+            # O status será 'pending' e o horário de agendamento ficará nulo.
+            # Usamos RETURNING id para obter o ID da nova mensagem criada.
             cur.execute(
-                "UPDATE scheduled_messages SET status = %s, sent_at = NULL WHERE id = %s",
-                ('pending', message_id)
+                """
+                INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, status)
+                VALUES (%s, %s, %s, 'pending')
+                RETURNING id
+                """,
+                (
+                    original_message['message_text'],
+                    original_message['target_chat_id'],
+                    original_message['image_url']
+                )
             )
-        conn.commit()
-        flash('Mensagem pronta para ser reenviada. Por favor, defina um novo horário.', 'info')
-        
+            # Pega o ID da nova mensagem que acabamos de criar.
+            new_message_id = cur.fetchone()['id']
+            conn.commit()
+
+            flash('Mensagem clonada com sucesso! Por favor, defina um novo horário de agendamento.', 'success')
+            
+            # 3. Redireciona para a página de edição da NOVA mensagem.
+            return redirect(url_for('edit_scheduled_message', message_id=new_message_id))
+
     except Exception as e:
-        print(f"ERRO AO PREPARAR REENVIO: {e}")
-        flash('Ocorreu um erro ao tentar preparar a mensagem para reenvio.', 'danger')
+        print(f"ERRO AO CLONAR MENSAGEM: {e}")
+        traceback.print_exc()
+        flash('Ocorreu um erro ao tentar clonar a mensagem.', 'danger')
         return redirect(url_for('scheduled_messages'))
     finally:
         if conn:
             conn.close()
-            
-    # Redireciona para a página de edição para o usuário definir um novo horário
-    return redirect(url_for('edit_scheduled_message', message_id=message_id))
 
 
 @app.route('/delete_scheduled_message/<int:message_id>', methods=['POST'])
