@@ -1322,6 +1322,41 @@ def edit_scheduled_message(message_id):
         if conn:
             conn.close()
 
+@app.route('/resend_scheduled_message/<int:message_id>', methods=['POST'])
+def resend_scheduled_message(message_id):
+    """
+    Redefine o status de uma mensagem para 'pendente' para permitir que seja
+    reenviada, e redireciona para a página de edição.
+    """
+    print(f"DEBUG RESEND_SCHEDULED_MESSAGE: Requisição para reenviar a mensagem ID {message_id}.")
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('scheduled_messages'))
+
+        with conn.cursor() as cur:
+            # Atualiza o status para 'pendente' e limpa a data de envio
+            cur.execute(
+                "UPDATE scheduled_messages SET status = %s, sent_at = NULL WHERE id = %s",
+                ('pending', message_id)
+            )
+        conn.commit()
+        flash('Mensagem pronta para ser reenviada. Por favor, defina um novo horário.', 'info')
+        
+    except Exception as e:
+        print(f"ERRO AO PREPARAR REENVIO: {e}")
+        flash('Ocorreu um erro ao tentar preparar a mensagem para reenvio.', 'danger')
+        return redirect(url_for('scheduled_messages'))
+    finally:
+        if conn:
+            conn.close()
+            
+    # Redireciona para a página de edição para o usuário definir um novo horário
+    return redirect(url_for('edit_scheduled_message', message_id=message_id))
+
+
 @app.route('/delete_scheduled_message/<int:message_id>', methods=['POST'])
 def delete_scheduled_message(message_id):
     """
