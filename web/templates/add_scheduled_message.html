@@ -58,6 +58,7 @@
                     class="form-input"
                     value="{{ schedule_time_str_val | default(datetime.now().strftime('%Y-%m-%dT%H:%M')) }}">
                 <p class="form-hint">A mensagem será enviada na data e hora especificadas (fuso horário do servidor).</p>
+                <p class="form-hint">Ex: para enviar uma mensagem as 9:00 agende para 12:00 (hora da mensagem +3 horas).</p>
             </div>
 
             <div class="form-actions">
