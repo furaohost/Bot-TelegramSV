@@ -9,6 +9,20 @@
         <h2 class="section-title" style="margin-bottom: 1.5rem;">Editar Comunidade</h2> {# Main title of the card #}
 
         {# Mensagens flash já são tratadas pelo layout.html, este bloco está comentado por padrão e deve permanecer assim. #}
+        {# REMOVIDO COMENTÁRIOS HTML, AGORA APENAS COMENTÁRIOS JINJA2 #}
+        {# 
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-4">
+                    {% for category, message in messages %}
+                        <div class="p-3 rounded-md {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        #}
 
         <form action="{{ url_for('comunidades.editar_comunidade', id=comunidade.id) }}" method="POST" class="form-grid">
             <input type="hidden" name="id" value="{{ comunidade.id }}">
@@ -25,9 +39,10 @@
                           class="form-textarea"
                           placeholder="Breve descrição sobre a comunidade...">{{ comunidade.descricao | default('', true) }}</textarea>
             </div>
-
+            
             {# Exemplo para o campo chat_id, se você decidir ativá-lo para edição #}
-            {% comment %}
+            {# AQUI ESTAVA O PROBLEMA: ERA {% comment %} AGORA É {# ... #} #}
+            {# 
             <div class="form-group">
                 <label for="chat_id" class="form-label">ID do Chat/Grupo Telegram (Opcional):</label>
                 <input type="text" id="chat_id" name="chat_id"
@@ -36,8 +51,8 @@
                        value="{{ comunidade.chat_id | default('', true) }}">
                 <p class="form-hint">Este é o ID numérico do grupo ou canal no Telegram associado a esta comunidade.</p>
             </div>
-            {% endcomment %}
-
+            #}
+            
             <div class="form-actions"> {# A classe form-actions já tem justify-content: flex-end e gap: 1rem no CSS #}
                 <a href="{{ url_for('comunidades.comunidades') }}" class="btn btn-secondary">
                     Cancelar
