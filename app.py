@@ -1345,13 +1345,12 @@ def resend_scheduled_message(message_id):
                 flash('Mensagem original não encontrada para clonar.', 'warning')
                 return redirect(url_for('scheduled_messages'))
 
-            # 2. Insere uma nova mensagem no banco com os dados da original.
-            # O status será 'pending' e o horário de agendamento ficará nulo.
-            # Usamos RETURNING id para obter o ID da nova mensagem criada.
+            # 2. CORREÇÃO: Insere uma nova mensagem com um horário padrão (a hora atual).
+            # O usuário será redirecionado para editar este horário.
             cur.execute(
                 """
-                INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, status)
-                VALUES (%s, %s, %s, 'pending')
+                INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, status, schedule_time)
+                VALUES (%s, %s, %s, 'pending', NOW())
                 RETURNING id
                 """,
                 (
