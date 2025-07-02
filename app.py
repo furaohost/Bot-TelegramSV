@@ -1524,96 +1524,71 @@ def config_messages():
 # 8. WORKER de mensagens agendadas
 # ────────────────────────────────────────────────────────────────────
 def scheduled_message_worker():
-    """
-    Worker that checks and sends scheduled messages to users.
-    It runs in a separate thread or as a worker process.
-    """
-    print("DEBUG WORKER: Initiated...")
+    print("DEBUG WORKER: Iniciado e aguardando para verificar mensagens...")
     while True:
         conn = None
         try:
             conn = get_db_connection()
             if conn is None:
-                print("ERRO WORKER: Could not get database connection. Retrying in 30s...")
-                time_module.sleep(30)
+                print("ERRO WORKER: Não foi possível obter conexão. Tentando novamente em 60s...")
+                time_module.sleep(60)
                 continue
 
-            is_sqlite = isinstance(conn, sqlite3.Connection)
-            with conn:
-                cur = conn.cursor()
-                if is_sqlite:
-                    cur.execute(
-                        "SELECT * FROM scheduled_messages WHERE status='pending' AND schedule_time<=datetime('now') ORDER BY schedule_time"
-                    )
-                else:
-                    cur.execute(
-                        "SELECT * FROM scheduled_messages WHERE status='pending' AND schedule_time<=NOW() AT TIME ZONE 'UTC' ORDER BY schedule_time"
-                    )
+            with conn.cursor() as cur:
+                # Query para buscar mensagens pendentes cuja hora já passou
+                # Usamos NOW() que pega a hora atual do servidor (geralmente UTC)
+                cur.execute(
+                    "SELECT * FROM scheduled_messages WHERE status='pending' AND schedule_time <= NOW() ORDER BY schedule_time"
+                )
                 rows = cur.fetchall()
 
+                if rows:
+                    print(f"DEBUG WORKER: Encontradas {len(rows)} mensagens para enviar.")
+
                 for row in rows:
+                    print(f"DEBUG WORKER: Processando mensagem ID {row['id']} para o alvo: {row['target_chat_id'] or 'Todos'}")
+                    
                     targets = []
                     if row["target_chat_id"]:
                         targets.append(row["target_chat_id"])
-                    else:
-                        if is_sqlite:
-                            cur.execute("SELECT id FROM users WHERE is_active = 1")
-                        else:
-                            cur.execute("SELECT id FROM users WHERE is_active = TRUE")
-                        targets = [u["id"] for u in cur.fetchall()]
+                    else: # Se for para todos (broadcast)
+                        cur.execute("SELECT id FROM users WHERE is_active = TRUE")
+                        all_users = cur.fetchall()
+                        targets = [u["id"] for u in all_users]
 
-                    delivered_to_any_user = False
+                    print(f"DEBUG WORKER: A mensagem {row['id']} será enviada para {len(targets)} usuários.")
+                    
+                    sent_successfully = False
                     for chat_id in targets:
                         try:
                             if row["image_url"]:
                                 bot.send_photo(chat_id, row["image_url"], caption=row["message_text"], parse_mode="Markdown")
                             else:
                                 bot.send_message(chat_id, row["message_text"], parse_mode="Markdown")
-                            delivered_to_any_user = True
-                            print(f"DEBUG WORKER: Message {row['id']} sent to {chat_id}.")
-                        except telebot.apihelper.ApiTelegramException as e:
-                            print(f"ERRO Telegram API for chat_id {chat_id}: {e}")
-                            if "blocked" in str(e).lower() or "not found" in str(e).lower() or "deactivated" in str(e).lower():
-                                print(f"AVISO: Usuário {chat_id} blocked/not found. Deactivating...")
-                                temp_conn_update = get_db_connection()
-                                if temp_conn_update:
-                                    temp_is_sqlite = isinstance(temp_conn_update, sqlite3.Connection)
-                                    try:
-                                        with temp_conn_update:
-                                            cur_u = temp_conn_update.cursor()
-                                            if temp_is_sqlite:
-                                                cur_u.execute("UPDATE users SET is_active=0 WHERE id=?", (chat_id,))
-                                            else:
-                                                cur_u.execute("UPDATE users SET is_active=FALSE WHERE id=%s", (chat_id,))
-                                    except Exception as db_e:
-                                        print(f"ERRO inactivating user {chat_id} during worker run: {db_e}")
-                                    finally:
-                                        if temp_conn_update: temp_conn_update.close()
+                            sent_successfully = True # Marca como sucesso se enviar para pelo menos um
                         except Exception as e:
-                            print(f"ERRO UNEXPECTED BROADCAST to {chat_id}: {e}")
-                            traceback.print_exc()
-                            failed_count += 1 
-
-                status_to_update = "sent" if delivered_to_any_user else "failed"
-                if is_sqlite:
+                            print(f"ERRO WORKER: Falha ao enviar msg {row['id']} para o chat {chat_id}: {e}")
+                    
+                    # Atualiza o status da mensagem para 'sent' ou 'failed'
+                    final_status = 'sent' if sent_successfully else 'failed'
                     cur.execute(
-                        "UPDATE scheduled_messages SET status=?, sent_at=? WHERE id=?",
-                        (status_to_update, datetime.now().isoformat(), row["id"]),
+                        "UPDATE scheduled_messages SET status=%s, sent_at=NOW() WHERE id=%s",
+                        (final_status, row["id"]),
                     )
-                else:
-                    cur.execute(
-                        "UPDATE scheduled_messages SET status=%s, sent_at=NOW() AT TIME ZONE 'UTC' WHERE id=%s",
-                        (status_to_update, row["id"]),
-                    )
+                    print(f"DEBUG WORKER: Mensagem ID {row['id']} atualizada para status '{final_status}'.")
+            
+            # Commit das alterações no final de cada ciclo bem-sucedido
+            conn.commit()
 
         except Exception as e:
-            print(f"ERRO WORKER Main Loop: {e}")
+            print(f"ERRO CRÍTICO no Loop do Worker: {e}")
             traceback.print_exc()
         finally:
             if conn:
                 conn.close()
 
-        time_module.sleep(30)
+        # Aguarda 60 segundos antes da próxima verificação
+        time_module.sleep(60)
 
 # ────────────────────────────────────────────────────────────────────
 # 9. FINAL INITIALIZATION AND EXECUTION
@@ -1655,31 +1630,23 @@ def send_welcome(message):
     bot.reply_to(message, formatted_message, reply_markup=menu_principal())
 
 if __name__ != '__main__':
-    print("DEBUG: Running in production mode (gunicorn/Render).")
+    print("DEBUG: Executando em modo de produção (gunicorn/Render).")
     try:
-        init_db() 
+        init_db()
         pagamentos.init_mercadopago_sdk()
-
         if API_TOKEN and BASE_URL:
             webhook_url = f"{BASE_URL}/{API_TOKEN}"
             bot.set_webhook(url=webhook_url)
-            print(f"DEBUG: Telegram webhook configured for: {webhook_url}")
-        else:
-            print("ERRO: API_TOKEN or BASE_URL environment variables not defined for webhook. Bot may not receive updates.")
+            print(f"DEBUG: Webhook do Telegram configurado para: {webhook_url}")
+        
+        # IMPORTANTE: Inicia o worker em uma thread separada também no modo de produção
+        # Embora não seja a solução ideal para escalabilidade (o ideal seria um worker separado),
+        # isso fará com que funcione no plano gratuito do Render.
+        worker_thread = Thread(target=scheduled_message_worker)
+        worker_thread.daemon = True
+        worker_thread.start()
+        print("DEBUG: Worker de mensagens agendadas iniciado em background para o modo de produção.")
 
-        print("DEBUG: Flask application ready. Scheduled worker not started embedded.")
     except Exception as e:
-        print(f"ERRO ON SERVER INITIALIZATION: {e}")
+        print(f"ERRO NA INICIALIZAÇÃO DO SERVIDOR: {e}")
         traceback.print_exc()
-
-else:
-    print("DEBUG: Running in local development mode (python app.py).")
-    init_db() 
-    pagamentos.init_mercadopago_sdk()
-    
-    worker_thread = Thread(target=scheduled_message_worker)
-    worker_thread.daemon = True
-    worker_thread.start()
-    print("DEBUG: Scheduled message worker started in background (local mode).")
-
-    app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5000)))
