@@ -20,16 +20,12 @@
     --success-rgb: 16, 185, 129;
     --danger: #EF4444;
     --danger-rgb: 239, 68, 68;
+    --warning: #F59E0B; /* Adicionado: cor para status de aviso, se necessário */
+    --warning-rgb: 245, 158, 11; /* Adicionado: RGB para cor de aviso */
+    --info: #3B82F6; /* Adicionado: cor para status de informação, se necessário */
+    --info-rgb: 59, 130, 246; /* Adicionado: RGB para cor de informação */
     --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-}
-
-/* Estilos Base */
-body {
-    font-family: 'Inter', sans-serif;
-    background-color: var(--bg-light);
-    color: var(--text-dark);
-    transition: background-color 0.3s, color 0.3s;
 }
 
 /* Tema Escuro */
@@ -37,8 +33,59 @@ body.dark {
     --text-dark: #F9FAFB;
     --text-light: #9CA3AF;
     --bg-light: #111827;
+    --bg-dark: #1F2937; /* Mantido como em layout.html */
     --card-light: #1F2937;
+    --card-dark: #374151; /* Não usado diretamente, mas bom manter */
     --border-light: #374151;
+    /* Ajustes para cores no modo escuro, se houver */
+    --primary: #6366F1; /* Adaptação do layout.html */
+    --primary-dark: #4F46E5; /* Adaptação do layout.html */
+    --success: #34D399; /* Adaptação do layout.html */
+    --warning: #FBBF24; /* Adaptação do layout.html */
+    --danger: #DC2626; /* Adaptação do layout.html */
+    --info: #60A5FA; /* Adaptação do layout.html */
+}
+
+
+/* Estilos Base */
+html {
+    scroll-behavior: smooth; /* Suaviza o scroll, útil para âncoras */
+}
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-light);
+    color: var(--text-dark);
+    transition: background-color 0.3s, color 0.3s;
+    line-height: 1.6; /* Melhor legibilidade */
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box; /* Garante que padding e border são incluídos na largura/altura */
+}
+
+/* Links em geral, se não forem botões */
+a {
+    color: var(--primary);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+a:hover {
+    color: var(--primary-dark);
+    text-decoration: underline;
+}
+
+/* Animação do Logo SVG (se for usada) */
+@keyframes bounce-and-spin {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    25% { transform: translateY(-2px) rotate(8deg); }
+    50% { transform: translateY(0) rotate(0deg); }
+    75% { transform: translateY(2px) rotate(-8deg); }
+}
+.animated-logo-svg {
+    animation: bounce-and-spin 4s ease-in-out infinite;
+    display: block;
+}
+.logo:hover .animated-logo-svg {
+    animation: bounce-and-spin 1s ease-in-out infinite;
 }
 
 /* Estrutura Principal do Layout */
@@ -54,11 +101,12 @@ body.dark {
     border-right: 1px solid var(--border-light);
     display: flex;
     flex-direction: column;
-    position: fixed;
+    position: fixed; /* Mudei para fixed para ficar sempre visível */
     top: 0;
     left: 0;
     bottom: 0;
     transition: background-color 0.3s, border-color 0.3s;
+    z-index: 100; /* Garante que a sidebar fique acima do conteúdo em mobile */
 }
 
 .sidebar-header {
@@ -68,11 +116,33 @@ body.dark {
     text-align: center;
     border-bottom: 1px solid var(--border-light);
     color: var(--primary);
+    display: flex; /* Para centralizar conteúdo se precisar */
+    align-items: center;
+    justify-content: center;
 }
+
+/* Ajustes no nome do logo e SVG (se houver) para melhor alinhamento */
+.sidebar .logo { /* Adicionei .sidebar para especificar este .logo */
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--primary);
+    margin-bottom: 2rem; /* Margem para separar do nav */
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.sidebar .telegram-plane { /* Adicionei .sidebar para especificar o SVG */
+    width: 24px;
+    height: 24px;
+    fill: var(--primary);
+}
+
 
 .sidebar-nav {
     flex-grow: 1;
     padding: 1rem;
+    list-style: none; /* Remover marcadores de lista */
 }
 
 .sidebar-nav a {
@@ -88,17 +158,29 @@ body.dark {
 }
 
 .sidebar-nav a:hover, .sidebar-nav a.active {
-    background-color: var(--primary);
-    color: #FFFFFF;
+    background-color: var(--primary); /* Hover e ativo com fundo primário */
+    color: #FFFFFF; /* Texto branco no hover/ativo */
+}
+/* Cores dos ícones na sidebar */
+.sidebar-nav a .material-icons, .sidebar-nav a .fas {
+    margin-right: 1rem;
+    color: inherit; /* Herda a cor do link pai */
+}
+.sidebar-nav a.active .material-icons, .sidebar-nav a.active .fas {
+    color: #FFFFFF; /* Ícone branco no link ativo */
 }
 
-.sidebar-nav a .material-icons {
-    margin-right: 1rem;
-}
 
 .sidebar-footer {
     padding: 1rem;
     border-top: 1px solid var(--border-light);
+    text-align: center; /* Centraliza o texto no rodapé da sidebar */
+    font-size: 0.875rem;
+    color: var(--text-light);
+}
+.sidebar-footer p:last-child {
+    margin-top: 0.25rem; /* Pequeno espaçamento entre os parágrafos */
+    font-weight: 600; /* Deixa o username mais destacado */
 }
 
 /* Conteúdo Principal */
@@ -107,16 +189,21 @@ body.dark {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
+    background-color: var(--bg-light); /* Garante que o fundo do conteúdo seja o do tema */
+    padding: 0; /* O padding virá do content-area */
 }
 
 .content-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1.5rem;
+    padding: 1.5rem 2rem; /* Ajuste do padding */
     background-color: var(--card-light);
     border-bottom: 1px solid var(--border-light);
     box-shadow: var(--shadow);
+    position: sticky; /* Cabeçalho fixo ao rolar */
+    top: 0;
+    z-index: 50; /* Abaixo da sidebar, mas acima do conteúdo */
 }
 
 .page-title {
@@ -131,7 +218,12 @@ body.dark {
     cursor: pointer;
     font-size: 1.5rem;
     color: var(--text-light);
+    transition: color 0.2s; /* Transição de cor no toggle */
 }
+.theme-toggle:hover {
+    color: var(--text-dark); /* Cor mais escura no hover */
+}
+
 
 .content-area {
     padding: 2rem;
@@ -145,6 +237,7 @@ body.dark {
     padding: 1.5rem;
     box-shadow: var(--shadow);
     margin-bottom: 2rem;
+    border: 1px solid var(--border-light); /* Adicionado borda para melhor definição do card */
 }
 
 .subtitle {
@@ -153,6 +246,34 @@ body.dark {
     margin-bottom: 1.5rem;
     color: var(--text-dark);
 }
+
+/* Mensagens Flash (Success/Danger/Info) */
+.flash-message-container {
+    margin-bottom: 1.5rem; /* Margem para separar as mensagens do conteúdo */
+}
+.flash-message {
+    padding: 1rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+}
+.flash-success {
+    background-color: rgba(var(--success-rgb), 0.1);
+    color: var(--success);
+}
+.flash-danger {
+    background-color: rgba(var(--danger-rgb), 0.1);
+    color: var(--danger);
+}
+.flash-info {
+    background-color: rgba(var(--info-rgb), 0.1); /* Usando a cor info */
+    color: var(--info);
+}
+.flash-warning {
+    background-color: rgba(var(--warning-rgb), 0.1);
+    color: var(--warning);
+}
+
 
 /* Formulários */
 .form-group {
@@ -168,17 +289,24 @@ body.dark {
 
 .form-group input[type="text"],
 .form-group input[type="password"],
+.form-group input[type="email"], /* Incluído tipo email */
+.form-group input[type="number"], /* Incluído tipo number */
+.form-group input[type="url"], /* Incluído tipo url */
+.form-group input[type="date"], /* Incluído tipo date */
+.form-group input[type="datetime-local"], /* Incluído tipo datetime-local */
+.form-group select, /* Incluído select */
 .form-group textarea {
     width: 100%;
     padding: 0.75rem;
     border: 1px solid var(--border-light);
     border-radius: 8px;
-    background-color: var(--bg-light);
+    background-color: var(--card-light); /* Fundo do input igual ao card */
     color: var(--text-dark);
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .form-group input:focus,
+.form-group select:focus,
 .form-group textarea:focus {
     outline: none;
     border-color: var(--primary);
@@ -188,6 +316,9 @@ body.dark {
 .form-actions {
     text-align: right;
     margin-top: 1.5rem;
+    display: flex; /* Permite alinhar botões */
+    justify-content: flex-end; /* Alinha à direita */
+    gap: 1rem; /* Espaçamento entre os botões */
 }
 
 /* Botões */
@@ -202,6 +333,7 @@ body.dark {
     align-items: center;
     justify-content: center;
     transition: background-color 0.2s, transform 0.1s;
+    font-size: 1rem; /* Tamanho da fonte padrão para botões */
 }
 
 .btn:active {
@@ -217,53 +349,225 @@ body.dark {
     background-color: var(--primary-dark);
 }
 
+.btn-secondary { /* Adicionado estilo para botão secundário */
+    background-color: var(--card-light);
+    color: var(--text-dark);
+    border: 1px solid var(--border-light);
+}
+.btn-secondary:hover {
+    background-color: var(--bg-light);
+}
+
 /* Tabelas */
 .table-container {
-    overflow-x: auto;
+    overflow-x: auto; /* Permite rolagem horizontal em telas pequenas */
+    border-radius: 8px; /* Bordas arredondadas para o container da tabela */
+    border: 1px solid var(--border-light); /* Borda para o container da tabela */
+    box-shadow: var(--shadow); /* Sombra para o container */
 }
 
 table {
     width: 100%;
     border-collapse: collapse;
+    min-width: 600px; /* Garante que a tabela tenha uma largura mínima para não ficar muito espremida */
 }
 
 th, td {
-    padding: 1rem;
+    padding: 1rem 1.25rem; /* Ajuste o padding para células de tabela */
     text-align: left;
     border-bottom: 1px solid var(--border-light);
-    white-space: nowrap;
+    white-space: normal; /* Permite quebras de linha por padrão */
+    word-break: break-word; /* Força quebra de palavras longas */
+    vertical-align: top; /* Alinha o conteúdo ao topo da célula */
+}
+
+th:first-child, td:first-child {
+    padding-left: 1.5rem; /* Padding extra para a primeira coluna */
+}
+th:last-child, td:last-child {
+    padding-right: 1.5rem; /* Padding extra para a última coluna */
 }
 
 thead th {
     font-weight: 600;
     color: var(--text-light);
     background-color: var(--bg-light);
+    position: sticky; /* Fixa o cabeçalho ao rolar a tabela */
+    top: 0;
+    z-index: 1; /* Garante que o cabeçalho fique acima do corpo da tabela */
 }
 
 tbody tr:hover {
     background-color: rgba(var(--primary-rgb), 0.05);
 }
 
+/* Estilo para status (success, danger, etc.) */
+.status {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px; /* Pill shape */
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: capitalize; /* Capitaliza a primeira letra */
+}
+
+.status-success {
+    background-color: rgba(var(--success-rgb), 0.15);
+    color: var(--success);
+}
+.status-danger {
+    background-color: rgba(var(--danger-rgb), 0.15);
+    color: var(--danger);
+}
+.status-warning {
+    background-color: rgba(var(--warning-rgb), 0.15);
+    color: var(--warning);
+}
+.status-info {
+    background-color: rgba(var(--info-rgb), 0.15);
+    color: var(--info);
+}
+
+
 .actions-cell {
-    text-align: right;
+    text-align: center; /* Centraliza os botões de ação */
+    white-space: nowrap; /* Evita que os botões quebrem linha */
+    min-width: 150px; /* Garante espaço mínimo para os botões */
 }
 
 .btn-action {
     background: none;
     border: none;
     cursor: pointer;
-    padding: 0.25rem 0.5rem;
+    padding: 0.5rem 0.75rem; /* Aumenta o padding para melhor toque */
     margin: 0 0.25rem;
-    font-size: 1rem;
-    border-radius: 4px;
-    transition: background-color 0.2s;
+    font-size: 0.875rem; /* Ajusta o tamanho da fonte */
+    border-radius: 6px; /* Aumenta o border-radius */
+    transition: background-color 0.2s, color 0.2s;
+    display: inline-flex; /* Para alinhar ícones e texto */
+    align-items: center;
+    justify-content: center;
+    text-decoration: none; /* Garante que links/botões de ação não tenham sublinhado */
+    font-weight: 500; /* Deixa o texto do botão um pouco mais leve */
 }
-.btn-action.edit { color: var(--primary); }
+.btn-action.edit { color: var(--text-light); } /* Cor padrão cinza claro */
+.btn-action.edit:hover { background-color: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
+
 .btn-action.delete { color: var(--danger); }
-.btn-action:hover { background-color: rgba(var(--primary-rgb), 0.1); }
 .btn-action.delete:hover { background-color: rgba(var(--danger-rgb), 0.1); }
 
+/* Para formulários inline, como o de deletar */
 .inline-form {
     display: inline-block;
+    margin-left: 0.5rem; /* Pequeno espaçamento entre o botão de editar e o formulário de deletar */
 }
 
+/* Utilitários Flexbox/Grid */
+.flex-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.flex-center {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.flex-col {
+    display: flex;
+    flex-direction: column;
+}
+
+.gap-4 { gap: 1rem; }
+.gap-2 { gap: 0.5rem; }
+
+/* Adicionei algumas classes para o layout de formulários, se for usado no comunidades.html */
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr; /* Padrão para mobile */
+    gap: 1.5rem; /* Espaçamento entre os campos */
+}
+
+@media (min-width: 640px) { /* Em telas maiores, 2 colunas */
+    .form-grid {
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+}
+
+/* Estilo para input com erro de validação (se usado) */
+.input-error {
+    border-color: var(--danger) !important;
+}
+.error-message {
+    color: var(--danger);
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+}
+
+
+/* Responsividade Geral */
+@media (max-width: 768px) {
+    .sidebar {
+        left: -260px; /* Esconde a sidebar em mobile */
+        width: 260px;
+        transition: left 0.3s ease-in-out;
+    }
+    .sidebar.active {
+        left: 0; /* Mostra a sidebar quando ativa */
+    }
+    .main-content {
+        margin-left: 0; /* Conteúdo principal ocupa 100% da largura em mobile */
+    }
+    .content-header {
+        padding: 1rem; /* Reduz padding do cabeçalho em mobile */
+        justify-content: flex-start; /* Alinha à esquerda para dar espaço ao botão do menu */
+    }
+    .page-title {
+        font-size: 1.5rem; /* Reduz o tamanho do título em mobile */
+    }
+    .mobile-menu-toggle { /* Botão para abrir/fechar sidebar em mobile */
+        display: block; /* Mostra o botão em mobile */
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: var(--text-dark);
+        margin-right: 1rem; /* Espaçamento entre o botão e o título */
+    }
+    .theme-toggle {
+        margin-left: auto; /* Empurra o toggle para a direita */
+    }
+    /* Ajustes para a tabela em mobile */
+    .table-container {
+        border-radius: 0; /* Remove border-radius em mobile para ocupar largura total */
+        border-left: none;
+        border-right: none;
+    }
+    table {
+        min-width: 100%; /* Garante que a tabela use 100% da largura disponível */
+    }
+    th, td {
+        padding: 0.75rem 1rem; /* Reduz padding em mobile */
+        font-size: 0.875rem; /* Reduz tamanho da fonte em células */
+    }
+    .actions-cell {
+        min-width: 120px; /* Reduz largura mínima para ações */
+    }
+    .btn-action {
+        padding: 0.3rem 0.5rem; /* Reduz padding dos botões de ação */
+        font-size: 0.75rem; /* Reduz fonte dos botões de ação */
+    }
+    .form-actions {
+        flex-direction: column; /* Botões do formulário em coluna em mobile */
+        align-items: stretch; /* Estica os botões para largura total */
+    }
+    .form-actions .btn {
+        width: 100%; /* Botões do formulário 100% em mobile */
+    }
+}
+/* Estilo para um botão mobile-menu-toggle (se você tiver no layout.html) */
+.mobile-menu-toggle {
+    display: none; /* Escondido por padrão no desktop */
+}

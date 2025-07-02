@@ -1,37 +1,25 @@
-{% extends 'layout.html' %} {# CRITICAL CORRECTION: Now extends layout.html for the sidebar dashboard look #}
+{% extends 'layout.html' %}
 
 {% block title %}Comunidades{% endblock %}
 {% block page_title %}Gerenciar Comunidades{% endblock %} {# Title for the main header #}
 
 {% block content %}
 <div class="dashboard-content-wrapper"> {# Uses the dashboard wrapper for centering and width #}
-    <div class="header" style="justify-content: space-between; align-items: center; margin-bottom: 2rem;"> {# Reusing header style for title and button #}
-        <h2 class="page-title" style="margin-bottom: 0;">Gerenciar Comunidades</h2> {# Using page-title style #}
+    {# O cabeçalho já está bem estilizado, mantemos as classes do layout e adicionamos flex-between para clareza #}
+    <div class="header flex-between" style="margin-bottom: 2rem;">
+        <h2 class="page-title" style="margin-bottom: 0;">Gerenciar Comunidades</h2>
         <a href="{{ url_for('comunidades.nova') }}" class="btn btn-primary">
-            <span class="material-icons">add</span> {# Using Material Icons for the plus symbol #}
+            <span class="material-icons">add</span>
             Nova Comunidade
         </a>
     </div>
 
-    {# Flash messages are already handled by layout.html, so this block is redundant here #}
-    {# Removed:
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div class="mb-4">
-                {% for category, message in messages %}
-                    <div class="p-3 rounded-md {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
-    #}
+    {# As mensagens flash agora são gerenciadas pelo layout.html, conforme discutido. #}
 
-    <div class="card"> {# Using the 'card' class for the table container #}
+    <div class="card"> {# Usamos a classe 'card' para o contêiner da tabela #}
         {% if comunidades %}
-        <div class="table-container"> {# Uses the 'table-container' for scroll and borders #}
-            <table class="data-table"> {# Uses the 'data-table' class #}
+        <div class="table-container"> {# Usa 'table-container' para rolagem e bordas #}
+            <table class="data-table"> {# Usa 'data-table' #}
                 <thead>
                     <tr>
                         <th>ID</th>
@@ -40,26 +28,26 @@
                         <th>Chat ID</th>
                         <th>Status</th>
                         <th>Criado Em</th>
-                        <th style="text-align: center;">Ações</th> {# Center align Actions header #}
+                        <th class="actions-cell">Ações</th> {# Aplicando a classe actions-cell para centralizar #}
                     </tr>
                 </thead>
                 <tbody>
                     {% for comunidade in comunidades %}
                     <tr>
                         <td>{{ comunidade.id }}</td>
-                        <td style="white-space: normal;">{{ comunidade.nome }}</td> {# Allow text wrapping #}
-                        <td style="white-space: normal;">{{ comunidade.descricao | default('N/A', true) }}</td> {# Allow text wrapping #}
-                        <td>{{ comunidade.chat_id | default('N/A', true) }}</td>
+                        <td class="break-word">{{ comunidade.nome }}</td> {# Aplicando a classe break-word para quebrar linha #}
+                        <td class="break-word">{{ comunidade.descricao | default('N/A', true) }}</td> {# Aplicando a classe break-word para quebrar linha #}
+                        <td class="break-word">{{ comunidade.chat_id | default('N/A', true) }}</td> {# Aplicando a classe break-word para quebrar linha #}
                         <td>
                             <span class="status
                                 {% if comunidade.status == 'ativa' %}status-success
-                                {% elif comunidade.status == 'inativa' %}status-danger {# Assuming 'inativa' is a status #}
-                                {% else %}status-info{% endif %}"> {# Use info for other unknown statuses #}
+                                {% elif comunidade.status == 'inativa' %}status-danger
+                                {% else %}status-info{% endif %}">
                                 {{ comunidade.status | capitalize }}
                             </span>
                         </td>
                         <td>{{ comunidade.created_at | datetimeformat }}</td>
-                        <td style="text-align: center; white-space: nowrap;"> {# Center align action buttons and prevent wrapping #}
+                        <td class="actions-cell"> {# Aplicando a classe actions-cell e removendo style inline #}
                             <a href="{{ url_for('comunidades.editar', cid=comunidade.id) }}" class="btn-action edit">
                                 Editar
                             </a>
@@ -75,7 +63,7 @@
             </table>
         </div>
         {% else %}
-        <p class="text-light text-center" style="padding: 2rem;">Não há comunidades cadastradas ainda. <a href="{{ url_for('comunidades.nova') }}" class="text-primary hover-text-primary-dark">Crie uma nova</a>!</p> {# Uses text-light, text-primary, hover effects #}
+        <p class="text-light text-center" style="padding: 2rem;">Não há comunidades cadastradas ainda. <a href="{{ url_for('comunidades.nova') }}" class="text-primary hover-text-primary-dark">Crie uma nova</a>!</p>
         {% endif %}
     </div>
 </div>
