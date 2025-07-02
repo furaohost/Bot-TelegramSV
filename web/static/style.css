@@ -5,648 +5,280 @@
 
 /* Definições de Cores e Variáveis Globais */
 :root {
-    --primary: #4F46E5;
-    --primary-dark: #4338CA;
-    --primary-rgb: 79, 70, 229;
-    --text-dark: #111827;
-    --text-light: #6B7280;
-    --bg-light: #F9FAFB;
-    --bg-dark: #1F2937;
-    --card-light: #FFFFFF;
-    --card-dark: #374151;
-    --border-light: #E5E7EB;
-    --border-dark: #4B5563;
-    --success: #10B981;
-    --success-rgb: 16, 185, 129;
-    --danger: #EF4444;
-    --danger-rgb: 239, 68, 68;
-    --warning: #F59E0B; /* Adicionado: cor para status de aviso, se necessário */
-    --warning-rgb: 245, 158, 11; /* Adicionado: RGB para cor de aviso */
-    --info: #3B82F6; /* Adicionado: cor para status de informação, se necessário */
-    --info-rgb: 59, 130, 246; /* Adicionado: RGB para cor de informação */
-    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --primary: #4F46E5;
+  --primary-dark: #4338CA;
+  --primary-rgb: 79, 70, 229;
+  --text-dark: #111827;
+  --text-light: #6B7280;
+  --bg-light: #F9FAFB;
+  --bg-dark: #1F2937;
+  --card-light: #FFFFFF;
+  --card-dark: #374151;
+  --border-light: #E5E7EB;
+  --border-dark: #4B5563;
+  --success: #10B981;
+  --success-rgb: 16, 185, 129;
+  --danger: #EF4444;
+  --danger-rgb: 239, 68, 68;
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+            0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+               0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Estilos Base */
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg-light);
+  color: var(--text-dark);
+  transition: background-color 0.3s, color 0.3s;
 }
 
 /* Tema Escuro */
 body.dark {
-    --text-dark: #F9FAFB;
-    --text-light: #9CA3AF;
-    --bg-light: #111827;
-    --bg-dark: #1F2937; /* Mantido como em layout.html */
-    --card-light: #1F2937;
-    --card-dark: #374151; /* Não usado diretamente, mas bom manter */
-    --border-light: #374151;
-    /* Ajustes para cores no modo escuro, se houver */
-    --primary: #6366F1; /* Adaptação do layout.html */
-    --primary-dark: #4F46E5; /* Adaptação do layout.html */
-    --success: #34D399; /* Adaptação do layout.html */
-    --warning: #FBBF24; /* Adaptação do layout.html */
-    --danger: #DC2626; /* Adaptação do layout.html */
-    --info: #60A5FA; /* Adaptação do layout.html */
+  --text-dark: #F9FAFB;
+  --text-light: #9CA3AF;
+  --bg-light: #111827;
+  --card-light: #1F2937;
+  --border-light: #374151;
 }
 
-
-/* Estilos Base */
-html {
-    scroll-behavior: smooth; /* Suaviza o scroll, útil para âncoras */
-}
-body {
-    font-family: 'Inter', sans-serif;
-    background-color: var(--bg-light);
-    color: var(--text-dark);
-    transition: background-color 0.3s, color 0.3s;
-    line-height: 1.6; /* Melhor legibilidade */
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box; /* Garante que padding e border são incluídos na largura/altura */
+/* Estrutura Principal do Layout */
+.main-container {
+  display: flex;
+  min-height: 100vh;
 }
 
-/* Links em geral, se não forem botões */
-a {
-    color: var(--primary);
-    text-decoration: none;
-    transition: color 0.2s;
-}
-a:hover {
-    color: var(--primary-dark);
-    text-decoration: underline;
-}
-
-/* Animação do Logo SVG (se for usada) */
-@keyframes bounce-and-spin {
-    0%, 100% { transform: translateY(0) rotate(0deg); }
-    25% { transform: translateY(-2px) rotate(8deg); }
-    50% { transform: translateY(0) rotate(0deg); }
-    75% { transform: translateY(2px) rotate(-8deg); }
-}
-.animated-logo-svg {
-    animation: bounce-and-spin 4s ease-in-out infinite;
-    display: block;
-}
-.logo:hover .animated-logo-svg {
-    animation: bounce-and-spin 1s ease-in-out infinite;
-}
-
-/* Estrutura Principal do Dashboard */
-.dashboard {
-    display: grid;
-    grid-template-columns: 240px 1fr; /* Sidebar de 240px + conteúdo */
-    min-height: 100vh;
-}
-
-/* Sidebar (Barra Lateral) */
+/* Barra Lateral (Sidebar) */
 .sidebar {
-    background: var(--card-light);
-    box-shadow: 1px 0 10px rgba(0,0,0,0.05);
-    padding: 1.5rem;
-    transition: all 0.3s ease;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    /* Adições para o comportamento fixo em desktop e transição em mobile */
-    position: fixed; /* Fixa a sidebar em desktop */
-    top: 0;
-    left: 0; /* Visível por padrão em desktop */
-    bottom: 0;
-    z-index: 100; /* Garante que a sidebar fique acima do conteúdo */
+  width: 260px;
+  background-color: var(--card-light);
+  border-right: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  transition: background-color 0.3s, border-color 0.3s;
 }
 
 .sidebar-header {
-    padding: 1.5rem;
-    font-size: 1.5rem;
-    font-weight: 700;
-    text-align: center;
-    border-bottom: 1px solid var(--border-light);
-    color: var(--primary);
-    display: flex; /* Para centralizar conteúdo se precisar */
-    align-items: center;
-    justify-content: center;
+  padding: 1.5rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: center;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--primary);
 }
-
-/* Ajustes no nome do logo e SVG (se houver) para melhor alinhamento */
-.sidebar .logo { /* Adicionei .sidebar para especificar este .logo */
-    font-family: 'Inter', sans-serif;
-    font-weight: 700;
-    font-size: 1.1rem;
-    color: var(--primary);
-    margin-bottom: 2rem; /* Margem para separar do nav */
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-.sidebar .telegram-plane { /* Adicionei .sidebar para especificar o SVG */
-    width: 24px;
-    height: 24px;
-    fill: var(--primary);
-}
-
 
 .sidebar-nav {
-    flex-grow: 1;
-    padding: 1rem;
-    list-style: none; /* Remover marcadores de lista */
-}
-
-.nav-item {
-    margin-bottom: 0.5rem;
+  flex-grow: 1;
+  padding: 1rem;
 }
 
 .sidebar-nav a {
-    display: flex;
-    align-items: center;
-    padding: 0.75rem 1rem;
-    border-radius: 8px;
-    color: var(--text-light);
-    text-decoration: none;
-    font-weight: 500;
-    transition: background-color 0.2s, color 0.2s;
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  color: var(--text-light);
+  text-decoration: none;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  transition: background-color 0.2s, color 0.2s;
 }
 
-.sidebar-nav a:hover, .sidebar-nav a.active {
-    background-color: var(--primary); /* Hover e ativo com fundo primário */
-    color: #FFFFFF; /* Texto branco no hover/ativo */
-}
-/* Cores dos ícones na sidebar */
-.sidebar-nav a .material-icons, .sidebar-nav a .fas {
-    margin-right: 1rem;
-    color: inherit; /* Herda a cor do link pai */
-}
-.sidebar-nav a.active .material-icons, .sidebar-nav a.active .fas {
-    color: #FFFFFF; /* Ícone branco no link ativo */
+.sidebar-nav a:hover,
+.sidebar-nav a.active {
+  background-color: var(--primary);
+  color: #FFFFFF;
 }
 
-
-.user-info {
-    margin-top: auto;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--border-light); /* Usando var do style.css */
-    text-align: center; /* Centraliza o texto no rodapé da sidebar */
-    font-size: 0.875rem;
-    color: var(--text-light);
-}
-.user-info p:last-child {
-    margin-top: 0.25rem; /* Pequeno espaçamento entre os parágrafos */
-    font-weight: 600; /* Deixa o username mais destacado */
+.sidebar-nav a .material-icons {
+  margin-right: 1rem;
 }
 
-/* Conteúdo Principal (Desktop) */
+.sidebar-footer {
+  padding: 1rem;
+  border-top: 1px solid var(--border-light);
+}
+
+/* Conteúdo Principal */
 .main-content {
-    margin-left: 240px; /* Desloca o conteúdo para compensar a sidebar */
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    padding: 2rem; /* Padding padrão para desktop */
-    background-color: var(--bg-light); /* Garante que o fundo do conteúdo seja o do tema */
+  margin-left: 260px;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Header do Conteúdo Principal */
-.header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-    flex-wrap: wrap; /* Permite quebrar linha em telas pequenas */
-    gap: 1rem;
+.content-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  background-color: var(--card-light);
+  border-bottom: 1px solid var(--border-light);
+  box-shadow: var(--shadow);
 }
 
-/* Título da Página */
 .page-title {
-    font-size: 1.75rem;
-    font-weight: 600;
-    color: var(--text-dark); /* Usando var(--text-dark) para consistência */
-    margin-bottom: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-dark);
 }
 
-/* Tema Toggle Button */
 .theme-toggle {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    background: var(--card-light); /* Usando var(--card-light) para consistência */
-    border: 1px solid var(--border-light); /* Usando var(--border-light) para consistência */
-    padding: 0.5rem;
-    border-radius: 9999px;
-    cursor: pointer;
-    transition: all 0.2s;
-    color: var(--text-dark); /* Usando var(--text-dark) para consistência */
-}
-.theme-toggle:hover {
-    background-color: var(--border-light); /* Usando var(--border-light) para consistência */
-}
-.theme-icon {
-    font-size: 1.2rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.5rem;
+  color: var(--text-light);
 }
 
-/* Mobile Menu Button - Escondido por padrão em desktop */
-.mobile-menu-btn {
-    display: none; /* Escondido em telas maiores que 768px */
-    background: none;
-    border: none;
-    color: var(--text-dark); /* Usando var(--text-dark) para consistência */
-    font-size: 1.5rem;
-    cursor: pointer;
+.content-area {
+  padding: 2rem;
+  flex-grow: 1;
 }
 
-
-/* Componentes Comuns (Cards, Subtitles) */
+/* Componentes Comuns */
 .card {
-    background-color: var(--card-light);
-    border-radius: 12px;
-    padding: 1.5rem;
-    box-shadow: var(--shadow);
-    margin-bottom: 2rem;
-    border: 1px solid var(--border-light); /* Adicionado borda para melhor definição do card */
+  background-color: var(--card-light);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+  margin-bottom: 2rem;
 }
 
 .subtitle {
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin-bottom: 1.5rem;
-    color: var(--text-dark);
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  color: var(--text-dark);
 }
-
-/* Mensagens Flash (Success/Danger/Info) */
-.flash-message-container {
-    margin-bottom: 1.5rem; /* Margem para separar as mensagens do conteúdo */
-}
-.flash-message {
-    padding: 1rem;
-    border-radius: 8px;
-    font-size: 0.875rem;
-    margin-bottom: 0.5rem;
-}
-.flash-success {
-    background-color: rgba(var(--success-rgb), 0.1);
-    color: var(--success);
-}
-.flash-danger {
-    background-color: rgba(var(--danger-rgb), 0.1);
-    color: var(--danger);
-}
-.flash-info {
-    background-color: rgba(var(--info-rgb), 0.1); /* Usando a cor info */
-    color: var(--info);
-}
-.flash-warning {
-    background-color: rgba(var(--warning-rgb), 0.1);
-    color: var(--warning);
-}
-
 
 /* Formulários */
 .form-group {
-    margin-bottom: 1.25rem;
+  margin-bottom: 1.25rem;
 }
 
 .form-group label {
-    display: block;
-    font-weight: 500;
-    margin-bottom: 0.5rem;
-    color: var(--text-dark);
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: var(--text-dark);
 }
 
 .form-group input[type="text"],
 .form-group input[type="password"],
-.form-group input[type="email"], /* Incluído tipo email */
-.form-group input[type="number"], /* Incluído tipo number */
-.form-group input[type="url"], /* Incluído tipo url */
-.form-group input[type="date"], /* Incluído tipo date */
-.form-group input[type="datetime-local"], /* Incluído tipo datetime-local */
-.form-group select, /* Incluído select */
 .form-group textarea {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid var(--border-light);
-    border-radius: 8px;
-    background-color: var(--card-light); /* Fundo do input igual ao card */
-    color: var(--text-dark);
-    transition: border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background-color: var(--bg-light);
+  color: var(--text-dark);
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .form-group input:focus,
-.form-group select:focus,
 .form-group textarea:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.2);
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.2);
 }
 
 .form-actions {
-    text-align: right;
-    margin-top: 1.5rem;
-    display: flex; /* Permite alinhar botões */
-    justify-content: flex-end; /* Alinha à direita */
-    gap: 1rem; /* Espaçamento entre os botões */
+  text-align: right;
+  margin-top: 1.5rem;
 }
 
 /* Botões */
 .btn {
-    padding: 0.75rem 1.5rem;
-    border: none;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: background-color 0.2s, transform 0.1s;
-    font-size: 1rem; /* Tamanho da fonte padrão para botões */
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, transform 0.1s;
 }
 
 .btn:active {
-    transform: translateY(1px);
+  transform: translateY(1px);
 }
 
 .btn-primary {
-    background-color: var(--primary);
-    color: #FFFFFF;
+  background-color: var(--primary);
+  color: #FFFFFF;
 }
 
 .btn-primary:hover {
-    background-color: var(--primary-dark);
-}
-
-.btn-secondary { /* Adicionado estilo para botão secundário */
-    background-color: var(--card-light);
-    color: var(--text-dark);
-    border: 1px solid var(--border-light);
-}
-.btn-secondary:hover {
-    background-color: var(--bg-light);
+  background-color: var(--primary-dark);
 }
 
 /* Tabelas */
 .table-container {
-    overflow-x: auto; /* Permite rolagem horizontal em telas pequenas */
-    border-radius: 8px; /* Bordas arredondadas para o container da tabela */
-    border: 1px solid var(--border-light); /* Borda para o container da tabela */
-    box-shadow: var(--shadow); /* Sombra para o container */
+  overflow-x: auto;
 }
 
 table {
-    width: 100%;
-    border-collapse: collapse;
-    min-width: 600px; /* Garante que a tabela tenha uma largura mínima para não ficar muito espremida */
+  width: 100%;
+  border-collapse: collapse;
 }
 
-th, td {
-    padding: 1rem 1.25rem; /* Ajuste o padding para células de tabela */
-    text-align: left;
-    border-bottom: 1px solid var(--border-light);
-    white-space: normal; /* Permite quebras de linha por padrão */
-    word-break: break-word; /* Força quebra de palavras longas */
-    vertical-align: top; /* Alinha o conteúdo ao topo da célula */
-}
-
-th:first-child, td:first-child {
-    padding-left: 1.5rem; /* Padding extra para a primeira coluna */
-}
-th:last-child, td:last-child {
-    padding-right: 1.5rem; /* Padding extra para a última coluna */
+th,
+td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-light);
+  white-space: nowrap;
 }
 
 thead th {
-    font-weight: 600;
-    color: var(--text-light);
-    background-color: var(--bg-light);
-    position: sticky; /* Fixa o cabeçalho ao rolar a tabela */
-    top: 0;
-    z-index: 1; /* Garante que o cabeçalho fique acima do corpo da tabela */
+  font-weight: 600;
+  color: var(--text-light);
+  background-color: var(--bg-light);
 }
 
 tbody tr:hover {
-    background-color: rgba(var(--primary-rgb), 0.05);
+  background-color: rgba(var(--primary-rgb), 0.05);
 }
-
-/* Estilo para status (success, danger, etc.) */
-.status {
-    display: inline-block;
-    padding: 0.25rem 0.75rem;
-    border-radius: 9999px; /* Pill shape */
-    font-size: 0.75rem;
-    font-weight: 500;
-    text-transform: capitalize; /* Capitaliza a primeira letra */
-}
-
-.status-success {
-    background-color: rgba(var(--success-rgb), 0.15);
-    color: var(--success);
-}
-.status-danger {
-    background-color: rgba(var(--danger-rgb), 0.15);
-    color: var(--danger);
-}
-.status-warning {
-    background-color: rgba(var(--warning-rgb), 0.15);
-    color: var(--warning);
-}
-.status-info {
-    background-color: rgba(var(--info-rgb), 0.15);
-    color: var(--info);
-}
-
 
 .actions-cell {
-    text-align: center; /* Centraliza os botões de ação */
-    white-space: nowrap; /* Evita que os botões quebrem linha */
-    min-width: 150px; /* Garante espaço mínimo para os botões */
+  text-align: right;
 }
 
 .btn-action {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0.5rem 0.75rem; /* Aumenta o padding para melhor toque */
-    margin: 0 0.25rem;
-    font-size: 0.875rem; /* Ajusta o tamanho da fonte */
-    border-radius: 6px; /* Aumenta o border-radius */
-    transition: background-color 0.2s, color 0.2s;
-    display: inline-flex; /* Para alinhar ícones e texto */
-    align-items: center;
-    justify-content: center;
-    text-decoration: none; /* Garante que links/botões de ação não tenham sublinhado */
-    font-weight: 500; /* Deixa o texto do botão um pouco mais leve */
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  margin: 0 0.25rem;
+  font-size: 1rem;
+  border-radius: 4px;
+  transition: background-color 0.2s;
 }
-.btn-action.edit { color: var(--text-light); } /* Cor padrão cinza claro */
-.btn-action.edit:hover { background-color: rgba(var(--primary-rgb), 0.1); color: var(--primary); }
 
-.btn-action.delete { color: var(--danger); }
-.btn-action.delete:hover { background-color: rgba(var(--danger-rgb), 0.1); }
+.btn-action.edit {
+  color: var(--primary);
+}
 
-/* Para formulários inline, como o de deletar */
+.btn-action.delete {
+  color: var(--danger);
+}
+
+.btn-action:hover {
+  background-color: rgba(var(--primary-rgb), 0.1);
+}
+
+.btn-action.delete:hover {
+  background-color: rgba(var(--danger-rgb), 0.1);
+}
+
 .inline-form {
-    display: inline-block;
-    margin-left: 0.5rem; /* Pequeno espaçamento entre o botão de editar e o formulário de deletar */
+  display: inline-block;
 }
-
-/* Utilitários Flexbox/Grid */
-.flex-between {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.flex-center {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.flex-col {
-    display: flex;
-    flex-direction: column;
-}
-
-.gap-4 { gap: 1rem; }
-.gap-2 { gap: 0.5rem; }
-
-/* Adicionei algumas classes para o layout de formulários, se for usado no comunidades.html */
-.form-grid {
-    display: grid;
-    grid-template-columns: 1fr; /* Padrão para mobile */
-    gap: 1.5rem; /* Espaçamento entre os campos */
-}
-
-@media (min-width: 640px) { /* Em telas maiores, 2 colunas */
-    .form-grid {
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    }
-}
-
-/* Estilo para input com erro de validação (se usado) */
-.input-error {
-    border-color: var(--danger) !important;
-}
-.error-message {
-    color: var(--danger);
-    font-size: 0.8rem;
-    margin-top: 0.25rem;
-}
-
-
-/* Responsividade Geral */
-@media (max-width: 768px) {
-    .dashboard {
-        grid-template-columns: 1fr;
-    }
-
-    .sidebar {
-        position: fixed;
-        top: 0;
-        left: -100%;
-        width: 280px;
-        height: 100vh;
-        z-index: 100;
-        transition: left 0.3s ease;
-    }
-
-    .sidebar.active {
-        left: 0;
-    }
-
-    .mobile-menu-btn {
-        display: block;
-    }
-
-    .main-content {
-        padding: 1rem;
-    }
-
-    .header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-}
-/* Estilo para um botão mobile-menu-toggle (se você tiver no layout.html) */
-.mobile-menu-toggle {
-    display: none;
-}
-
-
-/* --- ESTILOS ADICIONAIS PARA MELHORAR LAYOUT DE COMUNIDADES (INÍCIO DO BLOCO) --- */
-
-/* Ajustes para o layout do formulário em grid */
-/* form-grid já define o grid; form-group faz o espaçamento vertical entre eles */
-/* No CSS antigo do layout, .form-grid era flex-direction: column, então a transição de display:grid
-   e grid-template-columns foi um override, mas a intenção era que funcionasse como grid. */
-/* Removi a regra vazia que causava o erro no Pylance */
-
-
-/* Força o elemento (geralmente um botão) a ocupar a largura total do grid do formulário */
-.form-grid .form-actions-full-width {
-    grid-column: 1 / -1; /* Ocupa todas as colunas do grid */
-    display: flex;
-    justify-content: flex-end; /* Alinha o botão à direita */
-    margin-top: 0; /* Anula margin-top padrão de form-actions para controle mais fino */
-    padding-top: 1.5rem; /* Adiciona um padding em cima para separar dos campos do form-group acima */
-}
-
-/* Ajustes de largura das colunas da tabela de comunidades */
-/* Usamos larguras percentuais e min-width para um layout mais responsivo */
-.data-table th.column-id, .data-table td:nth-child(1) { /* Corresponde ao ID */
-    width: 5%;
-    min-width: 50px;
-    text-align: center; /* ID geralmente é centralizado */
-}
-
-.data-table th.column-name, .data-table td:nth-child(2) { /* Corresponde ao Nome */
-    width: 20%;
-    min-width: 150px;
-}
-
-.data-table th.column-description, .data-table td:nth-child(3) { /* Corresponde à Descrição */
-    width: 35%; /* Ligeiramente menos que 40% para dar mais espaço às ações */
-    min-width: 200px;
-}
-
-.data-table th.column-chatid, .data-table td:nth-child(4) { /* Corresponde ao Chat ID */
-    width: 15%;
-    min-width: 120px;
-    white-space: nowrap; /* Tenta manter o Chat ID em uma linha */
-    text-overflow: ellipsis; /* Corta com reticências se exceder */
-    overflow: hidden;
-}
-
-.data-table th.column-status, .data-table td:nth-child(5) { /* Corresponde ao Status */
-    width: 10%;
-    min-width: 80px;
-    text-align: center; /* Status centralizado */
-}
-
-.data-table th.column-createdat, .data-table td:nth-child(6) { /* Corresponde ao Criado Em */
-    width: 10%;
-    min-width: 100px;
-}
-
-/* Garante que o texto dentro das células da tabela quebre corretamente */
-.data-table td.break-word {
-    white-space: normal;
-    word-break: break-word;
-}
-
-/* Media query para ajustar as colunas em telas médias */
-@media (max-width: 1024px) {
-    .data-table th.column-description, .data-table td:nth-child(3) {
-        width: 30%; /* Reduz a descrição um pouco para telas médias */
-    }
-}
-
-/* Media query para ajustar os botões de ação em telas pequenas */
-@media (max-width: 768px) {
-    .data-table th.actions-cell, .data-table td.actions-cell {
-        min-width: 100px; /* Reduz o min-width das ações em mobile */
-        text-align: left; /* Em mobile, pode ser melhor alinhar à esquerda */
-    }
-    .data-table td .btn-action {
-        padding: 0.3rem 0.5rem; /* Reduz padding dos botões de ação */
-        font-size: 0.75rem; /* Reduz fonte dos botões de ação */
-    }
-    /* Para o botão "Adicionar" no formulário em mobile */
-    .form-grid .form-actions-full-width {
-        justify-content: center; /* Centraliza o botão em telas muito pequenas */
-    }
-}
-
-/* --- ESTILOS ADICIONAIS PARA MELHORAR LAYOUT DE COMUNIDADES (FIM DO BLOCO) --- */
