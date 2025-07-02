@@ -1337,6 +1337,38 @@ def edit_scheduled_message(message_id):
         if conn:
             conn.close()
 
+@app.route('/delete_scheduled_message/<int:message_id>', methods=['POST'])
+def delete_scheduled_message(message_id):
+    """
+    Rota para deletar uma mensagem agendada.
+    """
+    print(f"DEBUG DELETE_SCHEDULED_MESSAGE: Requisição para deletar a mensagem ID {message_id}.")
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('scheduled_messages'))
+
+        with conn.cursor() as cur:
+            # Verifica se a mensagem existe antes de deletar
+            cur.execute("SELECT id FROM scheduled_messages WHERE id = %s", (message_id,))
+            if cur.fetchone() is None:
+                flash('Mensagem não encontrada para deletar.', 'warning')
+            else:
+                cur.execute("DELETE FROM scheduled_messages WHERE id = %s", (message_id,))
+                conn.commit()
+                flash('Mensagem agendada deletada com sucesso!', 'success')
+                
+    except Exception as e:
+        print(f"ERRO AO DELETAR MENSAGEM: {e}")
+        flash('Ocorreu um erro ao tentar deletar a mensagem.', 'danger')
+    finally:
+        if conn:
+            conn.close()
+            
+    return redirect(url_for('scheduled_messages'))
+
 @app.route('/send_broadcast', methods=['GET', 'POST'])
 def send_broadcast():
     print(f"DEBUG SEND_BROADCAST: Requisição para /send_broadcast. Method: {request.method}")
