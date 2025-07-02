@@ -1169,81 +1169,95 @@ def scheduled_messages():
 
 @app.route('/add_scheduled_message', methods=['GET', 'POST'])
 def add_scheduled_message():
-    print(f"DEBUG ADD_SCHEDULED_MESSAGE: Requisição para /add_scheduled_message. Method: {request.method}")
-
-    if not session.get('logged_in'):
-        flash('Por favor, faça login para acessar esta página.', 'warning')
-        return redirect(url_for('login'))
-
-    conn = None
-    users = []
-    try:
-        conn = get_db_connection()
-        if conn is None:
-            flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('scheduled_messages'))
-
-        is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn:
-            cur = conn.cursor()
-            if is_sqlite:
-                cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
-            else:
-                cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
-            users = cur.fetchall()
-
-        if request.method == 'POST':
+    if request.method == 'POST':
+        try:
             message_text = request.form.get('message_text')
             target_chat_id = request.form.get('target_chat_id')
             image_url = request.form.get('image_url')
             schedule_time_str = request.form.get('schedule_time')
+            recurrence_rule = request.form.get('recurrence_rule', 'none') # Pega a nova regra
 
             if not message_text or not schedule_time_str:
-                flash('Texto da mensagem e tempo de agendamento são obrigatórios!', 'danger')
-                return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
+                flash('Texto da mensagem e data/hora são obrigatórios!', 'danger')
+                return redirect(url_for('add_scheduled_message'))
 
-            try:
-                schedule_time = datetime.strptime(schedule_time_str, '%Y-%m-%dT%H:%M')
-            except ValueError:
-                flash('Formato de data/hora inválido. Use AAAA-MM-DDTHH:MM.', 'danger')
-                return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
+            schedule_time = datetime.strptime(schedule_time_str, '%Y-%m-%dT%H:%M')
 
             if schedule_time <= datetime.now():
                 flash('A data e hora de agendamento devem ser no futuro.', 'danger')
-                return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
+                return redirect(url_for('add_scheduled_message'))
 
-            if target_chat_id == 'all_users':
-                target_chat_id_db = None
-            else:
-                try:
-                    target_chat_id_db = int(target_chat_id)
-                except (ValueError, TypeError):
-                    flash('ID do chat de destino inválido.', 'danger')
-                    return render_template('add_scheduled_message.html', users=users, message_text=message_text, target_chat_id=target_chat_id, image_url=image_url, schedule_time_str=schedule_time_str)
+            target_chat_id_db = None if target_chat_id == 'all_users' else int(target_chat_id)
+            
+            conn = get_db_connection()
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO scheduled_messages 
+                    (message_text, target_chat_id, image_url, schedule_time, status, recurrence_rule) 
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    (message_text, target_chat_id_db, image_url or None, schedule_time, 'pending', recurrence_rule)
+                )
+            conn.commit()
+            conn.close()
 
-            with conn:
-                insert_cur = conn.cursor()
-                if is_sqlite:
-                    cur.execute(
-                        "INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, schedule_time, status) VALUES (?, ?, ?, ?, ?)",
-                        (message_text, target_chat_id_db, image_url if image_url else None, schedule_time, 'pending')
-                    )
-                else:
-                    cur.execute(
-                        "INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, schedule_time, status) VALUES (%s, %s, %s, %s, %s)",
-                        (message_text, target_chat_id_db, image_url if image_url else None, schedule_time, 'pending')
-                    )
-                flash('Mensagem agendada com sucesso!', 'success')
-                return redirect(url_for('scheduled_messages'))
-        return render_template('add_scheduled_message.html', users=users)
+            flash('Mensagem agendada com sucesso!', 'success')
+            return redirect(url_for('scheduled_messages'))
 
-    except Exception as e:
-        print(f"ERRO ADD_SCHEDULED_MESSAGE (GET/POST common): Falha ao carregar/processar formulário: {e}")
-        traceback.print_exc()
-        flash('Erro ao carregar o formulário de agendamento.', 'danger')
-        return redirect(url_for('scheduled_messages'))
-    finally:
-        if conn: conn.close()
+        except ValueError:
+            flash('Formato de dados inválido.', 'danger')
+        except Exception as e:
+            print(f"ERRO ao agendar mensagem: {e}")
+            flash('Ocorreu um erro inesperado ao agendar a mensagem.', 'danger')
+        
+        return redirect(url_for('add_scheduled_message'))
+
+    # Lógica para GET (exibir formulário)
+    conn = get_db_connection()
+    with conn.cursor() as cur:
+        cur.execute('SELECT id, username, first_name FROM users WHERE is_active = TRUE ORDER BY username ASC')
+        users = cur.fetchall()
+    conn.close()
+    return render_template('add_scheduled_message.html', users=users)
+
+
+# ATUALIZE ESTA FUNÇÃO
+def get_next_schedule_time(current_time, rule):
+    """
+    Calcula a próxima data de agendamento baseada na regra de recorrência,
+    incluindo regras personalizadas.
+    """
+    if rule == 'daily':
+        return current_time + timedelta(days=1)
+    if rule == 'weekly':
+        return current_time + timedelta(weeks=7)
+    if rule == 'monthly':
+        # Adiciona aproximadamente 30 dias para simplificar
+        return current_time + timedelta(days=30)
+    if rule == 'quarterly': # Trimestral
+        return current_time + timedelta(days=90)
+    if rule == 'semiannually': # Semestral
+        return current_time + timedelta(days=180)
+    if rule == 'annually': # Anual
+        return current_time + timedelta(days=365)
+    
+    # Lógica para regras personalizadas (ex: "custom_15_days")
+    if rule.startswith('custom_'):
+        try:
+            _, interval, unit = rule.split('_')
+            interval = int(interval)
+            if unit == 'days':
+                return current_time + timedelta(days=interval)
+            if unit == 'weeks':
+                return current_time + timedelta(weeks=interval)
+            if unit == 'months':
+                return current_time + timedelta(days=interval * 30) # Aproximação
+        except (ValueError, IndexError):
+            print(f"ERRO: Regra de recorrência personalizada inválida: {rule}")
+            return None
+
+    return None # Para 'none' ou regras inválidas
 
 
 @app.route('/edit_scheduled_message/<int:message_id>', methods=['GET', 'POST'])

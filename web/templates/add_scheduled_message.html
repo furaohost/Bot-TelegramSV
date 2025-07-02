@@ -1,97 +1,211 @@
 {% extends "layout.html" %}
 
-{% block title %}Agendar Nova Mensagem{% endblock %}
-{% block page_title %}Agendar Nova Mensagem para envio automatizado{% endblock %} {# Este bloco define o título que aparece no cabeçalho principal do dashboard #}
+{% block title %}Nova Mensagem Agendada{% endblock %}
+{% block page_title %}Nova Mensagem Agendada{% endblock %}
 
 {% block content %}
-<div class="form-container"> {# Uses the form container for centering and styling #}
+<style>
+    /* Estilos para o Modal de Recorrência */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.6);
+        display: none; /* Começa escondido */
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+    .modal-content {
+        background-color: white;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        width: 90%;
+        max-width: 500px;
+    }
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #e5e7eb;
+        padding-bottom: 1rem;
+        margin-bottom: 1rem;
+    }
+    .modal-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+    }
+    .modal-close-btn {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+    }
+    .recurrence-options button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        border: 1px solid transparent;
+        margin-bottom: 0.5rem;
+        cursor: pointer;
+        background-color: #f9fafb;
+        transition: background-color 0.2s, border-color 0.2s;
+    }
+    .recurrence-options button:hover {
+        background-color: #f3f4f6;
+        border-color: #d1d5db;
+    }
+    .custom-recurrence {
+        border-top: 1px solid #e5e7eb;
+        margin-top: 1rem;
+        padding-top: 1rem;
+    }
+</style>
+
+<div class="form-container">
     <div class="card" style="max-width: 42rem; width: 100%;">
-        {# REMOVIDO: O H2 que causava a duplicação. O título principal já é definido pelo block page_title acima. #}
-        {# Removido: <h2 style="font-size: 1.5rem; text-align: center; margin-bottom: 1.5rem; color: var(--text);">Agendar Nova Mensagem</h2> #}
-        <h2 class="section-title text-center" style="margin-bottom: 1.5rem;">Agendar Nova Mensagem</h2> {# Mantendo este h2 para título interno do card #}
+        <h2 class="section-title" style="margin-bottom: 1.5rem;">Criar Nova Mensagem Agendada</h2>
 
         <form method="POST" action="{{ url_for('add_scheduled_message') }}" class="form-grid">
+            <!-- Campos existentes do formulário -->
             <div>
                 <label for="message_text" class="form-label">Texto da Mensagem:</label>
-                <textarea
-                    id="message_text"
-                    name="message_text"
-                    rows="6"
-                    required
-                    class="form-textarea"
-                    placeholder="Digite o conteúdo da mensagem aqui...">{{ message_text_val | default('') }}</textarea>
-                <p class="form-hint">Utilize Markdown para formatação (ex: *negrito*, _itálico_, `código`).</p>
+                <textarea id="message_text" name="message_text" rows="5" required class="form-textarea"></textarea>
             </div>
-
             <div>
-                <label for="image_url" class="form-label">URL da Imagem (Opcional):</label>
-                <input
-                    type="url"
-                    id="image_url"
-                    name="image_url"
-                    class="form-input"
-                    placeholder="Ex: https://seusite.com/imagem.jpg"
-                    value="{{ image_url_val | default('') }}">
-                <p class="form-hint">A imagem será enviada junto com a mensagem, se fornecida.</p>
-            </div>
-
-            <div>
-                <label for="target_chat_id" class="form-label">Enviar para:</label>
+                <label for="target_chat_id" class="form-label">Enviar Para:</label>
                 <select id="target_chat_id" name="target_chat_id" class="form-select">
-                    <option value="all_users" {% if target_chat_id_val == 'all_users' or target_chat_id_val == none %}selected{% endif %}>Todos os Usuários</option>
+                    <option value="all_users">Todos os Usuários</option>
                     {% for user in users %}
-                        <option value="{{ user.id }}" {% if target_chat_id_val and target_chat_id_val == user.id %}selected{% endif %}>
-                            {{ user.first_name }} ({{ user.username | default(user.id) }})
-                        </option>
+                        <option value="{{ user.id }}">{{ user.username or user.first_name }} (ID: {{ user.id }})</option>
                     {% endfor %}
                 </select>
-                <p class="form-hint">Selecione um usuário específico ou 'Todos os Usuários' para um broadcast.</p>
             </div>
-
             <div>
-                <label for="schedule_time" class="form-label">Horário de Agendamento:</label>
-                <input
-                    type="datetime-local"
-                    id="schedule_time"
-                    name="schedule_time"
-                    required
-                    class="form-input"
-                    value="{{ schedule_time_str_val | default(datetime.now().strftime('%Y-%m-%dT%H:%M')) }}">
-                <p class="form-hint">A mensagem será enviada na data e hora especificadas (fuso horário do servidor).</p>
-                <p class="form-hint">Ex: para enviar uma mensagem as 9:00 agende para 12:00 (hora da mensagem +3 horas).</p>
+                <label for="image_url" class="form-label">URL da Imagem (Opcional):</label>
+                <input type="text" id="image_url" name="image_url" class="form-input">
+            </div>
+            <div>
+                <label for="schedule_time" class="form-label">Horário do Primeiro Envio:</label>
+                <input type="datetime-local" id="schedule_time" name="schedule_time" required class="form-input">
+            </div>
+            
+            <!-- NOVO CAMPO DE RECORRÊNCIA -->
+            <div>
+                <label class="form-label">Recorrência:</label>
+                <div class="flex items-center gap-4">
+                    <button type="button" id="openRecurrenceModalBtn" class="btn btn-secondary">
+                        <i class="fas fa-redo-alt mr-2"></i>Definir Recorrência
+                    </button>
+                    <p class="text-sm text-gray-600">Repetir: <strong id="recurrenceDisplay">Nunca</strong></p>
+                </div>
+                <!-- Input escondido que guardará o valor final da recorrência -->
+                <input type="hidden" id="recurrence_rule" name="recurrence_rule" value="none">
             </div>
 
-            <div class="form-actions">
-                <a href="{{ url_for('scheduled_messages') }}" class="btn btn-secondary">
-                    Cancelar
-                </a>
-                <button type="submit" class="btn btn-primary">
-                    Agendar Mensagem
-                </button>
+            <div class="form-actions" style="margin-top: 1rem;">
+                <button type="submit" class="btn btn-primary">Agendar Mensagem</button>
+                <a href="{{ url_for('scheduled_messages') }}" class="btn btn-secondary">Cancelar</a>
             </div>
         </form>
     </div>
 </div>
 
+<!-- Modal de Recorrência -->
+<div id="recurrenceModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Definir Recorrência</h3>
+            <button type="button" class="modal-close-btn" id="closeModalBtn">&times;</button>
+        </div>
+        <div class="recurrence-options">
+            <button type="button" data-value="none">Nunca (não repetir)</button>
+            <button type="button" data-value="daily">Diariamente</button>
+            <button type="button" data-value="weekly">Semanalmente</button>
+            <button type="button" data-value="monthly">Mensalmente</button>
+            <button type="button" data-value="quarterly">Trimestralmente</button>
+            <button type="button" data-value="semiannually">Semestralmente</button>
+            <button type="button" data-value="annually">Anualmente</button>
+        </div>
+        <div class="custom-recurrence">
+            <h4 class="font-semibold mb-2">Personalizado:</h4>
+            <div class="flex items-center gap-2">
+                <span>Repetir a cada</span>
+                <input type="number" id="customInterval" min="1" value="1" class="form-input" style="width: 70px;">
+                <select id="customUnit" class="form-select">
+                    <option value="days">dias</option>
+                    <option value="weeks">semanas</option>
+                    <option value="months">meses</option>
+                </select>
+                <button type="button" id="setCustomRecurrenceBtn" class="btn btn-primary" style="padding: 0.5rem 1rem;">Definir</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Pré-preenche o campo de data e hora com o horário atual + 5 minutos
-        const scheduleTimeInput = document.getElementById('schedule_time');
-        // Só atualiza se o campo não tiver um valor predefinido pelo backend (ex: erro de validação)
-        if (!scheduleTimeInput.value) {
-            const now = new Date();
-            now.setMinutes(now.getMinutes() + 5); // Adiciona 5 minutos
+document.addEventListener('DOMContentLoaded', () => {
+    const openModalBtn = document.getElementById('openRecurrenceModalBtn');
+    const modal = document.getElementById('recurrenceModal');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    
+    const recurrenceRuleInput = document.getElementById('recurrence_rule');
+    const recurrenceDisplay = document.getElementById('recurrenceDisplay');
 
-            // Formata para 'YYYY-MM-DDTHH:MM'
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const day = String(now.getDate()).padStart(2, '0');
-            const hours = String(now.getHours()).padStart(2, '0');
-            const minutes = String(now.getMinutes()).padStart(2, '0');
-            const formattedDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+    // Função para fechar o modal
+    const closeModal = () => {
+        modal.style.display = 'none';
+    };
 
-            scheduleTimeInput.value = formattedDateTime;
+    // Abrir o modal
+    openModalBtn.addEventListener('click', () => {
+        modal.style.display = 'flex';
+    });
+
+    // Fechar o modal no botão 'X'
+    closeModalBtn.addEventListener('click', closeModal);
+
+    // Fechar o modal ao clicar fora dele
+    modal.addEventListener('click', (event) => {
+        if (event.target === modal) {
+            closeModal();
         }
     });
+
+    // Definir recorrência com botões pré-definidos
+    document.querySelectorAll('.recurrence-options button').forEach(button => {
+        button.addEventListener('click', () => {
+            const value = button.getAttribute('data-value');
+            const text = button.textContent;
+            
+            recurrenceRuleInput.value = value;
+            recurrenceDisplay.textContent = text;
+            closeModal();
+        });
+    });
+
+    // Definir recorrência personalizada
+    const setCustomBtn = document.getElementById('setCustomRecurrenceBtn');
+    setCustomBtn.addEventListener('click', () => {
+        const interval = document.getElementById('customInterval').value;
+        const unit = document.getElementById('customUnit').value;
+
+        if (interval && parseInt(interval) > 0) {
+            const ruleValue = `custom_${interval}_${unit}`; // Ex: custom_15_days
+            const displayText = `A cada ${interval} ${unit}`;
+
+            recurrenceRuleInput.value = ruleValue;
+            recurrenceDisplay.textContent = displayText;
+            closeModal();
+        } else {
+            alert('Por favor, insira um intervalo válido.');
+        }
+    });
+});
 </script>
 {% endblock %}
