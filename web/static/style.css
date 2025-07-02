@@ -97,7 +97,7 @@ a:hover {
 
 /* Sidebar (Barra Lateral) */
 .sidebar {
-    background: var(--sidebar-bg);
+    background: var(--card-light);
     box-shadow: 1px 0 10px rgba(0,0,0,0.05);
     padding: 1.5rem;
     transition: all 0.3s ease;
@@ -525,97 +525,54 @@ tbody tr:hover {
     margin-top: 0.25rem;
 }
 
-/* RESPONSIVIDADE GERAL - Mobile */
+
+/* Responsividade Geral */
 @media (max-width: 768px) {
     .dashboard {
-        grid-template-columns: 1fr; /* Apenas uma coluna em mobile */
+        grid-template-columns: 1fr;
     }
 
     .sidebar {
-        position: fixed; /* Continua fixo */
+        position: fixed;
         top: 0;
-        left: -240px; /* Esconde a sidebar fora da tela por padrão */
-        width: 240px; /* Largura da sidebar em mobile */
+        left: -100%;
+        width: 280px;
         height: 100vh;
-        z-index: 150; /* Z-index mais alto para garantir que fique acima de tudo */
-        box-shadow: 2px 0 10px rgba(0,0,0,0.2); /* Sombra para destacar quando aberto */
-        /* Transição já definida na regra geral da sidebar */
+        z-index: 100;
+        transition: left 0.3s ease;
     }
 
     .sidebar.active {
-        left: 0; /* Mostra a sidebar quando a classe 'active' é adicionada */
+        left: 0;
+    }
+
+    .mobile-menu-btn {
+        display: block;
     }
 
     .main-content {
-        margin-left: 0; /* Conteúdo principal ocupa 100% da largura em mobile */
-        padding: 1rem; /* Reduz o padding em mobile */
+        padding: 1rem;
     }
 
     .header {
-        flex-direction: row; /* Volta a ser row em mobile */
-        justify-content: flex-start; /* Alinha o menu button e título à esquerda */
-        align-items: center;
-        gap: 1rem; /* Espaçamento entre o botão e o título */
-    }
-
-    .page-title {
-        font-size: 1.5rem; /* Reduz o tamanho do título em mobile */
-    }
-
-    /* Mobile Menu Button - Visível em mobile */
-    .mobile-menu-btn {
-        display: block; /* Torna o botão visível em telas menores */
-        margin-right: 1rem; /* Espaçamento entre o botão e o título */
-    }
-    
-    .theme-toggle {
-        margin-left: auto; /* Empurra o toggle para a direita */
-    }
-
-    /* Remover o padding-right na última célula da tabela em mobile para evitar excesso */
-    th:last-child, td:last-child {
-        padding-right: 1rem;
-    }
-
-    .table-container {
-        border-radius: 0; /* Remove border-radius em mobile para ocupar largura total */
-        border-left: none;
-        border-right: none;
-    }
-    table {
-        min-width: 100%; /* Garante que a tabela use 100% da largura disponível */
-    }
-    th, td {
-        padding: 0.75rem 1rem; /* Reduz padding em mobile */
-        font-size: 0.875rem; /* Reduz tamanho da fonte em células */
-    }
-    .actions-cell {
-        min-width: 120px; /* Reduz largura mínima para ações */
-    }
-    .btn-action {
-        padding: 0.3rem 0.5rem; /* Reduz padding dos botões de ação */
-        font-size: 0.75rem; /* Reduz fonte dos botões de ação */
-    }
-    .form-actions {
-        flex-direction: column; /* Botões do formulário em coluna em mobile */
-        align-items: stretch; /* Estica os botões para largura total */
-    }
-    .form-actions .btn {
-        width: 100%; /* Botões do formulário 100% em mobile */
-    }
-    .form-grid .form-actions-full-width {
-        justify-content: center; /* Centraliza o botão em telas muito pequenas */
+        flex-direction: column;
+        align-items: flex-start;
     }
 }
+/* Estilo para um botão mobile-menu-toggle (se você tiver no layout.html) */
+.mobile-menu-toggle {
+    display: none;
+}
+
 
 /* --- ESTILOS ADICIONAIS PARA MELHORAR LAYOUT DE COMUNIDADES (INÍCIO DO BLOCO) --- */
 
 /* Ajustes para o layout do formulário em grid */
 /* form-grid já define o grid; form-group faz o espaçamento vertical entre eles */
-.form-grid .form-group {
-    /* Por padrão, cada form-group ocupará uma coluna */
-    /* Em telas maiores, o grid definirá múltiplas colunas automaticamente */
-}
+/* No CSS antigo do layout, .form-grid era flex-direction: column, então a transição de display:grid
+   e grid-template-columns foi um override, mas a intenção era que funcionasse como grid. */
+/* Removi a regra vazia que causava o erro no Pylance */
+
 
 /* Força o elemento (geralmente um botão) a ocupar a largura total do grid do formulário */
 .form-grid .form-actions-full-width {
@@ -691,3 +648,5 @@ tbody tr:hover {
         justify-content: center; /* Centraliza o botão em telas muito pequenas */
     }
 }
+
+/* --- ESTILOS ADICIONAIS PARA MELHORAR LAYOUT DE COMUNIDADES (FIM DO BLOCO) --- */
