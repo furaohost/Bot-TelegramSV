@@ -45,18 +45,31 @@
                 <p class="form-hint">A mensagem será enviada na data e hora especificadas (fuso horário do servidor).</p>
                 <p class="form-hint">Ex: para enviar uma mensagem as 9:00 agende para 12:00 (hora da mensagem +3 horas).</p>
             </div>
+
             <div>
                 <label class="form-label">Status Atual:</label>
                 <p class="form-hint">{{ message.status | capitalize }}</p>
             </div>
+
             <div class="form-actions" style="margin-top: 1rem;">
-                <button type="submit" class="btn btn-primary" style="background-color: var(--success);"> {# Cor de sucesso para o botão de atualizar #}
-                    Atualizar Mensagem
+                <button type="submit" class="btn btn-primary">
+                    Salvar Alterações
                 </button>
-                <a href="{{ url_for('scheduled_messages') }}" class="btn btn-secondary">
-                    Cancelar
-                </a>
+                
+                <!-- BOTÃO CANCELAR COM LÓGICA INTELIGENTE -->
+                {% if request.args.get('from_clone') %}
+                    <!-- Se veio de um clone, o botão apaga a cópia -->
+                    <a href="{{ url_for('cancel_cloned_message', message_id=message.id) }}" class="btn btn-secondary">
+                        Cancelar Reenvio
+                    </a>
+                {% else %}
+                    <!-- Se for uma edição normal, apenas volta para a lista -->
+                    <a href="{{ url_for('scheduled_messages') }}" class="btn btn-secondary">
+                        Cancelar
+                    </a>
+                {% endif %}
             </div>
+
         </form>
     </div>
 </div>

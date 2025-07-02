@@ -1351,7 +1351,6 @@ def resend_scheduled_message(message_id):
             return redirect(url_for('scheduled_messages'))
 
         with conn.cursor() as cur:
-            # 1. Busca os dados da mensagem original que será copiada.
             cur.execute("SELECT * FROM scheduled_messages WHERE id = %s", (message_id,))
             original_message = cur.fetchone()
 
@@ -1359,8 +1358,6 @@ def resend_scheduled_message(message_id):
                 flash('Mensagem original não encontrada para clonar.', 'warning')
                 return redirect(url_for('scheduled_messages'))
 
-            # 2. CORREÇÃO: Insere uma nova mensagem com um horário padrão (a hora atual).
-            # O usuário será redirecionado para editar este horário.
             cur.execute(
                 """
                 INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, status, schedule_time)
@@ -1373,14 +1370,13 @@ def resend_scheduled_message(message_id):
                     original_message['image_url']
                 )
             )
-            # Pega o ID da nova mensagem que acabamos de criar.
             new_message_id = cur.fetchone()['id']
             conn.commit()
 
             flash('Mensagem clonada com sucesso! Por favor, defina um novo horário de agendamento.', 'success')
             
-            # 3. Redireciona para a página de edição da NOVA mensagem.
-            return redirect(url_for('edit_scheduled_message', message_id=new_message_id))
+            # ALTERAÇÃO AQUI: Adiciona um parâmetro para identificar que é um clone
+            return redirect(url_for('edit_scheduled_message', message_id=new_message_id, from_clone=True))
 
     except Exception as e:
         print(f"ERRO AO CLONAR MENSAGEM: {e}")
@@ -1422,6 +1418,28 @@ def delete_scheduled_message(message_id):
         if conn:
             conn.close()
             
+    return redirect(url_for('scheduled_messages'))
+
+@app.route('/cancel_cloned_message/<int:message_id>', methods=['GET'])
+def cancel_cloned_message(message_id):
+    """
+    Rota especial para deletar uma mensagem que foi clonada mas não será usada.
+    """
+    print(f"DEBUG CANCEL_CLONE: Requisição para cancelar e deletar o clone ID {message_id}.")
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM scheduled_messages WHERE id = %s", (message_id,))
+        conn.commit()
+        flash('Reenvio cancelado e cópia da mensagem descartada.', 'info')
+    except Exception as e:
+        print(f"ERRO AO CANCELAR CLONE: {e}")
+        flash('Erro ao descartar a cópia da mensagem.', 'danger')
+    finally:
+        if conn:
+            conn.close()
+    
     return redirect(url_for('scheduled_messages'))
 
 @app.route('/send_broadcast', methods=['GET', 'POST'])
