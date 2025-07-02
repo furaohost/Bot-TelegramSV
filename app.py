@@ -1255,70 +1255,78 @@ def edit_scheduled_message(message_id):
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('scheduled_messages', error='edit_db_connection_error'))
+            return redirect(url_for('scheduled_messages'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn:
-            cur = conn.cursor()
+        
+        # Busca os dados da mensagem para o GET e para o POST
+        with conn.cursor() as cur:
             if is_sqlite:
                 cur.execute('SELECT * FROM scheduled_messages WHERE id = ?', (message_id,))
             else:
                 cur.execute('SELECT * FROM scheduled_messages WHERE id = %s', (message_id,))
             message = cur.fetchone()
 
-            if not message:
-                flash('Mensagem agendada não encontrada.', 'danger')
-                return redirect(url_for('scheduled_messages'))
+        if not message:
+            flash('Mensagem agendada não encontrada.', 'danger')
+            return redirect(url_for('scheduled_messages'))
 
+        # Se a requisição for POST, tenta salvar as alterações
+        if request.method == 'POST':
+            message_text = request.form.get('message_text')
+            target_chat_id_str = request.form.get('target_chat_id', '').strip() # Pega como string
+            image_url = request.form.get('image_url')
+            schedule_time_str = request.form.get('schedule_time')
+            status = request.form.get('status')
+
+            if not message_text or not schedule_time_str:
+                flash('Texto da mensagem e tempo de agendamento são obrigatórios!', 'danger')
+                # É preciso buscar os usuários novamente para re-renderizar o template com erro
+                with conn.cursor() as cur:
+                    cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
+                    users = cur.fetchall()
+                return render_template('edit_scheduled_message.html', message=message, users=users)
+
+            # --- LÓGICA CORRIGIDA ---
+            target_chat_id_db = None
+            if target_chat_id_str: # Só tenta converter se o campo não estiver vazio
+                try:
+                    target_chat_id_db = int(target_chat_id_str)
+                except ValueError:
+                    flash('ID do chat de destino inválido. Deve ser um número.', 'danger')
+                    with conn.cursor() as cur:
+                        cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
+                        users = cur.fetchall()
+                    return render_template('edit_scheduled_message.html', message=message, users=users)
+            
+            schedule_time = datetime.strptime(schedule_time_str, '%Y-%m-%dT%H:%M')
+
+            # Atualiza o banco de dados
+            with conn.cursor() as cur:
+                if is_sqlite:
+                    cur.execute(
+                        "UPDATE scheduled_messages SET message_text = ?, target_chat_id = ?, image_url = ?, schedule_time = ?, status = ? WHERE id = ?",
+                        (message_text, target_chat_id_db, image_url or None, schedule_time, status, message_id)
+                    )
+                else:
+                    cur.execute(
+                        "UPDATE scheduled_messages SET message_text = %s, target_chat_id = %s, image_url = %s, schedule_time = %s, status = %s WHERE id = %s",
+                        (message_text, target_chat_id_db, image_url or None, schedule_time, status, message_id)
+                    )
+            conn.commit()
+            flash('Mensagem agendada atualizada com sucesso!', 'success')
+            return redirect(url_for('scheduled_messages'))
+
+        # Se a requisição for GET, apenas exibe o formulário
+        with conn.cursor() as cur:
             if is_sqlite:
                 cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
             else:
                 cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
             users = cur.fetchall()
 
-            if request.method == 'POST':
-                message_text = request.form.get('message_text')
-                target_chat_id = request.form.get('target_chat_id')
-                image_url = request.form.get('image_url')
-                schedule_time_str = request.form.get('schedule_time')
-                status = request.form.get('status')
-
-                if not message_text or not schedule_time_str:
-                    flash('Texto da mensagem e tempo de agendamento são obrigatórios!', 'danger')
-                    return render_template('edit_scheduled_message.html', message=message, users=users, message_text_val=message_text, target_chat_id_val=target_chat_id, image_url_val=image_url, schedule_time_str_val=schedule_time_str)
-
-                try:
-                    schedule_time = datetime.strptime(schedule_time_str, '%Y-%m-%dT%H:%M')
-                except ValueError:
-                    flash('Formato de data/hora inválido. Use AAAA-MM-DDTHH:MM.', 'danger')
-                    return render_template('edit_scheduled_message.html', message=message, users=users, message_text_val=message_text, target_chat_id_val=target_chat_id, image_url_val=image_url, schedule_time_str_val=schedule_time_str)
-
-                if target_chat_id == 'all_users':
-                    target_chat_id_db = None
-                else:
-                    try:
-                        target_chat_id_db = int(target_chat_id)
-                    except (ValueError, TypeError):
-                        flash('ID do chat de destino inválido.', 'danger')
-                        return render_template('edit_scheduled_message.html', message=message, users=users, message_text_val=message_text, target_chat_id_val=target_chat_id, image_url_val=image_url, schedule_time_str_val=schedule_time_str)
-
-                if is_sqlite:
-                    cur.execute(
-                        "UPDATE scheduled_messages SET message_text = ?, target_chat_id = ?, image_url = ?, schedule_time = ?, status = ? WHERE id = ?",
-                        (message_text, target_chat_id_db, image_url if image_url else None, schedule_time, status, message_id)
-                    )
-                else:
-                    cur.execute(
-                        "UPDATE scheduled_messages SET message_text = %s, target_chat_id = %s, image_url = %s, schedule_time = %s, status = %s WHERE id = %s",
-                        (message_text, target_chat_id_db, image_url if image_url else None, schedule_time, status, message_id)
-                    )
-                print(f"DEBUG EDIT_SCHEDULED_MESSAGE: Mensagem agendada ID {message_id} atualizada com sucesso.")
-                flash('Mensagem agendada atualizada com sucesso!', 'success')
-                return redirect(url_for('scheduled_messages'))
-
-            message['schedule_time_formatted'] = message['schedule_time'].strftime('%Y-%m-%dT%H:%M') if message['schedule_time'] else ''
-            message['target_chat_id_selected'] = message['target_chat_id'] if message['target_chat_id'] is not None else 'all_users'
-            return render_template('edit_scheduled_message.html', message=message, users=users)
+        message['schedule_time_formatted'] = message['schedule_time'].strftime('%Y-%m-%dT%H:%M') if message['schedule_time'] else ''
+        return render_template('edit_scheduled_message.html', message=message, users=users)
 
     except Exception as e:
         print(f"ERRO EDIT_SCHEDULED_MESSAGE: Falha ao editar mensagem agendada: {e}")
@@ -1326,36 +1334,8 @@ def edit_scheduled_message(message_id):
         flash('Erro ao editar mensagem agendada.', 'danger')
         return redirect(url_for('scheduled_messages'))
     finally:
-        if conn: conn.close()
-
-@app.route('/delete_scheduled_message/<int:message_id>', methods=['POST'])
-def delete_scheduled_message(message_id):
-    print(f"DEBUG DELETE_SCHEDULED_MESSAGE: Requisição para /delete_scheduled_message/{message_id}. Method: {request.method}")
-
-    conn = None
-    try:
-        conn = get_db_connection()
-        if conn is None:
-            flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('scheduled_messages', error='delete_db_connection_error'))
-
-        is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn:
-            cur = conn.cursor()
-            if is_sqlite:
-                cur.execute('DELETE FROM scheduled_messages WHERE id = ?', (message_id,))
-            else:
-                cur.execute('DELETE FROM scheduled_messages WHERE id = %s', (message_id,))
-            print(f"DEBUG DELETE_SCHEDULE_MESSAGE: Mensagem agendada ID {message_id} deletada com sucesso.")
-            flash('Mensagem agendada deletada com sucesso!', 'success')
-            return redirect(url_for('scheduled_messages'))
-    except Exception as e:
-        print(f"ERRO DELETE_SCHEDULE_MESSAGE: Falha ao deletar mensagem agendada: {e}")
-        traceback.print_exc()
-        flash('Erro ao deletar mensagem agendada.', 'danger')
-        return redirect(url_for('scheduled_messages'))
-    finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
 
 @app.route('/send_broadcast', methods=['GET', 'POST'])
 def send_broadcast():
