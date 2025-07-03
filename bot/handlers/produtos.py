@@ -73,10 +73,10 @@ def register_produtos_handlers(bot_instance: telebot.TeleBot, get_db_connection_
                 conn.close()
 
     # ------------------------------------------------------------------
-    # HANDLER para o botão "🔥 Melhores vips"
+    # HANDLER para o botão "🎁 Melhores Vips e Novinhas"
     # ------------------------------------------------------------------
-    # CORREÇÃO AQUI: Agora compara o texto da mensagem em minúsculas com o texto EXATO do botão em minúsculas
-    @bot_instance.message_handler(func=lambda message: message.text and message.text.lower() == "🔥melhores vips e novinhas".lower())
+    # CORREÇÃO AQUI: Agora compara o texto da mensagem em minúsculas com o texto EXATO do botão do log em minúsculas
+    @bot_instance.message_handler(func=lambda message: message.text and message.text.lower() == "🎁 melhores vips e novinhas".lower())
     def handle_show_melhores_vips(message: Message):
         logger.debug(f"HANDLER ACIONADO: 'handle_show_melhores_vips' acionado pelo texto: '{message.text}'")
         mostrar_produtos_bot(message.chat.id)
