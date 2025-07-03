@@ -124,7 +124,7 @@ def enviar_produto_telegram(user_id, nome_produto, link_produto):
         print(f"ERRO: Falha ao enviar mensagem de entrega para {user_id}: {e}")
         traceback.print_exc()
         
-def mostrar_produtos_bot(chat_id):
+def mostrar_produtos_bot(chat_id): # Esta função parece ser um resquício e não é mais usada diretamente pelo app.py. O handler de produtos agora tem sua própria versão.
     conn = None
     try:
         conn = get_db_connection()
@@ -1745,6 +1745,13 @@ if __name__ != '__main__':
         worker_thread.start()
         print("DEBUG: Worker de mensagens agendadas iniciado em background para o modo de produção.")
 
+        # REGISTRAR HANDLERS (COM A CORREÇÃO DE IMPORTAÇÃO CIRCULAR PARA PRODUTOS)
+        register_chamadas_handlers(bot, get_db_connection)
+        register_comunidades_handlers(bot, get_db_connection)
+        register_conteudos_handlers(bot, get_db_connection)
+        # CORREÇÃO AQUI: Passando 'generar_cobranca' como argumento para evitar importação circular
+        register_produtos_handlers(bot, get_db_connection, generar_cobranca) 
+        
         # REGISTRAR BLUEPRINT DE COMUNIDADES (EXISTENTE)
         app.register_blueprint(comunidades_bp, url_prefix='/') # Mantém o registro do seu blueprint de comunidades
 
