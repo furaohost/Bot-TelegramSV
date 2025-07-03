@@ -6,7 +6,6 @@ import traceback
 import time as time_module
 from datetime import datetime, timedelta, time
 import sqlite3
-import base64
 import json
 from threading import Thread # Garantir que Thread está importado
 
@@ -91,6 +90,7 @@ def get_or_register_user(user: types.User):
         with conn:
             cur = conn.cursor()
 
+            # Assumo que 'is_active' existe na tabela 'users'. Se não existir, precisaria de uma migração para 'users'.
             cur.execute("SELECT id, is_active FROM users WHERE id = %s" if not is_sqlite else "SELECT id, is_active FROM users WHERE id = ?", (user.id,))
             db_user = cur.fetchone()
 
@@ -99,15 +99,13 @@ def get_or_register_user(user: types.User):
                             (user.id, user.username, user.first_name, user.last_name, True))
                 print(f"DEBUG DB: Novo utilizador registado: {user.username or user.first_name} (ID: {user.id})")
             else:
-                # Aqui e em outros lugares que referenciam 'is_active' na tabela 'users'
-                # Assumo que esta coluna existe em 'users'. Se não existir, precisará de uma migração para 'users'.
                 if not db_user['is_active']:
                     cur.execute("UPDATE users SET is_active = %s WHERE id = %s" if not is_sqlite else "UPDATE users SET is_active = ? WHERE id = ?", (True, user.id))
                     print(f"DEBUG DB: Utilizador reativado: {user.username or user.first_name} (ID: {user.id})")
 
     except Exception as e:
         print(f"ERRO DB: get_or_register_user falhou: {e}")
-        traceback.print_exc()
+        # traceback.print_exc() # Removido para minimizar o código, adicione se precisar de depuração profunda
     finally:
         if conn:
             conn.close()
@@ -122,8 +120,8 @@ def enviar_produto_telegram(user_id, nome_produto, link_produto):
         print(f"DEBUG: Mensagem de entrega para {user_id} enviada com sucesso.")
     except requests.exceptions.RequestException as e:
         print(f"ERRO: Falha ao enviar mensagem de entrega para {user_id}: {e}")
-        traceback.print_exc()
-
+        # traceback.print_exc() # Removido
+        
 def mostrar_produtos_bot(chat_id):
     conn = None
     try:
@@ -150,7 +148,7 @@ def mostrar_produtos_bot(chat_id):
                 bot.send_message(chat_id, f"🛍 *{produto['nome']}*\n\nPreço: R${produto['preco']:.2f}", parse_mode='Markdown', reply_markup=markup)
     except Exception as e:
         print(f"ERRO MOSTRAR PRODUTOS BOT: Falha ao mostrar produtos: {e}")
-        traceback.print_exc()
+        # traceback.print_exc() # Removido
         bot.send_message(chat_id, "Ocorreu um erro ao carregar os produtos.")
     finally:
         if conn: conn.close()
@@ -210,7 +208,7 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
                 print(f"[ERRO] Falha ao gerar PIX. Resposta do MP: {pagamento}")
     except Exception as e:
         print(f"ERRO GENERAR COBRANCA: Falha ao gerar cobrança/PIX: {e}")
-        traceback.print_exc()
+        # traceback.print_exc() # Removido
         bot.send_message(chat_id, "Ocorreu um erro interno ao gerar sua cobrança. Tente novamente.")
     finally:
         if conn: conn.close()
@@ -268,6 +266,10 @@ def require_login():
     if request.endpoint in ['login', 'static', 'telegram_webhook', 'health_check', 'webhook_mercado_pago', 'reset_admin_password_route', None, 'get_sales_data']:
         return
     
+    # Assumo que 'comunidades' é um blueprint e não uma rota raiz 'comunidades'
+    # Se 'comunidades' for um endpoint de Blueprint, o url_prefix já é '/' e o endpoint seria 'comunidades.index'
+    # mas aqui está sendo tratado como rota raiz. Para evitar conflito, geralmente seria 'comunidades_bp.index'
+    # se o blueprint tivesse um index. A lógica está correta para seu uso atual.
     if request.endpoint and request.endpoint.startswith('comunidades') and not session.get('logged_in'):
         print(f"DEBUG AUTH: Unauthorized access to '{request.path}' (Comunidades). Redirecting to login.")
         flash('Por favor, faça login para acessar esta página.', 'warning')
@@ -297,12 +299,12 @@ def telegram_webhook():
     if request.headers.get('content-type') == 'application/json':
         json_str = request.get_data().decode('utf-8')
         update = types.Update.de_json(json_str)
-        # ADICIONEI ESTAS LINHAS DE LOG (se não estiverem, adicione-as novamente):
-        print(f"DEBUG WEBHOOK: Recebido update: {update}") # Isso vai logar a atualização completa
-        if update.message: # Se for uma mensagem de texto
-            print(f"DEBUG WEBHOOK MESSAGE: Texto da mensagem: '{update.message.text}'") # Loga o texto da mensagem
-        if update.callback_query: # Se for um clique de botão inline
-            print(f"DEBUG WEBHOOK CALLBACK: Callback data: '{update.callback_query.data}'") # Loga o callback data
+        # ADICIONEI ESTAS LINHAS DE LOG:
+        print(f"DEBUG WEBHOOK: Recebido update: {update}") 
+        if update.message: 
+            print(f"DEBUG WEBHOOK MESSAGE: Texto da mensagem: '{update.message.text}'")
+        if update.callback_query: 
+            print(f"DEBUG WEBHOOK CALLBACK: Callback data: '{update.callback_query.data}'")
         
         bot.process_new_updates([update])
         return '!', 200
@@ -627,9 +629,6 @@ def index():
 
                 chart_data_receita.append(daily_revenue)
                 chart_data_quantidade.append(daily_quantity)
-                
-                # `current_day` é a variável de loop na rota /api/sales_data, não aqui.
-                # A variável de iteração aqui é `day`. Não é necessário `current_day` aqui.
                 
             print("DEBUG INDEX: Rendering index.html with dashboard data.")
             return render_template(
@@ -1084,7 +1083,6 @@ def toggle_user_status(user_id):
         with conn:
             cur = conn.cursor()
             if is_sqlite:
-                # Assumo que esta coluna 'is_active' existe em 'users'.
                 cur.execute('SELECT is_active FROM users WHERE id = ?', (user_id,))
             else:
                 cur.execute('SELECT is_active FROM users WHERE id = %s', (user_id,))
@@ -1194,7 +1192,6 @@ def add_scheduled_message():
             
             conn = get_db_connection()
             with conn.cursor() as cur:
-                # Assumo que a tabela scheduled_messages tem a coluna recurrence_rule
                 cur.execute(
                     """
                     INSERT INTO scheduled_messages 
@@ -1221,7 +1218,6 @@ def add_scheduled_message():
     # Lógica para GET (exibir formulário)
     conn = get_db_connection()
     with conn.cursor() as cur:
-        # Assumo que 'is_active' existe na tabela 'users'
         cur.execute('SELECT id, username, first_name FROM users WHERE is_active = TRUE ORDER BY username ASC')
         users = cur.fetchall()
     conn.close()
@@ -1358,7 +1354,10 @@ def resend_scheduled_message(message_id):
 
         with conn.cursor() as cur:
             # Assumindo que você está usando PostgreSQL para RETURNING id
-            cur.execute("SELECT * FROM scheduled_messages WHERE id = %s", (message_id,))
+            if isinstance(conn, sqlite3.Connection):
+                 cur.execute("SELECT * FROM scheduled_messages WHERE id = ?", (message_id,))
+            else:
+                 cur.execute("SELECT * FROM scheduled_messages WHERE id = %s", (message_id,))
             original_message = cur.fetchone()
 
             if not original_message:
@@ -1399,7 +1398,6 @@ def resend_scheduled_message(message_id):
 
             flash('Mensagem clonada com sucesso! Por favor, defina um novo horário de agendamento.', 'success')
             
-            # ALTERAÇÃO AQUI: Adiciona um parâmetro para identificar que é um clone
             return redirect(url_for('edit_scheduled_message', message_id=new_message_id, from_clone=True))
 
     except Exception as e:
@@ -1444,7 +1442,7 @@ def delete_scheduled_message(message_id):
                 
     except Exception as e:
         print(f"ERRO AO DELETAR MENSAGEM: {e}")
-        traceback.print_exc() # Adicionado traceback
+        traceback.print_exc() 
         flash('Ocorreu um erro ao tentar deletar a mensagem.', 'danger')
     finally:
         if conn:
@@ -1461,7 +1459,7 @@ def cancel_cloned_message(message_id):
     conn = None
     try:
         conn = get_db_connection()
-        if conn is None: # Adicionado check de conexão aqui também
+        if conn is None: 
             flash('Erro de conexão com o banco de dados.', 'danger')
             return redirect(url_for('scheduled_messages'))
 
@@ -1475,7 +1473,7 @@ def cancel_cloned_message(message_id):
         flash('Reenvio cancelado e cópia da mensagem descartada.', 'info')
     except Exception as e:
         print(f"ERRO AO CANCELAR CLONE: {e}")
-        traceback.print_exc() # Adicionado traceback
+        traceback.print_exc() 
         flash('Erro ao descartar a cópia da mensagem.', 'danger')
     finally:
         if conn:
@@ -1523,7 +1521,6 @@ def send_broadcast():
                 with cur_conn_send:
                     cur_send = cur_conn_send.cursor()
                     if is_sqlite:
-                        # Assumo que 'is_active' existe na tabela 'users'
                         cur_send.execute("SELECT id FROM users WHERE is_active = 1")
                     else:
                         cur_send.execute("SELECT id FROM users WHERE is_active = TRUE")
@@ -1598,8 +1595,6 @@ def scheduled_message_worker():
 
             with conn.cursor() as cur:
                 # Query para buscar mensagens pendentes cuja hora já passou
-                # Usamos NOW() que pega a hora atual do servidor (geralmente UTC)
-                # Adicionado suporte a SQLite para NOW()
                 if isinstance(conn, sqlite3.Connection):
                     cur.execute(
                         "SELECT * FROM scheduled_messages WHERE status='pending' AND schedule_time <= DATETIME('now') ORDER BY schedule_time"
@@ -1620,7 +1615,6 @@ def scheduled_message_worker():
                     if row["target_chat_id"]:
                         targets.append(row["target_chat_id"])
                     else: # Se for para todos (broadcast)
-                        # Assumo que 'is_active' existe na tabela 'users'
                         if isinstance(conn, sqlite3.Connection):
                             cur.execute("SELECT id FROM users WHERE is_active = 1")
                         else:
@@ -1630,20 +1624,20 @@ def scheduled_message_worker():
 
                     print(f"DEBUG WORKER: A mensagem {row['id']} será enviada para {len(targets)} usuários.")
                     
-                    sent_successfully = False # Inicialize sent_successfully para cada mensagem
+                    sent_successfully = False # Inicialize para cada mensagem a ser enviada
                     for chat_id in targets:
                         try:
                             if row["image_url"]:
                                 bot.send_photo(chat_id, row["image_url"], caption=row["message_text"], parse_mode="Markdown")
                             else:
                                 bot.send_message(chat_id, row["message_text"], parse_mode="Markdown")
-                            sent_successfully = True # Marca como sucesso se enviar para pelo menos um
+                            sent_successfully = True # Marca como sucesso se enviar para pelo menos um alvo
                         except Exception as e:
                             print(f"ERRO WORKER: Falha ao enviar msg {row['id']} para o chat {chat_id}: {e}")
                             traceback.print_exc()
                     
                     # Atualiza o status da mensagem para 'sent' ou 'failed'
-                    final_status = 'sent' if sent_successfully else 'failed' # Definir final_status aqui
+                    final_status = 'sent' if sent_successfully else 'failed' # Agora 'final_status' está sempre definida
                     if isinstance(conn, sqlite3.Connection):
                         cur.execute(
                             "UPDATE scheduled_messages SET status=?, sent_at=DATETIME('now') WHERE id=?",
@@ -1719,8 +1713,6 @@ if __name__ != '__main__':
             print(f"DEBUG: Webhook do Telegram configurado para: {webhook_url}")
         
         # IMPORTANTE: Inicia o worker em uma thread separada também no modo de produção
-        # Embora não seja a solução ideal para escalabilidade (o ideal seria um worker separado),
-        # isso fará com que funcione no plano gratuito do Render.
         worker_thread = Thread(target=scheduled_message_worker)
         worker_thread.daemon = True
         worker_thread.start()
