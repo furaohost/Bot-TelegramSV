@@ -102,16 +102,32 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
                 del user_states[chat_id]
 
     # ------------------------------------------------------------------
-    # COMANDO /listar_comunidades E BOTÃO "Comunidades"
+    # HANDLER PARA O COMANDO /listar_comunidades (captura @nomedobot)
     # ------------------------------------------------------------------
-    # AQUI ESTÁ A ÚNICA CORREÇÃO: Adicionamos text="Comunidades"
-    @bot_instance.message_handler(commands=['listar_comunidades'], text="Comunidades")
-    def handle_listar_comunidades(message):
+    @bot_instance.message_handler(commands=['listar_comunidades'])
+    def handle_command_listar_comunidades(message):
         chat_id = message.chat.id
-        comunidades = comunidade_svc.listar()
+        print(f"DEBUG: Handler de comando /listar_comunidades acionado. Mensagem: {message.text}") # Log de depuração
+        _send_comunidades_list(bot_instance, comunidade_svc, chat_id)
+
+    # ------------------------------------------------------------------
+    # HANDLER PARA O TEXTO "Comunidades" (captura o clique do botão)
+    # ------------------------------------------------------------------
+    @bot_instance.message_handler(func=lambda message: message.text == "Comunidades")
+    def handle_button_comunidades(message):
+        chat_id = message.chat.id
+        print(f"DEBUG: Handler do botão 'Comunidades' acionado. Mensagem: {message.text}") # Log de depuração
+        _send_comunidades_list(bot_instance, comunidade_svc, chat_id)
+
+    # ------------------------------------------------------------------
+    # FUNÇÃO AUXILIAR PARA ENVIAR A LISTA DE COMUNIDADES (REUTILIZÁVEL)
+    # ------------------------------------------------------------------
+    def _send_comunidades_list(bot_instance, comunidade_service, chat_id):
+        comunidades = comunidade_service.listar()
 
         if not comunidades:
             bot_instance.send_message(chat_id, "Nenhuma comunidade encontrada.")
+            print("DEBUG: Nenhuma comunidade encontrada no DB.") # Log de depuração
             return
 
         response_text = "*Comunidades Ativas:*\n\n"
@@ -124,6 +140,7 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
             )
         
         bot_instance.send_message(chat_id, response_text, parse_mode="Markdown")
+        print(f"DEBUG: Comunidades enviadas para {chat_id}.") # Log de depuração
 
     # ------------------------------------------------------------------
     # COMANDO /editar_comunidade
