@@ -1,6 +1,12 @@
 import telebot
 from telebot import types
 from bot.services.comunidades import ComunidadeService # Importa o serviço de comunidades
+import sqlite3 # <--- ADICIONADO: Importar sqlite3 para verificar tipo de conexão
+import traceback # Adicionado para logs de erro
+import logging # Para logs de depuração
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 # Dicionário temporário para armazenar o estado das conversas
 # Em um sistema real, isso seria persistido em cache (Redis, memcached) ou DB.
@@ -95,6 +101,7 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
                 bot_instance.send_message(chat_id, "Ocorreu um erro ao criar a comunidade. Tente novamente mais tarde.", parse_mode='Markdown')
         except Exception as e:
             print(f"Erro ao finalizar criação de comunidade: {e}")
+            traceback.print_exc()
             bot_instance.send_message(chat_id, "Houve um erro inesperado. Por favor, tente novamente.", parse_mode='Markdown')
         finally:
             # Limpa o estado do usuário
@@ -107,30 +114,30 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
     @bot_instance.message_handler(commands=['listar_comunidades'])
     def handle_command_listar_comunidades(message):
         chat_id = message.chat.id
-        print(f"DEBUG: Handler de comando /listar_comunidades acionado. Mensagem: {message.text}") # Log de depuração
+        logger.debug(f"Handler de comando /listar_comunidades acionado. Mensagem: {message.text}")
         _send_comunidades_list(bot_instance, comunidade_svc, chat_id)
 
     # ------------------------------------------------------------------
     # HANDLER PARA O TEXTO "Comunidades" (captura o clique do botão)
     # ------------------------------------------------------------------
-    @bot_instance.message_handler(func=lambda message: message.text == "Comunidades")
+    @bot_instance.message_handler(func=lambda message: message.text and message.text.lower() == "comunidades")
     def handle_button_comunidades(message):
         chat_id = message.chat.id
-        print(f"DEBUG: Handler do botão 'Comunidades' acionado. Mensagem: {message.text}") # Log de depuração
+        logger.debug(f"Handler do botão 'Comunidades' acionado. Mensagem: {message.text}")
         _send_comunidades_list(bot_instance, comunidade_svc, chat_id)
 
     # ------------------------------------------------------------------
     # FUNÇÃO AUXILIAR PARA ENVIAR A LISTA DE COMUNIDADES (REUTILIZÁVEL)
     # ------------------------------------------------------------------
     def _send_comunidades_list(bot_instance, comunidade_service, chat_id):
-        comunidades = comunidade_service.listar()
+        comunidades = comunidade_service.listar() # Não precisa de ativos_apenas se não houver is_active
 
         if not comunidades:
             bot_instance.send_message(chat_id, "Nenhuma comunidade encontrada.")
-            print("DEBUG: Nenhuma comunidade encontrada no DB.") # Log de depuração
+            logger.info("Nenhuma comunidade encontrada no DB.")
             return
 
-        response_text = "*Comunidades Ativas:*\n\n"
+        response_text = "*Comunidades Cadastradas:*\n\n" # Ajustado para refletir que não há 'ativa'
         for idx, com in enumerate(comunidades):
             response_text += (
                 f"*{idx+1}. {com['nome']}*\n"
@@ -140,7 +147,7 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
             )
         
         bot_instance.send_message(chat_id, response_text, parse_mode="Markdown")
-        print(f"DEBUG: Comunidades enviadas para {chat_id}.") # Log de depuração
+        logger.debug(f"Comunidades enviadas para {chat_id}.")
 
     # ------------------------------------------------------------------
     # COMANDO /editar_comunidade
@@ -240,7 +247,8 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
     @bot_instance.message_handler(func=lambda message: user_states.get(message.chat.id, {}).get("step") == "awaiting_edited_community_description")
     def handle_edited_community_description(message):
         chat_id = message.chat.id
-        nova_descricao = message.text.strip()
+        # Correção aqui: a nova_descricao deve vir do message.text, não do data
+        nova_descricao = message.text.strip() 
         
         # Recupera os dados armazenados
         state_data = user_states.get(chat_id, {})
@@ -248,8 +256,7 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
 
         comunidade_id = data.get("comunidade_id")
         novo_nome = data.get("novo_nome")
-        nova_descricao = data.get("nova_descricao") # <-- Esta linha é o problema! Deve ser `nova_descricao = message.text.strip()` ou `nova_descricao = current_descricao`
-        current_descricao = data.get("current_descricao")
+        current_descricao = data.get("current_descricao") # Pegar a descrição atual para o "pular"
         current_chat_id = data.get("current_chat_id") # O chat_id atual do grupo/canal
 
         # Se o usuário digitou "pular", mantém a descrição atual
@@ -324,6 +331,7 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
                 bot_instance.send_message(chat_id, "Ocorreu um erro ao editar a comunidade. Certifique-se de que o ID está correto e tente novamente.", parse_mode='Markdown')
         except Exception as e:
             print(f"Erro ao finalizar edição de comunidade: {e}")
+            traceback.print_exc()
             bot_instance.send_message(chat_id, "Houve um erro inesperado. Por favor, tente novamente.", parse_mode='Markdown')
         finally:
             # Limpa o estado do usuário
@@ -331,15 +339,15 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
                 del user_states[chat_id]
 
     # ------------------------------------------------------------------
-    # COMANDO /desativar_comunidade (ou deletar)
+    # COMANDO /deletar_comunidade (mantendo como DELETE para consistência com serviço)
     # ------------------------------------------------------------------
-    @bot_instance.message_handler(commands=['desativar_comunidade', 'deletar_comunidade'])
-    def handle_desativar_comunidade(message):
+    @bot_instance.message_handler(commands=['deletar_comunidade']) 
+    def handle_deletar_comunidade(message):
         chat_id = message.chat.id
-        comunidades = comunidade_svc.listar(ativos_apenas=True) # Lista apenas comunidades ativas para desativar
+        comunidades = comunidade_svc.listar() # Listar todas para deletar
 
         if not comunidades:
-            bot_instance.send_message(chat_id, "Nenhuma comunidade ativa para desativar.")
+            bot_instance.send_message(chat_id, "Nenhuma comunidade para deletar.")
             return
 
         markup = types.ReplyKeyboardMarkup(row_width=1, one_time_keyboard=True, resize_keyboard=True)
@@ -348,14 +356,14 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
         
         bot_instance.send_message(
             chat_id, 
-            "Qual comunidade você deseja desativar? Selecione ou digite o ID/Nome:", 
+            "Qual comunidade você deseja *deletar*? Selecione ou digite o ID/Nome:", 
             reply_markup=markup,
             parse_mode='Markdown'
         )
-        user_states[chat_id] = {"step": "awaiting_community_to_deactivate"}
+        user_states[chat_id] = {"step": "awaiting_community_to_delete"}
 
-    @bot_instance.message_handler(func=lambda message: user_states.get(message.chat.id, {}).get("step") == "awaiting_community_to_deactivate")
-    def handle_select_community_to_deactivate(message):
+    @bot_instance.message_handler(func=lambda message: user_states.get(message.chat.id, {}).get("step") == "awaiting_community_to_delete")
+    def handle_select_community_to_delete(message):
         chat_id = message.chat.id
         input_text = message.text.strip()
         
@@ -364,32 +372,31 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
             com_id = int(input_text)
             selected_com = comunidade_svc.obter(com_id)
         except ValueError:
-            comunidades = comunidade_svc.listar(ativos_apenas=True)
+            comunidades = comunidade_svc.listar()
             for com in comunidades:
                 if input_text.lower() in com['nome'].lower() or f"(ID: {com['id']})" in input_text:
                     selected_com = com
                     break
 
         if not selected_com:
-            bot_instance.send_message(chat_id, "Comunidade não encontrada. Por favor, digite o *ID ou nome exato*, ou *reinicie* o processo com /desativar_comunidade.", parse_mode='Markdown')
+            bot_instance.send_message(chat_id, "Comunidade não encontrada. Por favor, digite o *ID ou nome exato*, ou *reinicie* o processo com /deletar_comunidade.", parse_mode='Markdown')
             if chat_id in user_states:
                 del user_states[chat_id]
             return
 
         try:
-            # A função de "deletar" no serviço deve na verdade "desativar" (mudar o status, não remover do DB)
-            sucesso = comunidade_svc.desativar(selected_com['id'])
+            sucesso = comunidade_svc.deletar(selected_com['id']) # Chama o método deletar
 
             if sucesso:
                 bot_instance.send_message(
                     chat_id, 
-                    f"Comunidade *'{selected_com['nome']}'* (ID: `{selected_com['id']}`) desativada com sucesso.",
+                    f"Comunidade *'{selected_com['nome']}'* (ID: `{selected_com['id']}`) *deletada* com sucesso.",
                     parse_mode='Markdown'
                 )
             else:
-                bot_instance.send_message(chat_id, "Ocorreu um erro ao desativar a comunidade. Tente novamente.", parse_mode='Markdown')
+                bot_instance.send_message(chat_id, "Ocorreu um erro ao *deletar* a comunidade. Tente novamente.", parse_mode='Markdown')
         except Exception as e:
-            print(f"Erro ao desativar comunidade: {e}")
+            logger.error(f"Erro ao deletar comunidade: {e}", exc_info=True)
             bot_instance.send_message(chat_id, "Houve um erro inesperado. Por favor, tente novamente.", parse_mode='Markdown')
         finally:
             if chat_id in user_states:
@@ -404,11 +411,15 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
         
         # Ignora mensagens de entrada do próprio bot se ele for adicionado
         if message.new_chat_members and bot_instance.get_me().id in [user.id for user in message.new_chat_members]:
-            print(f"DEBUG COMUNIDADES: Bot foi adicionado ao chat {chat_id}. Ignorando mensagem de boas-vindas para o bot.")
-            # Opcional: Você pode enviar uma mensagem de "obrigado por me adicionar" aqui, mas não é o foco principal
+            logger.debug(f"Bot foi adicionado ao chat {chat_id}. Ignorando mensagem de boas-vindas para o bot.")
             return
 
-        print(f"DEBUG COMUNIDADES: Novo(s) membro(s) detectado(s) no chat ID: {chat_id}")
+        # Ignora se não for um grupo ou supergrupo
+        if message.chat.type not in ['group', 'supergroup']:
+            logger.debug(f"Nova entrada de membro em chat {message.chat.type}. Ignorando pois não é grupo/supergrupo.")
+            return
+
+        logger.debug(f"Novo(s) membro(s) detectado(s) no chat ID: {chat_id}")
 
         # 1. Obter a mensagem de boas-vindas da comunidade do banco de dados
         welcome_message_community = "Bem-vindo(a) à nossa comunidade, {first_name}!" # Valor padrão
@@ -417,51 +428,51 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
         try:
             conn = get_db_connection_func() # Usar a função passada como argumento
             if conn:
-                is_sqlite = isinstance(conn, sqlite3.Connection)
+                # É crucial verificar se a conexão é PostgreSQL ou SQLite aqui
+                # para usar os placeholders corretos.
+                # No `app.py`, `get_db_connection` já retorna um cursor que lida com isso,
+                # mas `isinstance(conn, sqlite3.Connection)` ainda precisa do import.
+                is_sqlite_conn = isinstance(conn, sqlite3.Connection)
+                
                 with conn:
-                    cur = conn.cursor()
-                    if is_sqlite:
+                    cur = conn.cursor() # Assumindo que o cursor já está configurado para DictCursor no get_db_connection
+
+                    if is_sqlite_conn:
                         cur.execute("SELECT value FROM config WHERE key = ?", ('welcome_message_community',))
                     else:
                         cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_community',))
                     row = cur.fetchone()
                     if row and row['value']:
                         welcome_message_community = row['value']
-                        print(f"DEBUG COMUNIDADES: Mensagem de boas-vindas do DB carregada: '{welcome_message_community}'")
+                        logger.debug(f"Mensagem de boas-vindas do DB carregada: '{welcome_message_community}'")
                     else:
-                        print(f"DEBUG COMUNIDADES: 'welcome_message_community' não encontrada ou vazia no DB. Usando padrão.")
+                        logger.info(f"'welcome_message_community' não encontrada ou vazia no DB. Usando padrão.")
             else:
-                print(f"ERRO COMUNIDADES: Não foi possível obter conexão com o DB para carregar welcome_message_community.")
+                logger.error(f"Não foi possível obter conexão com o DB para carregar welcome_message_community.")
         except Exception as e:
-            print(f"ERRO COMUNIDADES: Falha ao carregar welcome_message_community do DB: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Falha ao carregar welcome_message_community do DB: {e}", exc_info=True)
         finally:
             if conn:
                 conn.close()
 
-        # 2. Verificar se o grupo está registrado como uma comunidade e se a mensagem deve ser enviada
-        comunidade = comunidade_svc.obter_por_chat_id(chat_id) # Precisamos de um método no ComunidadeService para isso
+        # 2. Verificar se o grupo está registrado como uma comunidade
+        comunidade = comunidade_svc.obter_por_chat_id(chat_id) 
         
-        if not comunidade or not comunidade['is_active']: # Assumindo que 'is_active' é um campo na sua tabela 'comunidades'
-            print(f"DEBUG COMUNIDADES: Chat ID {chat_id} não é uma comunidade ativa. Não enviando mensagem de boas-vindas.")
-            return # Não envia mensagem se o grupo não for uma comunidade registrada ou ativa
+        if not comunidade: 
+            logger.debug(f"Chat ID {chat_id} não é uma comunidade registrada. Não enviando mensagem de boas-vindas.")
+            return # Não envia mensagem se o grupo não for uma comunidade registrada
 
         # 3. Enviar a mensagem para cada novo membro
         for user in message.new_chat_members:
-            # O bot não deve se saudar nem saudar outros bots (a menos que explicitamente desejado)
-            if user.is_bot: # Ignora bots
-                print(f"DEBUG COMUNIDADES: Ignorando bot '{user.first_name}' (ID: {user.id}) adicionado ao grupo.")
+            # O bot não deve saudar outros bots (a menos que explicitamente desejado)
+            if user.is_bot: 
+                logger.debug(f"Ignorando bot '{user.first_name}' (ID: {user.id}) adicionado ao grupo.")
                 continue
 
-            # Atualiza o registro do usuário no DB ou o registra se for novo
-            # Isso é importante para rastrear usuários que entram em comunidades
-            get_db_connection_func() # Chamada apenas para garantir que a função seja chamada para cada user
-            # O ideal é ter uma função `get_or_register_user_for_group` ou a `get_or_register_user` existente
-            # em `app.py` deve ser capaz de lidar com isso, mas ela já é chamada no /start.
-            # Se você quer registrar *automaticamente* o user quando ele entra no grupo:
-            # from app import get_or_register_user # Importe se necessário, ou passe como argumento
-            # get_or_register_user(user) # Chame a função para registrar/atualizar o usuário
+            # A função get_or_register_user para registrar usuários que entram no grupo
+            # Se você a tem em app.py e quer que usuários adicionados a grupos sejam registrados/ativados:
+            # from app import get_or_register_user # Você precisaria importar isso de app.py
+            # get_or_register_user(user) # Chame esta função para registrar/atualizar o usuário
 
             # Formata a mensagem com o nome do novo membro
             formatted_message = welcome_message_community.format(
@@ -472,8 +483,6 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
             
             try:
                 bot_instance.send_message(chat_id, formatted_message, parse_mode='Markdown')
-                print(f"DEBUG COMUNIDADES: Mensagem de boas-vindas enviada para {user.first_name} (ID: {user.id}) no chat {chat_id}.")
+                logger.debug(f"Mensagem de boas-vindas enviada para {user.first_name} (ID: {user.id}) no chat {chat_id}.")
             except Exception as e:
-                print(f"ERRO COMUNIDADES: Falha ao enviar mensagem de boas-vindas para {user.first_name} (ID: {user.id}) no chat {chat_id}: {e}")
-                import traceback
-                traceback.print_exc()
+                logger.error(f"Falha ao enviar mensagem de boas-vindas para {user.first_name} (ID: {user.id}) no chat {chat_id}: {e}", exc_info=True)
