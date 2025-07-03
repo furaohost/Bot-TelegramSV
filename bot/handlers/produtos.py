@@ -42,7 +42,8 @@ def register_produtos_handlers(bot_instance: telebot.TeleBot, get_db_connection_
                 cur = conn.cursor() 
 
             with conn: # Gerencia a transação
-                cur.execute('SELECT id, nome, preco, descricao FROM produtos ORDER BY nome')
+                # CORREÇÃO AQUI: Removido 'descricao' da query SELECT
+                cur.execute('SELECT id, nome, preco FROM produtos ORDER BY nome')
                 produtos = cur.fetchall()
 
                 if not produtos:
@@ -57,10 +58,12 @@ def register_produtos_handlers(bot_instance: telebot.TeleBot, get_db_connection_
                     markup.add(btn_comprar)
 
                     nome = produto.get("nome", "Sem nome")
-                    descricao = produto.get("descricao", "")
+                    # Descrição não será usada no texto da mensagem se não for selecionada
+                    descricao = produto.get("descricao", "") # Ainda tenta pegar, mas será None se a coluna não existir
+
                     texto = f"🛍 *{nome}*\n\nPreço: {preco_formatado}"
-                    if descricao:
-                        texto += f"\n\n_{descricao}_"
+                    # if descricao: # Esta linha pode ser removida se a coluna 'descricao' não existir e você não quiser mostrá-la
+                    #     texto += f"\n\n_{descricao}_"
 
                     bot_instance.send_message(chat_id, texto, parse_mode='Markdown', reply_markup=markup)
                     logger.debug(f"Produto '{nome}' enviado para {chat_id}.")
@@ -75,7 +78,6 @@ def register_produtos_handlers(bot_instance: telebot.TeleBot, get_db_connection_
     # ------------------------------------------------------------------
     # HANDLER para o botão "🎁 Melhores Vips e Novinhas"
     # ------------------------------------------------------------------
-    # CORREÇÃO AQUI: Agora compara o texto da mensagem em minúsculas com o texto EXATO do botão do log em minúsculas
     @bot_instance.message_handler(func=lambda message: message.text and message.text.lower() == "🎁 melhores vips e novinhas".lower())
     def handle_show_melhores_vips(message: Message):
         logger.debug(f"HANDLER ACIONADO: 'handle_show_melhores_vips' acionado pelo texto: '{message.text}'")
