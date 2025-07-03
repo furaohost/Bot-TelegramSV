@@ -29,15 +29,11 @@ from database.db_init import init_db
 import pagamentos
 
 # Importa os módulos de handlers e blueprints
-# Importações de Handlers e Blueprints devem vir DEPOIS das definições do 'app' e da maioria das rotas,
-# ou então garantir que suas rotas são importadas e registradas no 'app' antes que qualquer template as referencie.
-# Por enquanto, vou manter as importações aqui, mas a ordem de registro lá embaixo é mais crítica.
 from bot.utils.keyboards import confirm_18_keyboard, menu_principal
 from bot.handlers.chamadas import register_chamadas_handlers
 from bot.handlers.comunidades import register_comunidades_handlers
 from bot.handlers.conteudos import register_conteudos_handlers
-from bot.handlers.produtos import register_produtos_handlers
-# A linha abaixo é a única referência a outro blueprint, vou mantê-la como estava.
+from bot.handlers.produtos import register_produtos_handlers # This needs to be able to receive `generar_cobranca`
 from web.routes.comunidades import comunidades_bp
 
 
@@ -92,7 +88,6 @@ def get_or_register_user(user: types.User):
         with conn:
             cur = conn.cursor()
 
-            # Assumo que 'is_active' existe na tabela 'users'. Se não existir, precisaria de uma migração para 'users'.
             cur.execute("SELECT id, is_active FROM users WHERE id = %s" if not is_sqlite else "SELECT id, is_active FROM users WHERE id = ?", (user.id,))
             db_user = cur.fetchone()
 
@@ -124,7 +119,7 @@ def enviar_produto_telegram(user_id, nome_produto, link_produto):
         print(f"ERRO: Falha ao enviar mensagem de entrega para {user_id}: {e}")
         traceback.print_exc()
         
-def mostrar_produtos_bot(chat_id): # Esta função parece ser um resquício e não é mais usada diretamente pelo app.py. O handler de produtos agora tem sua própria versão.
+def mostrar_produtos_bot(chat_id): # This function appears to be a remnant and is not directly used by app.py anymore. The products handler now has its own version.
     conn = None
     try:
         conn = get_db_connection()
@@ -158,7 +153,8 @@ def mostrar_produtos_bot(chat_id): # Esta função parece ser um resquício e n�
 def generar_cobranca(call: types.CallbackQuery, produto_id: int):
     user_id, chat_id = call.from_user.id, call.message.chat.id
     conn = None
-    venda_id = None
+    venda_id = None # Ensure venda_id is initialized
+
     try:
         conn = get_db_connection()
         if conn is None:
@@ -168,10 +164,17 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
             cur = conn.cursor()
+            
+            # Ensure SQLite cursor also behaves like a dictionary/row accessible by name
+            if is_sqlite and not isinstance(cur, sqlite3.Row): # Avoid reconfiguring if already done
+                 conn.row_factory = sqlite3.Row
+                 cur = conn.cursor()
+
+            # Include 'link' in the product selection query
             if is_sqlite:
-                cur.execute('SELECT * FROM produtos WHERE id = ?', (produto_id,))
+                cur.execute('SELECT id, nome, preco, link FROM produtos WHERE id = ?', (produto_id,)) 
             else:
-                cur.execute('SELECT * FROM produtos WHERE id = %s', (produto_id,))
+                cur.execute('SELECT id, nome, preco, link FROM produtos WHERE id = %s', (produto_id,)) 
             produto = cur.fetchone()
 
             if not produto:
@@ -179,15 +182,31 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
                 return
 
             data_venda = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
             if is_sqlite:
                 cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (?, ?, ?, ?, ?)",
                             (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
                 cur.execute("SELECT last_insert_rowid()")
-                venda_id = cur.fetchone()[0]
+                result_id = cur.fetchone()
+                if result_id:
+                    venda_id = result_id[0] # Access the first element of the tuple
             else:
                 cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (%s, %s, %s, %s, %s) RETURNING id",
                             (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
-                venda_id = cur.fetchone()[0]
+                result_id = cur.fetchone()
+                if result_id:
+                    venda_id = result_id['id'] # Access the 'id' key of the dictionary (RealDictCursor)
+
+            if venda_id is None: # If failed to get a sale ID, something went wrong with the insertion
+                bot.send_message(chat_id, "Erro ao registrar a venda. Tente novamente.")
+                print(f"ERRO GENERAR COBRANCA: Venda não foi registrada, ID nulo.")
+                return
+
+            produto_link = produto.get('link') 
+            if not produto_link:
+                bot.send_message(chat_id, "Erro: Link do produto não configurado.")
+                print(f"ERRO GENERAR COBRANCA: Link do produto {produto['nome']} (ID: {produto['id']}) é nulo.")
+                return
 
             pagamento = pagamentos.criar_pagamento_pix(produto=produto, user=call.from_user, venda_id=venda_id)
 
@@ -202,12 +221,12 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
                 )
                 bot.send_photo(chat_id, qr_code_image, caption=caption_text, parse_mode='Markdown')
 
-                bot.send_message(chat_id, qr_code_data)
-
+                bot.send_message(chat_id, f"```{qr_code_data}```", parse_mode='Markdown') 
                 bot.send_message(chat_id, "Você receberá o produto aqui assim que o pagamento for confirmado.")
+                print(f"DEBUG: PIX gerado e enviado para {chat_id} para venda {venda_id}.")
             else:
                 bot.send_message(chat_id, "Ocorreu um erro ao gerar o PIX. Tente novamente.")
-                print(f"[ERRO] Falha ao gerar PIX. Resposta do MP: {pagamento}")
+                print(f"ERRO GENERAR COBRANCA: Falha ao gerar PIX. Resposta do MP: {pagamento}")
     except Exception as e:
         print(f"ERRO GENERAR COBRANCA: Falha ao gerar cobrança/PIX: {e}")
         traceback.print_exc()
@@ -814,11 +833,11 @@ def editar_produto(produto_id):
                 try:
                     preco = float(preco_str)
                     if preco <= 0:
-                        flash('Preço deve ser um valor positivo.', 'danger')
-                        return redirect(url_for('produtos', edit_id=produto_id, nome_val=nome, preco_val=preco_str, link_val=link))
+                        flash('O preço deve ser um valor positivo.', 'danger')
+                        return redirect(url_for('produtos', nome_val=nome, preco_val=preco_str, link_val=link))
                 except ValueError:
                     flash('Preço inválido. Use um número.', 'danger')
-                    return redirect(url_for('produtos', edit_id=produto_id, nome_val=nome, preco_val=preco_str, link_val=link))
+                    return redirect(url_for('produtos', nome_val=nome, preco_val=preco_str, link_val=link))
 
                 if is_sqlite:
                     cur.execute("UPDATE produtos SET nome = ?, preco = ?, link = ? WHERE id = ?", (nome, preco, link, produto_id))
@@ -1579,7 +1598,6 @@ def config_messages():
                         )
                 
                 flash('Configurações de mensagens atualizadas com sucesso!', 'success')
-                # Redireciona para a própria rota. Isto fará um novo GET.
                 return redirect(url_for('config_messages')) 
 
             # Lógica para GET request (ou após POST e redirecionamento)
@@ -1662,6 +1680,7 @@ def scheduled_message_worker():
                                 bot.send_photo(chat_id, row["image_url"], caption=row["message_text"], parse_mode="Markdown")
                             else:
                                 bot.send_message(chat_id, row["message_text"], parse_mode="Markdown")
+                            sent_count += 1 # This variable 'sent_count' isn't defined here but in `send_broadcast`
                             sent_successfully = True 
                         except Exception as e:
                             print(f"ERRO WORKER: Falha ao enviar msg {row['id']} para o chat {chat_id}: {e}")
@@ -1753,7 +1772,7 @@ if __name__ != '__main__':
         register_produtos_handlers(bot, get_db_connection, generar_cobranca) 
         
         # REGISTRAR BLUEPRINT DE COMUNIDADES (EXISTENTE)
-        app.register_blueprint(comunidades_bp, url_prefix='/') # Mantém o registro do seu blueprint de comunidades
+        app.register_blueprint(comunidades_bp, url_prefix='/') 
 
     except Exception as e:
         print(f"ERRO NA INICIALIZAÇÃO DO SERVIDOR: {e}")
