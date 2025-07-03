@@ -248,6 +248,7 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
 
         comunidade_id = data.get("comunidade_id")
         novo_nome = data.get("novo_nome")
+        nova_descricao = data.get("nova_descricao") # <-- Esta linha é o problema! Deve ser `nova_descricao = message.text.strip()` ou `nova_descricao = current_descricao`
         current_descricao = data.get("current_descricao")
         current_chat_id = data.get("current_chat_id") # O chat_id atual do grupo/canal
 
@@ -393,3 +394,86 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
         finally:
             if chat_id in user_states:
                 del user_states[chat_id]
+
+    # ------------------------------------------------------------------
+    # NOVO HANDLER: Entrada de novos membros em grupos
+    # ------------------------------------------------------------------
+    @bot_instance.message_handler(content_types=['new_chat_members'])
+    def handle_new_chat_members(message):
+        chat_id = message.chat.id
+        
+        # Ignora mensagens de entrada do próprio bot se ele for adicionado
+        if message.new_chat_members and bot_instance.get_me().id in [user.id for user in message.new_chat_members]:
+            print(f"DEBUG COMUNIDADES: Bot foi adicionado ao chat {chat_id}. Ignorando mensagem de boas-vindas para o bot.")
+            # Opcional: Você pode enviar uma mensagem de "obrigado por me adicionar" aqui, mas não é o foco principal
+            return
+
+        print(f"DEBUG COMUNIDADES: Novo(s) membro(s) detectado(s) no chat ID: {chat_id}")
+
+        # 1. Obter a mensagem de boas-vindas da comunidade do banco de dados
+        welcome_message_community = "Bem-vindo(a) à nossa comunidade, {first_name}!" # Valor padrão
+
+        conn = None
+        try:
+            conn = get_db_connection_func() # Usar a função passada como argumento
+            if conn:
+                is_sqlite = isinstance(conn, sqlite3.Connection)
+                with conn:
+                    cur = conn.cursor()
+                    if is_sqlite:
+                        cur.execute("SELECT value FROM config WHERE key = ?", ('welcome_message_community',))
+                    else:
+                        cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_community',))
+                    row = cur.fetchone()
+                    if row and row['value']:
+                        welcome_message_community = row['value']
+                        print(f"DEBUG COMUNIDADES: Mensagem de boas-vindas do DB carregada: '{welcome_message_community}'")
+                    else:
+                        print(f"DEBUG COMUNIDADES: 'welcome_message_community' não encontrada ou vazia no DB. Usando padrão.")
+            else:
+                print(f"ERRO COMUNIDADES: Não foi possível obter conexão com o DB para carregar welcome_message_community.")
+        except Exception as e:
+            print(f"ERRO COMUNIDADES: Falha ao carregar welcome_message_community do DB: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            if conn:
+                conn.close()
+
+        # 2. Verificar se o grupo está registrado como uma comunidade e se a mensagem deve ser enviada
+        comunidade = comunidade_svc.obter_por_chat_id(chat_id) # Precisamos de um método no ComunidadeService para isso
+        
+        if not comunidade or not comunidade['is_active']: # Assumindo que 'is_active' é um campo na sua tabela 'comunidades'
+            print(f"DEBUG COMUNIDADES: Chat ID {chat_id} não é uma comunidade ativa. Não enviando mensagem de boas-vindas.")
+            return # Não envia mensagem se o grupo não for uma comunidade registrada ou ativa
+
+        # 3. Enviar a mensagem para cada novo membro
+        for user in message.new_chat_members:
+            # O bot não deve se saudar nem saudar outros bots (a menos que explicitamente desejado)
+            if user.is_bot: # Ignora bots
+                print(f"DEBUG COMUNIDADES: Ignorando bot '{user.first_name}' (ID: {user.id}) adicionado ao grupo.")
+                continue
+
+            # Atualiza o registro do usuário no DB ou o registra se for novo
+            # Isso é importante para rastrear usuários que entram em comunidades
+            get_db_connection_func() # Chamada apenas para garantir que a função seja chamada para cada user
+            # O ideal é ter uma função `get_or_register_user_for_group` ou a `get_or_register_user` existente
+            # em `app.py` deve ser capaz de lidar com isso, mas ela já é chamada no /start.
+            # Se você quer registrar *automaticamente* o user quando ele entra no grupo:
+            # from app import get_or_register_user # Importe se necessário, ou passe como argumento
+            # get_or_register_user(user) # Chame a função para registrar/atualizar o usuário
+
+            # Formata a mensagem com o nome do novo membro
+            formatted_message = welcome_message_community.format(
+                first_name=user.first_name,
+                last_name=user.last_name or '',
+                username=user.username or 'usuário'
+            )
+            
+            try:
+                bot_instance.send_message(chat_id, formatted_message, parse_mode='Markdown')
+                print(f"DEBUG COMUNIDADES: Mensagem de boas-vindas enviada para {user.first_name} (ID: {user.id}) no chat {chat_id}.")
+            except Exception as e:
+                print(f"ERRO COMUNIDADES: Falha ao enviar mensagem de boas-vindas para {user.first_name} (ID: {user.id}) no chat {chat_id}: {e}")
+                import traceback
+                traceback.print_exc()
