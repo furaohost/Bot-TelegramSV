@@ -75,9 +75,10 @@ def register_produtos_handlers(bot_instance: telebot.TeleBot, get_db_connection_
     # ------------------------------------------------------------------
     # HANDLER para o botão "🔥 Melhores vips"
     # ------------------------------------------------------------------
-    @bot_instance.message_handler(func=lambda message: message.text and "🔥 melhores vips" in message.text.lower())
+    # CORREÇÃO AQUI: Mudado para corresponder EXATAMENTE ao texto do botão, em minúsculas
+    @bot_instance.message_handler(func=lambda message: message.text and message.text.lower() == "🔥melhores vips e novinhas")
     def handle_show_melhores_vips(message: Message):
-        logger.debug(f"HANDLER ACIONADO: 'handle_show_melhores_vips' acionado pelo texto: '{message.text}'") # NOVO LOG
+        logger.debug(f"HANDLER ACIONADO: 'handle_show_melhores_vips' acionado pelo texto: '{message.text}'")
         mostrar_produtos_bot(message.chat.id)
 
     # ------------------------------------------------------------------
@@ -112,10 +113,15 @@ def register_produtos_handlers(bot_instance: telebot.TeleBot, get_db_connection_
                 return
 
             is_postgres = isinstance(conn, psycopg2.extensions.connection)
-            with conn:
-                # Garante que o cursor retorne dicionários para produtos e vendas
-                cur = conn.cursor(cursor_factory=RealDictCursor if is_postgres else None)
-                
+            if is_postgres:
+                # Se for PostgreSQL, garantir que o cursor retorne dicionários
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+            else:
+                # Para SQLite, usar a função dict_factory se não estiver globalmente configurado
+                # Assumindo que get_db_connection_func já configura row_factory para SQLite no app.py
+                cur = conn.cursor() 
+
+            with conn: # Gerencia a transação
                 cur.execute("SELECT id, nome, preco FROM produtos WHERE id = %s" if is_postgres else "SELECT id, nome, preco FROM produtos WHERE id = ?", (produto_id,))
                 produto = cur.fetchone()
 

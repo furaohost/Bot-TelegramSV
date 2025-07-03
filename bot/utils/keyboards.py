@@ -8,7 +8,7 @@ def menu_principal():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     
     # Botão "Melhores vips"
-    btn_melhores_vips = types.KeyboardButton("🎁 Melhores vips") 
+    btn_melhores_vips = types.KeyboardButton("🎁 Melhores Vips e Novinhas") 
     
     # Botão "Comunidades" - REMOVIDO DA ADIÇÃO
     # btn_comunidades = types.KeyboardButton("👥 Comunidades") 
