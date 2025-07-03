@@ -29,11 +29,13 @@ from database.db_init import init_db
 import pagamentos
 
 # Importa os módulos de handlers e blueprints
+# Importação de `menu_principal` para o teclado Reply (fixo no fundo)
 from bot.utils.keyboards import confirm_18_keyboard, menu_principal
 from bot.handlers.chamadas import register_chamadas_handlers
 from bot.handlers.comunidades import register_comunidades_handlers
 from bot.handlers.conteudos import register_conteudos_handlers
-from bot.handlers.produtos import register_produtos_handlers # This needs to be able to receive `generar_cobranca`
+# Mantém a importação de register_produtos_handlers
+from bot.handlers.produtos import register_produtos_handlers 
 from web.routes.comunidades import comunidades_bp
 
 
@@ -119,41 +121,16 @@ def enviar_produto_telegram(user_id, nome_produto, link_produto):
         print(f"ERRO: Falha ao enviar mensagem de entrega para {user_id}: {e}")
         traceback.print_exc()
         
-def mostrar_produtos_bot(chat_id): # This function appears to be a remnant and is not directly used by app.py anymore. The products handler now has its own version.
-    conn = None
-    try:
-        conn = get_db_connection()
-        if conn is None:
-            bot.send_message(chat_id, "Ocorreu um erro interno ao conectar ao banco de dados.")
-            return
-
-        is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn:
-            cur = conn.cursor()
-            if is_sqlite:
-                cur.execute('SELECT * FROM produtos')
-            else:
-                cur.execute('SELECT * FROM produtos')
-            produtos = cur.fetchall()
-            if not produtos:
-                bot.send_message(chat_id, "Nenhum produto disponível.")
-                return
-            for produto in produtos:
-                markup = types.InlineKeyboardMarkup()
-                btn_comprar = types.InlineKeyboardButton(f"Comprar por R${produto['preco']:.2f}", callback_data=f"comprar_{produto['id']}")
-                markup.add(btn_comprar)
-                bot.send_message(chat_id, f"🛍 *{produto['nome']}*\n\nPreço: R${produto['preco']:.2f}", parse_mode='Markdown', reply_markup=markup)
-    except Exception as e:
-        print(f"ERRO MOSTRAR PRODUTOS BOT: Falha ao mostrar produtos: {e}")
-        traceback.print_exc()
-        bot.send_message(chat_id, "Ocorreu um erro ao carregar os produtos.")
-    finally:
-        if conn: conn.close()
+# Esta função `mostrar_produtos_bot_REMOVIDA` (que antes era global)
+# foi renomeada para evitar confusão. A lógica de produtos agora reside
+# no `bot/handlers/produtos.py`.
+def mostrar_produtos_bot_REMOVIDA(chat_id): 
+    pass 
 
 def generar_cobranca(call: types.CallbackQuery, produto_id: int):
     user_id, chat_id = call.from_user.id, call.message.chat.id
     conn = None
-    venda_id = None # Ensure venda_id is initialized
+    venda_id = None 
 
     try:
         conn = get_db_connection()
@@ -165,12 +142,13 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
         with conn:
             cur = conn.cursor()
             
-            # Ensure SQLite cursor also behaves like a dictionary/row accessible by name
-            if is_sqlite and not isinstance(cur, sqlite3.Row): # Avoid reconfiguring if already done
-                 conn.row_factory = sqlite3.Row
+            # Garante que o cursor do SQLite também se comporte como dicionário/linha acessível por nome
+            # Isso é assumido pelo RealDictCursor para PostgreSQL.
+            if is_sqlite and not hasattr(cur, 'keys'): # Check if not already a dict cursor
+                 conn.row_factory = sqlite3.Row # Configura row_factory para se comportar como dicionário
                  cur = conn.cursor()
 
-            # Include 'link' in the product selection query
+            # Incluir 'link' na seleção para ter certeza que está disponível no produto
             if is_sqlite:
                 cur.execute('SELECT id, nome, preco, link FROM produtos WHERE id = ?', (produto_id,)) 
             else:
@@ -189,15 +167,16 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
                 cur.execute("SELECT last_insert_rowid()")
                 result_id = cur.fetchone()
                 if result_id:
-                    venda_id = result_id[0] # Access the first element of the tuple
+                    venda_id = result_id[0] # Acessa o primeiro elemento da tupla
             else:
+                # Para PostgreSQL, RETURNING id é parte da query, e fetchone() já traz o resultado
                 cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (%s, %s, %s, %s, %s) RETURNING id",
                             (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
                 result_id = cur.fetchone()
                 if result_id:
-                    venda_id = result_id['id'] # Access the 'id' key of the dictionary (RealDictCursor)
+                    venda_id = result_id['id'] # Acessa a chave 'id' do dicionário (RealDictCursor)
 
-            if venda_id is None: # If failed to get a sale ID, something went wrong with the insertion
+            if venda_id is None: 
                 bot.send_message(chat_id, "Erro ao registrar a venda. Tente novamente.")
                 print(f"ERRO GENERAR COBRANCA: Venda não foi registrada, ID nulo.")
                 return
@@ -286,7 +265,7 @@ def require_login():
     if request.endpoint and request.endpoint.startswith('comunidades.') and not session.get('logged_in'):
         print(f"DEBUG AUTH: Unauthorized access to '{request.path}' (Comunidades Blueprint). Redirecting to login.")
         flash('Por favor, faça login para acessar esta página.', 'warning')
-        return redirect(url_for('login')) # Redireciona para a rota de login principal
+        return redirect(url_for('login')) 
 
     # Verifica se não está logado para rotas definidas diretamente no app.py
     if request.endpoint not in ['login', 'static', 'telegram_webhook', 'health_check', 'webhook_mercado_pago', 'reset_admin_password_route', None, 'get_sales_data'] and not session.get('logged_in'):
@@ -302,7 +281,7 @@ def require_login():
 
 @app.route('/health')
 def health_check():
-    print("DEBUG HEALTH: Requisição para /health.")
+    print(f"DEBUG HEALTH: Requisição para /health. Method: {request.method}")
     return "OK", 200
 
 @app.route(f"/{API_TOKEN}", methods=['POST'])
@@ -327,14 +306,10 @@ def telegram_webhook():
 
 @app.route('/webhook/mercado-pago', methods=['GET', 'POST'])
 def webhook_mercado_pago():
-    """
-    Endpoint para o webhook do Mercado Pago. Processa notificações de pagamento.
-    Lida com testes GET e notificações POST de pagamentos aprovados.
-    """
     print(f"DEBUG WEBHOOK MP: Recebida requisição para /webhook/mercado-pago. Method: {request.method}")
 
     if request.method == 'GET':
-        print("DEBUG WEBHOOK MP: Requisição GET de teste do Mercado Pago recebida. Respondendo 200 OK.")
+        print(f"DEBUG WEBHOOK MP: Requisição GET de teste do Mercado Pago recebida. Respondendo 200 OK.")
         return jsonify({'status': 'ok_test_webhook'}), 200
 
     notification = request.json
@@ -352,7 +327,7 @@ def webhook_mercado_pago():
             try:
                 conn = get_db_connection()
                 if conn is None:
-                    print("ERRO WEBHOOK MP: Não foi possível obter conexão com a base de dados.")
+                    print(f"ERRO WEBHOOK MP: Não foi possível obter conexão com a base de dados.")
                     return jsonify({'status': 'db_connection_error'}), 500
 
                 is_sqlite = isinstance(conn, sqlite3.Connection)
@@ -362,7 +337,7 @@ def webhook_mercado_pago():
                     print(f"DEBUG WEBHOOK MP: Pagamento aprovado. Venda ID (external_reference): {venda_id}")
 
                     if not venda_id:
-                        print("DEBUG WEBHOOK MP: external_reference não encontrado na notificação. Ignorando.")
+                        print(f"DEBUG WEBHOOK MP: external_reference não encontrado na notificação. Ignorando.")
                         return jsonify({'status': 'ignored_no_external_ref'}), 200
 
                     cur.execute('SELECT * FROM vendas WHERE id = %s AND status = %s' if not is_sqlite else 'SELECT * FROM vendas WHERE id = ? AND status = ?', (venda_id, 'pendente'))
@@ -403,7 +378,7 @@ def webhook_mercado_pago():
             print(f"DEBUG WEBHOOK MP: Pagamento {payment_id} não aprovado ou info inválida. Status: {payment_info.get('status') if payment_info else 'N/A'}")
             return jsonify({'status': 'payment_not_approved'}), 200
 
-    print("DEBUG WEBHOOK MP: Notificação ignorada (não é tipo 'payment' ou JSON inválvido).")
+    print(f"DEBUG WEBHOOK MP: Notificação ignorada (não é tipo 'payment' ou JSON inválvido).")
     return jsonify({'status': 'ignored_general'}), 200
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -434,9 +409,9 @@ def login():
                     session['username'] = admin_user['username']
                     print(f"DEBUG LOGIN: Login realizado com sucesso para {session['username']}.")
                     flash("Login realizado com sucesso!", "success")
-                    return redirect(url_for('index')) # Redireciona para a rota raiz do app.py
+                    return redirect(url_for('index')) 
                 else:
-                    print("DEBUG LOGIN: Usuário ou senha incorretos.")
+                    print(f"DEBUG LOGIN: Usuário ou senha incorretos.")
                     flash('Usuário ou senha inválidos.', 'danger')
 
         except Exception as e:
@@ -446,7 +421,7 @@ def login():
         finally:
             if conn: conn.close()
 
-    print("DEBUG LOGIN: Renderizando login.html.")
+    print(f"DEBUG LOGIN: Renderizando login.html.")
     return render_template('login.html')
 
 
@@ -456,8 +431,10 @@ def login():
 # ==============================================================================
 @app.route('/reset-admin-password-now/muito-secreto-12345')
 def reset_admin_password_route():
+    print(f"DEBUG RESET: Requisição para /reset-admin-password-now/muito-secreto-12345. Method: {request.method}")
+
     USERNAME_TO_RESET = 'admin'
-    NEW_PASSWORD = 'admin123' # CHANGE THIS IN PRODUCTION!
+    NEW_PASSWORD = 'admin123' 
 
     print(f"DEBUG RESET: Password reset route accessed for user '{USERNAME_TO_RESET}'.")
 
@@ -501,30 +478,23 @@ def reset_admin_password_route():
 
 @app.route('/logout')
 def logout():
-    """
-    Route to log out the user from the admin panel.
-    Clears the session and redirects to the login page.
-    """
-    print(f"DEBUG LOGOUT: Disconnecting user {session.get('username')}.")
+    print(f"DEBUG LOGOUT: Requisição para /logout. Method: {request.method}")
+
     session.clear()
     flash('You have been logged out.', 'info')
-    return redirect(url_for('login')) # Redireciona para a rota de login principal
+    return redirect(url_for('login')) 
 
 
 @app.route('/')
 def index():
-    """
-    Home page of the admin panel (dashboard).
-    Displays statistics and recent sales.
-    """
-    print(f"DEBUG INDEX: Request for /. session.get('logged_in'): {session.get('logged_in')}")
+    print(f"DEBUG INDEX: Requisição para /. session.get('logged_in'): {session.get('logged_in')}")
 
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('login')) # Redireciona para a rota de login principal
+            return redirect(url_for('login')) 
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
@@ -540,16 +510,14 @@ def index():
             chart_data_quantidade = []
 
             # --- Métricas de Período Atual e Período Anterior ---
-            today = datetime.now()
+            today = datetime.now().date() 
             
             start_of_current_month = datetime(today.year, today.month, 1)
-            next_month = start_of_current_month.replace(day=28) + timedelta(days=4) 
-            end_of_current_month = next_month - timedelta(days=next_month.day) 
-            end_of_current_month = datetime.combine(end_of_current_month.date(), time.max) 
+            last_day_of_month = (datetime(today.year, today.month + 1, 1) - timedelta(days=1)).replace(hour=23, minute=59, second=59, microsecond=999999) if today.month < 12 else datetime(today.year, 12, 31, 23, 59, 59, 999999)
+            end_of_current_month = last_day_of_month
 
-            start_of_previous_month = start_of_current_month - timedelta(days=1) 
-            start_of_previous_month = datetime(start_of_previous_month.year, start_of_previous_month.month, 1)
-            end_of_previous_month = start_of_current_month - timedelta(microseconds=1) 
+            start_of_previous_month = (start_of_current_month - timedelta(days=1)).replace(day=1) 
+            end_of_previous_month = (start_of_current_month - timedelta(microseconds=1)).replace(hour=23, minute=59, second=59, microsecond=999999) 
             
             def get_sales_data_for_period_internal(start_dt, end_dt, cursor, is_sqlite_db):
                 if is_sqlite_db:
@@ -644,7 +612,7 @@ def index():
                 chart_data_receita.append(daily_revenue)
                 chart_data_quantidade.append(daily_quantity)
                 
-            print("DEBUG INDEX: Rendering index.html with dashboard data.")
+            print(f"DEBUG INDEX: Rendering index.html with dashboard data.")
             return render_template(
                 'index.html',
                 total_usuarios=total_usuarios,
@@ -669,13 +637,15 @@ def index():
         print(f"ERRO INDEX: Falha ao renderizar o dashboard: {e}")
         traceback.print_exc()
         flash('Erro ao carregar o dashboard.', 'danger')
-        return redirect(url_for('login')) # Redireciona para a rota de login principal
+        return redirect(url_for('login')) 
     finally:
         if conn:
             conn.close()
 
 @app.route('/api/sales_data', methods=['GET'])
 def get_sales_data():
+    print(f"DEBUG API SALES DATA: Requisição para /api/sales_data. Method: {request.method}")
+
     conn = None
     try:
         conn = get_db_connection()
@@ -714,7 +684,7 @@ def get_sales_data():
 
                 if is_sqlite:
                     cur.execute(
-                        "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = ? AND data_venda BETWEEN ? AND ?",
+                        "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = 'aprovado' AND data_venda BETWEEN ? AND ?",
                         ('aprovado', start_of_day_dt.isoformat(), end_of_day_dt.isoformat())
                     )
                 else: 
@@ -746,17 +716,14 @@ def get_sales_data():
 
 @app.route('/produtos', methods=['GET', 'POST'])
 def produtos():
-    """
-    Route for managing products (add, list, edit, delete).
-    Only accessible for logged-in users.
-    """
-    print("DEBUG PRODUTOS: Requisição para /produtos.")
+    print(f"DEBUG PRODUTOS: Requisição para /produtos. Method: {request.method}")
+
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com a base de dados.', 'error')
-            return redirect(url_for('index')) # Redireciona para a rota raiz do app.py
+            return redirect(url_for('index')) 
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
@@ -775,7 +742,7 @@ def produtos():
                         flash('O preço deve ser um valor positivo.', 'danger')
                         return redirect(url_for('produtos', nome_val=nome, preco_val=preco_str, link_val=link))
                 except ValueError:
-                    flash('Preço inválido. Use um número (ex: 19.99).', 'danger')
+                    flash('Preço inválido. Use um número.', 'danger')
                     return redirect(url_for('produtos', nome_val=nome, preco_val=preco_str, link_val=link))
 
                 if is_sqlite:
@@ -798,17 +765,13 @@ def produtos():
         print(f"ERRO PRODUTOS: Falha ao gerenciar produtos: {e}")
         traceback.print_exc()
         flash('Erro ao carregar ou adicionar produtos.', 'danger')
-        return redirect(url_for('index')) # Redireciona para a rota raiz do app.py
+        return redirect(url_for('index')) 
     finally:
         if conn:
             conn.close()
 
 @app.route('/editar_produto/<int:produto_id>', methods=['GET', 'POST'])
 def editar_produto(produto_id):
-    """
-    Route to edit an existing product.
-    Only accessible for logged-in users.
-    """
     print(f"DEBUG EDITAR_PRODUTO: Requisição para /editar_produto/{produto_id}. Method: {request.method}")
 
     conn = None
@@ -816,7 +779,7 @@ def editar_produto(produto_id):
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados para editar produto.', 'danger')
-            return redirect(url_for('produtos')) # Redireciona para a rota de produtos
+            return redirect(url_for('produtos')) 
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
@@ -845,7 +808,7 @@ def editar_produto(produto_id):
                     cur.execute("UPDATE produtos SET nome = %s, preco = %s, link = %s WHERE id = %s", (nome, preco, link, produto_id))
                 print(f"DEBUG EDITAR_PRODUTO: Produto ID {produto_id} atualizado com sucesso.")
                 flash('Produto atualizado com sucesso!', 'success')
-                return redirect(url_for('produtos')) # Redireciona para a rota de produtos
+                return redirect(url_for('produtos')) 
             else: # GET request to show edit form
                 if is_sqlite:
                     cur.execute('SELECT * FROM produtos WHERE id = ?', (produto_id,))
@@ -855,7 +818,7 @@ def editar_produto(produto_id):
 
                 if not produto:
                     flash('Produto não encontrado.', 'danger')
-                    return redirect(url_for('produtos')) # Redireciona para a rota de produtos
+                    return redirect(url_for('produtos')) 
 
                 return render_template('edit_product.html',
                                        produto=produto,
@@ -876,18 +839,14 @@ def editar_produto(produto_id):
 
 @app.route('/deletar_produto/<int:produto_id>', methods=['POST'])
 def deletar_produto(produto_id):
-    """
-    Route to delete a product from the database.
-    Only accessible for logged-in users.
-    """
     print(f"DEBUG DELETAR_PRODUTO: Requisição para /deletar_produto/{produto_id}. Method: {request.method}")
 
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
-            flash('Erro de conexão com a base de dados.', 'error')
-            return redirect(url_for('produtos')) # Redireciona para a rota de produtos
+            flash('Erro de conexão com o banco de dados.', 'error')
+            return redirect(url_for('produtos')) 
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
@@ -898,7 +857,7 @@ def deletar_produto(produto_id):
                 cur.execute('SELECT id FROM produtos WHERE id = %s', (produto_id,))
             if not cur.fetchone():
                 flash('Produto não encontrado.', 'danger')
-                return redirect(url_for('produtos')) # Redireciona para a rota de produtos
+                return redirect(url_for('produtos')) 
 
             if is_sqlite:
                 cur.execute('DELETE FROM produtos WHERE id = ?', (produto_id,))
@@ -906,29 +865,25 @@ def deletar_produto(produto_id):
                 cur.execute('DELETE FROM produtos WHERE id = %s', (produto_id,))
             print(f"DEBUG DELETAR_PRODUTO: Produto ID {produto_id} deletado com sucesso.")
             flash('Produto deletado com sucesso!', 'success')
-            return redirect(url_for('produtos')) # Redireciona para a rota de produtos
+            return redirect(url_for('produtos')) 
     except Exception as e:
         print(f"ERRO REMOVER PRODUTO: Falha ao remover produto: {e}")
         traceback.print_exc()
         flash('Erro ao remover produto.', 'error')
-        return redirect(url_for('produtos')) # Redireciona para a rota de produtos
+        return redirect(url_for('produtos')) 
     finally:
         if conn: conn.close()
 
 @app.route('/vendas')
 def vendas():
-    """
-    Route to view and filter the sales list.
-    Accessible only to logged-in users.
-    """
-    print("DEBUG VENDAS: Requisição para /vendas.")
+    print(f"DEBUG VENDAS: Requisição para /vendas. Method: {request.method}")
 
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
-            flash('Erro de conexão com a base de dados.', 'error')
-            return redirect(url_for('index')) # Redireciona para a rota raiz do app.py
+            flash('Erro de conexão com o banco de dados.', 'error')
+            return redirect(url_for('index')) 
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
@@ -1007,18 +962,14 @@ def vendas():
         print(f"ERRO VENDAS: Falha ao carregar vendas para o dashboard: {e}")
         traceback.print_exc()
         flash('Erro ao carregar as vendas.', 'danger')
-        return redirect(url_for('index')) # Redireciona para a rota raiz do app.py
+        return redirect(url_for('index')) 
     finally:
         if conn:
             conn.close()
 
 @app.route('/venda_detalhes/<int:id>')
 def venda_detalhes(id):
-    """
-    Route to get details of a specific sale via API (JSON).
-    Accessible only to logged-in users.
-    """
-    print("DEBUG VENDA DETALHES: Requisição para /venda_detalhes.") 
+    print(f"DEBUG VENDA DETALHES: Requisição para /venda_detalhes. Method: {request.method}")
 
     conn = None
     try:
@@ -1051,14 +1002,14 @@ def venda_detalhes(id):
 
 @app.route('/usuarios')
 def usuarios():
-    print("DEBUG USUARIOS: Requisição para /usuarios.")
+    print(f"DEBUG USUARIOS: Requisição para /usuarios. Method: {request.method}")
 
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
-            flash('Erro de conexão com a base de dados.', 'error')
-            return redirect(url_for('index')) # Redireciona para a rota raiz do app.py
+            flash('Erro de conexão com o banco de dados.', 'error')
+            return redirect(url_for('index')) 
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
@@ -1076,7 +1027,7 @@ def usuarios():
         print(f"ERRO UTILIZADORES: Falha ao carregar utilizadores: {e}")
         traceback.print_exc()
         flash('Erro ao carregar utilizadores.', 'error')
-        return redirect(url_for('index')) # Redireciona para a rota raiz do app.py
+        return redirect(url_for('index')) 
     finally:
         if conn:
             conn.close()
@@ -1089,8 +1040,8 @@ def toggle_user_status(user_id):
     try:
         conn = get_db_connection()
         if conn is None:
-            flash('Erro de conexão com a base de dados.', 'error')
-            return redirect(url_for('usuarios')) # Redireciona para a rota de usuarios
+            flash('Erro de conexão com o banco de dados.', 'error')
+            return redirect(url_for('usuarios')) 
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
@@ -1103,7 +1054,7 @@ def toggle_user_status(user_id):
 
             if not user:
                 flash('Usuário não encontrado.', 'danger')
-                return redirect(url_for('usuarios')) # Redireciona para a rota de usuarios
+                return redirect(url_for('usuarios')) 
 
             new_status = not user['is_active']
             if is_sqlite:
@@ -1114,12 +1065,12 @@ def toggle_user_status(user_id):
             status_text = "ativado" if new_status else "desativado"
             print(f"DEBUG TOGGLE_USER_STATUS: Usuário {user_id} {status_text} com sucesso.")
             flash(f'Usuário {user_id} {status_text} com sucesso!', 'success')
-            return redirect(url_for('usuarios')) # Redireciona para a rota de usuarios
+            return redirect(url_for('usuarios')) 
     except Exception as e:
         print(f"ERRO REMOVER UTILIZADOR: Falha ao remover utilizador: {e}")
         traceback.print_exc()
         flash('Erro ao remover utilizador.', 'error')
-        return redirect(url_for('usuarios')) # Redireciona para a rota de usuarios
+        return redirect(url_for('usuarios')) 
     finally:
         if conn: conn.close()
 
@@ -1132,7 +1083,7 @@ def scheduled_messages():
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados.', 'error')
-            return redirect(url_for('login')) # Redireciona para a rota de login principal
+            return redirect(url_for('login')) 
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
@@ -1177,19 +1128,21 @@ def scheduled_messages():
         print(f"ERRO SCHEDULED MESSAGES: Falha ao carregar mensagens agendadas: {e}")
         traceback.print_exc()
         flash('Erro ao carregar ou atualizar mensagens.', 'error')
-        return redirect(url_for('index')) # Redireciona para a rota raiz do app.py
+        return redirect(url_for('index')) 
     finally:
         if conn: conn.close()
 
 @app.route('/add_scheduled_message', methods=['GET', 'POST'])
 def add_scheduled_message():
+    print(f"DEBUG ADD SCHEDULED MESSAGE: Requisição para /add_scheduled_message. Method: {request.method}")
+
     if request.method == 'POST':
         try:
             message_text = request.form.get('message_text')
             target_chat_id = request.form.get('target_chat_id')
             image_url = request.form.get('image_url')
             schedule_time_str = request.form.get('schedule_time')
-            recurrence_rule = request.form.get('recurrence_rule', 'none') # Pega a nova regra
+            recurrence_rule = request.form.get('recurrence_rule', 'none') 
 
             if not message_text or not schedule_time_str:
                 flash('Texto da mensagem e data/hora são obrigatórios!', 'danger')
@@ -1217,7 +1170,7 @@ def add_scheduled_message():
             conn.close()
 
             flash('Mensagem agendada com sucesso!', 'success')
-            return redirect(url_for('scheduled_messages')) # Redireciona para a rota de mensagens agendadas
+            return redirect(url_for('scheduled_messages')) 
 
         except ValueError:
             flash('Formato de dados inválido.', 'danger')
@@ -1245,7 +1198,7 @@ def edit_scheduled_message(message_id):
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('scheduled_messages')) # Redireciona para a rota de mensagens agendadas
+            return redirect(url_for('scheduled_messages')) 
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         
@@ -1259,7 +1212,7 @@ def edit_scheduled_message(message_id):
 
         if not message:
             flash('Mensagem agendada não encontrada.', 'danger')
-            return redirect(url_for('scheduled_messages')) # Redireciona para a rota de mensagens agendadas
+            return redirect(url_for('scheduled_messages')) 
 
         # Se a requisição for POST, tenta salvar as alterações
         if request.method == 'POST':
@@ -1296,7 +1249,7 @@ def edit_scheduled_message(message_id):
                     )
             conn.commit()
             flash('Mensagem agendada atualizada com sucesso!', 'success')
-            return redirect(url_for('scheduled_messages')) # Redireciona para a rota de mensagens agendadas
+            return redirect(url_for('scheduled_messages')) 
 
         # Se a requisição for GET, apenas exibe o formulário
         message['schedule_time_formatted'] = message['schedule_time'].strftime('%Y-%m-%dT%H:%M') if message['schedule_time'] else ''
@@ -1306,24 +1259,21 @@ def edit_scheduled_message(message_id):
         print(f"ERRO EDIT SCHEDULED MESSAGE: Falha ao editar mensagem agendada: {e}")
         traceback.print_exc()
         flash('Erro ao editar mensagem agendada.', 'danger')
-        return redirect(url_for('scheduled_messages')) # Redireciona para a rota de mensagens agendadas
+        return redirect(url_for('scheduled_messages')) 
     finally:
         if conn:
             conn.close()
 
 @app.route('/resend_scheduled_message/<int:message_id>', methods=['POST'])
 def resend_scheduled_message(message_id):
-    """
-    Cria uma CÓPIA de uma mensagem existente (clona) e redireciona 
-    para a página de edição da NOVA mensagem.
-    """
     print(f"DEBUG CLONE SCHEDULED MESSAGE: Requisição para clonar a mensagem ID {message_id}.")
+
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('scheduled_messages')) # Redireciona para a rota de mensagens agendadas
+            return redirect(url_for('scheduled_messages')) 
 
         with conn.cursor() as cur:
             if isinstance(conn, sqlite3.Connection):
@@ -1334,7 +1284,7 @@ def resend_scheduled_message(message_id):
 
             if not original_message:
                 flash('Mensagem original não encontrada para clonar.', 'warning')
-                return redirect(url_for('scheduled_messages')) # Redireciona para a rota de mensagens agendadas
+                return redirect(url_for('scheduled_messages')) 
 
             insert_query = """
                 INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, status, schedule_time)
@@ -1368,13 +1318,13 @@ def resend_scheduled_message(message_id):
 
             flash('Mensagem clonada com sucesso! Por favor, defina um novo horário de agendamento.', 'success')
             
-            return redirect(url_for('edit_scheduled_message', message_id=new_message_id, from_clone=True)) # Redireciona para a rota de edição
+            return redirect(url_for('edit_scheduled_message', message_id=new_message_id, from_clone=True)) 
 
     except Exception as e:
         print(f"ERRO CLONE MESSAGE: {e}")
         traceback.print_exc()
         flash('Ocorreu um erro ao tentar clonar a mensagem.', 'danger')
-        return redirect(url_for('scheduled_messages')) # Redireciona para a rota de mensagens agendadas
+        return redirect(url_for('scheduled_messages')) 
     finally:
         if conn:
             conn.close()
@@ -1382,16 +1332,14 @@ def resend_scheduled_message(message_id):
 
 @app.route('/delete_scheduled_message/<int:message_id>', methods=['POST'])
 def delete_scheduled_message(message_id):
-    """
-    Rota para deletar uma mensagem agendada.
-    """
     print(f"DEBUG DELETE SCHEDULED MESSAGE: Requisição para deletar a mensagem ID {message_id}.")
+
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('scheduled_messages')) # Redireciona para a rota de mensagens agendadas
+            return redirect(url_for('scheduled_messages')) 
 
         with conn.cursor() as cur:
             if isinstance(conn, sqlite3.Connection):
@@ -1417,20 +1365,18 @@ def delete_scheduled_message(message_id):
         if conn:
             conn.close()
             
-    return redirect(url_for('scheduled_messages')) # Redireciona para a rota de mensagens agendadas
+    return redirect(url_for('scheduled_messages')) 
 
 @app.route('/cancel_cloned_message/<int:message_id>', methods=['GET'])
 def cancel_cloned_message(message_id):
-    """
-    Ruta especial para deletar una mensahe que fue clonada pero no sera usada.
-    """
     print(f"DEBUG CANCEL CLONE: Requisição para cancelar e deletar o clone ID {message_id}.")
+
     conn = None
     try:
         conn = get_db_connection()
         if conn is None: 
             flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('scheduled_messages')) # Redireciona para a rota de mensagens agendadas
+            return redirect(url_for('scheduled_messages')) 
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn.cursor() as cur:
@@ -1443,12 +1389,12 @@ def cancel_cloned_message(message_id):
     except Exception as e:
         print(f"ERRO CANCEL CLONE: {e}")
         traceback.print_exc() 
-        flash('Erro ao descartar a cópia da mensagem.', 'danger')
+        flash('Ocorreu um erro ao descartar a cópia da mensagem.', 'danger')
     finally:
         if conn:
             conn.close()
             
-    return redirect(url_for('scheduled_messages')) # Redireciona para a rota de mensagens agendadas
+    return redirect(url_for('scheduled_messages')) 
 
 @app.route('/send_broadcast', methods=['GET', 'POST'])
 def send_broadcast():
@@ -1459,7 +1405,7 @@ def send_broadcast():
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('index', error='broadcast_db_connection_error')) # Redireciona para a rota raiz do app.py
+            return redirect(url_for('index', error='broadcast_db_connection_error')) 
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
@@ -1528,7 +1474,7 @@ def send_broadcast():
                             failed_count += 1 
 
                 flash(f'Broadcast enviado com sucesso para {sent_count} usuários. Falha em {failed_count} usuários.', 'success')
-                return redirect(url_for('index')) # Redireciona para a rota raiz do app.py
+                return redirect(url_for('index')) 
             except Exception as e:
                 print(f"ERRO SEND BROADCAST (send logic): {e}")
                 traceback.print_exc()
@@ -1543,7 +1489,7 @@ def send_broadcast():
         print(f"ERRO SEND BROADCAST (GET): Falha ao carregar usuários para o formulário: {e}")
         traceback.print_exc()
         flash('Erro ao carregar a página de broadcast.', 'danger')
-        return redirect(url_for('index')) # Redireciona para a rota raiz do app.py
+        return redirect(url_for('index')) 
     finally:
         if conn: conn.close()
 
@@ -1633,13 +1579,13 @@ def config_messages():
 # 7. WORKER de mensagens agendadas
 # ────────────────────────────────────────────────────────────────────
 def scheduled_message_worker():
-    print("DEBUG WORKER: Iniciado e aguardando para verificar mensagens...")
+    print(f"DEBUG WORKER: Iniciado e aguardando para verificar mensagens...")
     while True:
         conn = None
         try:
             conn = get_db_connection()
             if conn is None:
-                print("ERRO WORKER: Não foi possível obter conexão. Tentando novamente em 60s...")
+                print(f"ERRO WORKER: Não foi possível obter conexão. Tentando novamente em 60s...")
                 time_module.sleep(60)
                 continue
 
@@ -1680,7 +1626,6 @@ def scheduled_message_worker():
                                 bot.send_photo(chat_id, row["image_url"], caption=row["message_text"], parse_mode="Markdown")
                             else:
                                 bot.send_message(chat_id, row["message_text"], parse_mode="Markdown")
-                            sent_count += 1 # This variable 'sent_count' isn't defined here but in `send_broadcast`
                             sent_successfully = True 
                         except Exception as e:
                             print(f"ERRO WORKER: Falha ao enviar msg {row['id']} para o chat {chat_id}: {e}")
@@ -1716,9 +1661,8 @@ def scheduled_message_worker():
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    """
-    Handler para o comando /start. Regista o utilizador e envia uma mensagem de boas-vindas.
-    """
+    print(f"DEBUG SEND WELCOME: Requisição para /start. Message: {message.text}")
+
     get_or_register_user(message.from_user)
 
     conn = None
@@ -1747,10 +1691,15 @@ def send_welcome(message):
         last_name=message.from_user.last_name or '',
         username=message.from_user.username or 'usuário'
     )
-    bot.reply_to(message, formatted_message, reply_markup=menu_principal())
+    # AQUI ESTÁ A MUDANÇA: REATIVAR O TECLADO REPLY PRINCIPAL NO /start
+    bot.reply_to(message, formatted_message, reply_markup=menu_principal()) 
+
+    # IMPORTANTE: A listagem de produtos no /start será acionada pelo clique do botão.
+    # A chamada direta a `mostrar_produtos_bot_func` não deve estar aqui.
+
 
 if __name__ != '__main__':
-    print("DEBUG: Executando em modo de produção (gunicorn/Render).")
+    print(f"DEBUG: Executando em modo de produção (gunicorn/Render).")
     try:
         init_db()
         pagamentos.init_mercadopago_sdk()
@@ -1762,13 +1711,14 @@ if __name__ != '__main__':
         worker_thread = Thread(target=scheduled_message_worker)
         worker_thread.daemon = True
         worker_thread.start()
-        print("DEBUG: Worker de mensagens agendadas iniciado em background para o modo de produção.")
+        print(f"DEBUG: Worker de mensagens agendadas iniciado em background para o modo de produção.")
 
         # REGISTRAR HANDLERS (COM A CORREÇÃO DE IMPORTAÇÃO CIRCULAR PARA PRODUTOS)
         register_chamadas_handlers(bot, get_db_connection)
         register_comunidades_handlers(bot, get_db_connection)
         register_conteudos_handlers(bot, get_db_connection)
-        # CORREÇÃO AQUI: Passando 'generar_cobranca' como argumento para evitar importação circular
+        # Passando 'generar_cobranca' como argumento. A função mostrar_produtos_bot não é mais retornada,
+        # pois não é chamada diretamente do app.py no /start.
         register_produtos_handlers(bot, get_db_connection, generar_cobranca) 
         
         # REGISTRAR BLUEPRINT DE COMUNIDADES (EXISTENTE)
