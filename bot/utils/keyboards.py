@@ -4,17 +4,16 @@ def menu_principal():
     """
     Cria o teclado de menu principal para o bot.
     Agora apenas com "Melhores vips".
+    Corrigido para melhor compatibilidade com iOS (row_width=1).
     """
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    # MUDANÇA AQUI: row_width=1 pois você só tem um botão nesta linha
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1) 
     
     # Botão "Melhores vips"
     btn_melhores_vips = types.KeyboardButton("🎁 Melhores Vips e Novinhas") 
     
-    # Botão "Comunidades" - REMOVIDO DA ADIÇÃO
-    # btn_comunidades = types.KeyboardButton("👥 Comunidades") 
-    
-    # Adiciona apenas o botão "Melhores vips"
-    markup.add(btn_melhores_vips) # Apenas um botão agora
+    # Adiciona o botão
+    markup.add(btn_melhores_vips) 
     
     return markup
 
