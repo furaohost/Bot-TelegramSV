@@ -3,18 +3,32 @@ from telebot import types
 def menu_principal():
     """
     Cria o teclado de menu principal para o bot.
-    Agora apenas com "Melhores vips".
-    Corrigido para melhor compatibilidade com iOS (row_width=1).
+    Este teclado agora será opcional e pode ser vazio se não houver outros itens de menu.
+    O botão "Melhores Vips e Novinhas" será inline.
     """
-    # MUDANÇA AQUI: row_width=1 pois você só tem um botão nesta linha
+    # Se não houver outros botões de ReplyKeyboard, você pode até remover este markup
+    # e simplesmente não passar reply_markup no bot.send_message.
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1) 
     
-    # Botão "Melhores vips"
-    btn_melhores_vips = types.KeyboardButton("🎁 Melhores Vips e Novinhas") 
+    # EXEMPLO: Se quiser manter outros botões de menu aqui
+    # btn_outra_opcao = types.KeyboardButton("Outra Opção do Menu")
+    # markup.add(btn_outra_opcao)
     
-    # Adiciona o botão
-    markup.add(btn_melhores_vips) 
+    # Se você não tem mais nenhum botão ReplyKeyboard, você pode retornar None ou um Markup vazio.
+    # Por simplicidade, se não houver mais botões, vamos retornar None.
+    # Se você tiver mais botões além de "Melhores Vips", adicione-os aqui.
     
+    # Por enquanto, se não houver outros botões de ReplyKeyboardMarkup além do de produtos,
+    # podemos fazer esta função retornar None.
+    return None # Nenhuma ReplyKeyboardMarkup será enviada por padrão.
+
+def inline_ver_produtos_keyboard():
+    """
+    Cria um teclado inline com o botão "Ver Produtos".
+    """
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    btn_ver_produtos = types.InlineKeyboardButton("🎁 Melhores Vips e Novinhas", callback_data="ver_produtos_inline")
+    markup.add(btn_ver_produtos)
     return markup
 
 def confirm_18_keyboard():
