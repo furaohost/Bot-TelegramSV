@@ -67,7 +67,7 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
         comunidade_data = state_data.get("data", {})
         
         nome_comunidade = comunidade_data.get("nome")
-        target_chat_id = state_data.get("target_chat_id") # O chat_id do grupo/canal
+        target_chat_id = state_data.get("target_chat_id") # O ID do chat/grupo
 
         if not nome_comunidade:
             bot_instance.send_message(chat_id, "Erro interno: Nome da comunidade não encontrado no estado. Por favor, reinicie o processo com /nova_comunidade.", parse_mode='Markdown')
@@ -102,9 +102,10 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
                 del user_states[chat_id]
 
     # ------------------------------------------------------------------
-    # COMANDO /listar_comunidades
+    # COMANDO /listar_comunidades E BOTÃO "Comunidades"
     # ------------------------------------------------------------------
-    @bot_instance.message_handler(commands=['listar_comunidades'])
+    # AQUI ESTÁ A ÚNICA CORREÇÃO: Adicionamos text="Comunidades"
+    @bot_instance.message_handler(commands=['listar_comunidades'], text="Comunidades")
     def handle_listar_comunidades(message):
         chat_id = message.chat.id
         comunidades = comunidade_svc.listar()
@@ -147,7 +148,7 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
             parse_mode='Markdown'
         )
         user_states[chat_id] = {"step": "awaiting_community_to_edit"}
-
+    
     @bot_instance.message_handler(func=lambda message: user_states.get(message.chat.id, {}).get("step") == "awaiting_community_to_edit")
     def handle_select_community_to_edit(message):
         chat_id = message.chat.id
