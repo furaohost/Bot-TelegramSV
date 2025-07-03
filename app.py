@@ -5,10 +5,10 @@ from telebot import types
 import traceback
 import time as time_module
 from datetime import datetime, timedelta, time
-from threading import Thread
 import sqlite3
 import base64
 import json
+from threading import Thread # Garantir que Thread está importado
 
 # Importações Flask e Werkzeug
 from datetime import datetime
@@ -99,6 +99,8 @@ def get_or_register_user(user: types.User):
                             (user.id, user.username, user.first_name, user.last_name, True))
                 print(f"DEBUG DB: Novo utilizador registado: {user.username or user.first_name} (ID: {user.id})")
             else:
+                # Aqui e em outros lugares que referenciam 'is_active' na tabela 'users'
+                # Assumo que esta coluna existe em 'users'. Se não existir, precisará de uma migração para 'users'.
                 if not db_user['is_active']:
                     cur.execute("UPDATE users SET is_active = %s WHERE id = %s" if not is_sqlite else "UPDATE users SET is_active = ? WHERE id = ?", (True, user.id))
                     print(f"DEBUG DB: Utilizador reativado: {user.username or user.first_name} (ID: {user.id})")
@@ -626,10 +628,9 @@ def index():
                 chart_data_receita.append(daily_revenue)
                 chart_data_quantidade.append(daily_quantity)
                 
-                # 'current_day' is only used in the API route, not here.
-                # The issue was that 'current_day' was defined inside a loop in the API route, and if the loop didn't run, it was unbound.
-                # In this loop (for 'index' route), 'day' is the iterating variable.
-
+                # `current_day` é a variável de loop na rota /api/sales_data, não aqui.
+                # A variável de iteração aqui é `day`. Não é necessário `current_day` aqui.
+                
             print("DEBUG INDEX: Rendering index.html with dashboard data.")
             return render_template(
                 'index.html',
@@ -692,12 +693,6 @@ def get_sales_data():
 
         current_day = start_date # Garante que current_day sempre terá um valor aqui
         
-        # Se a data de início for posterior à data de fim, o loop não rodará. 
-        # Isso é um cenário válido, e current_day não será acessado após o loop se ele nunca iniciar.
-        # O erro UnboundLocalError sugere que current_day += ... foi chamado quando current_day não estava definido.
-        # A única forma para isso acontecer é se o 'current_day = start_date' falhasse, o que não parece ser o caso.
-        # Ou se a versão do código no Render for mais antiga.
-        
         with conn: 
             cur = conn.cursor()
             while current_day <= end_date: 
@@ -722,7 +717,7 @@ def get_sales_data():
                 chart_data_receita.append(daily_revenue)
                 chart_data_quantidade.append(daily_quantity)
                 
-                current_day += timedelta(days=1) # Linha 626 no seu log
+                current_day += timedelta(days=1) 
                 
         return jsonify({
             'labels': chart_labels,
@@ -1089,6 +1084,7 @@ def toggle_user_status(user_id):
         with conn:
             cur = conn.cursor()
             if is_sqlite:
+                # Assumo que esta coluna 'is_active' existe em 'users'.
                 cur.execute('SELECT is_active FROM users WHERE id = ?', (user_id,))
             else:
                 cur.execute('SELECT is_active FROM users WHERE id = %s', (user_id,))
@@ -1198,6 +1194,7 @@ def add_scheduled_message():
             
             conn = get_db_connection()
             with conn.cursor() as cur:
+                # Assumo que a tabela scheduled_messages tem a coluna recurrence_rule
                 cur.execute(
                     """
                     INSERT INTO scheduled_messages 
@@ -1216,6 +1213,7 @@ def add_scheduled_message():
             flash('Formato de dados inválido.', 'danger')
         except Exception as e:
             print(f"ERRO ao agendar mensagem: {e}")
+            traceback.print_exc()
             flash('Ocorreu um erro inesperado ao agendar a mensagem.', 'danger')
         
         return redirect(url_for('add_scheduled_message'))
@@ -1223,6 +1221,7 @@ def add_scheduled_message():
     # Lógica para GET (exibir formulário)
     conn = get_db_connection()
     with conn.cursor() as cur:
+        # Assumo que 'is_active' existe na tabela 'users'
         cur.execute('SELECT id, username, first_name FROM users WHERE is_active = TRUE ORDER BY username ASC')
         users = cur.fetchall()
     conn.close()
@@ -1358,6 +1357,7 @@ def resend_scheduled_message(message_id):
             return redirect(url_for('scheduled_messages'))
 
         with conn.cursor() as cur:
+            # Assumindo que você está usando PostgreSQL para RETURNING id
             cur.execute("SELECT * FROM scheduled_messages WHERE id = %s", (message_id,))
             original_message = cur.fetchone()
 
@@ -1365,19 +1365,36 @@ def resend_scheduled_message(message_id):
                 flash('Mensagem original não encontrada para clonar.', 'warning')
                 return redirect(url_for('scheduled_messages'))
 
-            cur.execute(
-                """
+            insert_query = """
                 INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, status, schedule_time)
                 VALUES (%s, %s, %s, 'pending', NOW())
                 RETURNING id
-                """,
-                (
+                """
+            insert_params = (
+                original_message['message_text'],
+                original_message['target_chat_id'],
+                original_message['image_url']
+            )
+
+            is_sqlite = isinstance(conn, sqlite3.Connection)
+            if is_sqlite:
+                # SQLite doesn't support RETURNING, need to get last_insert_rowid() separately
+                insert_query = "INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, status, schedule_time) VALUES (?, ?, ?, ?, ?)"
+                insert_params = (
                     original_message['message_text'],
                     original_message['target_chat_id'],
-                    original_message['image_url']
+                    original_message['image_url'],
+                    'pending',
+                    datetime.now() # Use current time for new message schedule_time if cloning
                 )
-            )
-            new_message_id = cur.fetchone()['id']
+                cur.execute(insert_query, insert_params)
+                cur.execute("SELECT last_insert_rowid()")
+                new_message_id = cur.fetchone()[0]
+            else:
+                # PostgreSQL with RETURNING id
+                cur.execute(insert_query, insert_params)
+                new_message_id = cur.fetchone()['id']
+            
             conn.commit()
 
             flash('Mensagem clonada com sucesso! Por favor, defina um novo horário de agendamento.', 'success')
@@ -1410,16 +1427,24 @@ def delete_scheduled_message(message_id):
 
         with conn.cursor() as cur:
             # Verifica se a mensagem existe antes de deletar
-            cur.execute("SELECT id FROM scheduled_messages WHERE id = %s", (message_id,))
+            if isinstance(conn, sqlite3.Connection):
+                cur.execute("SELECT id FROM scheduled_messages WHERE id = ?", (message_id,))
+            else:
+                cur.execute("SELECT id FROM scheduled_messages WHERE id = %s", (message_id,))
+            
             if cur.fetchone() is None:
                 flash('Mensagem não encontrada para deletar.', 'warning')
             else:
-                cur.execute("DELETE FROM scheduled_messages WHERE id = %s", (message_id,))
+                if isinstance(conn, sqlite3.Connection):
+                    cur.execute("DELETE FROM scheduled_messages WHERE id = ?", (message_id,))
+                else:
+                    cur.execute("DELETE FROM scheduled_messages WHERE id = %s", (message_id,))
                 conn.commit()
                 flash('Mensagem agendada deletada com sucesso!', 'success')
                 
     except Exception as e:
         print(f"ERRO AO DELETAR MENSAGEM: {e}")
+        traceback.print_exc() # Adicionado traceback
         flash('Ocorreu um erro ao tentar deletar a mensagem.', 'danger')
     finally:
         if conn:
@@ -1436,12 +1461,21 @@ def cancel_cloned_message(message_id):
     conn = None
     try:
         conn = get_db_connection()
+        if conn is None: # Adicionado check de conexão aqui também
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('scheduled_messages'))
+
+        is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn.cursor() as cur:
-            cur.execute("DELETE FROM scheduled_messages WHERE id = %s", (message_id,))
+            if is_sqlite:
+                cur.execute("DELETE FROM scheduled_messages WHERE id = ?", (message_id,))
+            else:
+                cur.execute("DELETE FROM scheduled_messages WHERE id = %s", (message_id,))
         conn.commit()
         flash('Reenvio cancelado e cópia da mensagem descartada.', 'info')
     except Exception as e:
         print(f"ERRO AO CANCELAR CLONE: {e}")
+        traceback.print_exc() # Adicionado traceback
         flash('Erro ao descartar a cópia da mensagem.', 'danger')
     finally:
         if conn:
@@ -1489,6 +1523,7 @@ def send_broadcast():
                 with cur_conn_send:
                     cur_send = cur_conn_send.cursor()
                     if is_sqlite:
+                        # Assumo que 'is_active' existe na tabela 'users'
                         cur_send.execute("SELECT id FROM users WHERE is_active = 1")
                     else:
                         cur_send.execute("SELECT id FROM users WHERE is_active = TRUE")
@@ -1518,6 +1553,7 @@ def send_broadcast():
                                                 cur_u.execute("UPDATE users SET is_active=FALSE WHERE id=%s", (user_id,))
                                     except Exception as db_e:
                                         print(f"ERRO inactivating user {user_id} during broadcast: {db_e}")
+                                        traceback.print_exc()
                                     finally:
                                         if temp_conn_update: temp_conn_update.close()
                         except Exception as e:
@@ -1545,95 +1581,6 @@ def send_broadcast():
     finally:
         if conn: conn.close()
 
-@app.route('/config_messages', methods=['GET', 'POST'])
-def config_messages():
-    print(f"DEBUG CONFIG_MESSAGES: Requisição para /config_messages. Method: {request.method}")
-
-    conn = None
-    # Inicializa as variáveis com valores padrão antes do bloco try
-    welcome_message_bot = 'Olá, {first_name}! Bem-vindo(a) ao bot!'
-    welcome_message_community = 'Bem-vindo(a) à nossa comunidade, {first_name}!'
-
-    try:
-        conn = get_db_connection()
-        if conn is None:
-            flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('index'))
-
-        is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn:
-            cur = conn.cursor()
-            if request.method == 'POST':
-                # Pega os valores do formulário. Se não vierem, serão None.
-                welcome_bot_message_form = request.form.get('welcome_message_bot')
-                welcome_community_message_form = request.form.get('welcome_message_community')
-
-                # Atualiza os valores das variáveis locais para refletir o que foi submetido,
-                # para que sejam passadas corretamente ao template em caso de redirecionamento ou re-render
-                welcome_message_bot = welcome_bot_message_form if welcome_bot_message_form is not None else welcome_message_bot
-                welcome_community_message = welcome_community_message_form if welcome_community_message_form is not None else welcome_message_community
-
-                if welcome_bot_message_form is not None:
-                    if is_sqlite:
-                        cur.execute(
-                            "INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value;",
-                            ('welcome_message_bot', welcome_bot_message_form)
-                        )
-                    else:
-                        cur.execute(
-                            "INSERT INTO config (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;",
-                            ('welcome_message_bot', welcome_bot_message_form)
-                        )
-                
-                if welcome_community_message_form is not None:
-                    if is_sqlite:
-                        cur.execute(
-                            "INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value;",
-                            ('welcome_message_community', welcome_community_message_form)
-                        )
-                    else:
-                        cur.execute(
-                            "INSERT INTO config (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;",
-                            ('welcome_message_community', welcome_community_message_form)
-                        )
-                
-                flash('Configurações de mensagens atualizadas com sucesso!', 'success')
-                # O redirecionamento força um novo GET, o que é bom para recarregar as configs
-                return redirect(url_for('config_messages'))
-
-            # Lógica para GET request (ou fallback após POST se não houver redirect)
-            # Busca as configurações atuais do banco de dados
-            if is_sqlite:
-                cur.execute("SELECT key, value FROM config WHERE key IN (?, ?)", ('welcome_message_bot', 'welcome_message_community'))
-            else:
-                cur.execute("SELECT key, value FROM config WHERE key IN (%s, %s)", ('welcome_message_bot', 'welcome_message_community'))
-            configs_raw = cur.fetchall()
-            configs = {row['key']: row['value'] for row in configs_raw}
-
-            # Atribui os valores das configurações buscadas, usando defaults se não encontrados
-            welcome_message_bot = configs.get('welcome_message_bot', 'Olá, {first_name}! Bem-vindo(a) ao bot!')
-            welcome_message_community = configs.get('welcome_message_community', 'Bem-vindo(a) à nossa comunidade, {first_name}!')
-
-            # Agora, as variáveis welcome_message_bot e welcome_message_community
-            # sempre terão um valor (do DB ou o padrão) antes de renderizar o template.
-            return render_template(
-                'config_messages.html',
-                welcome_message_bot=welcome_message_bot,
-                welcome_message_community=welcome_community_message
-            )
-
-    except Exception as e:
-        print(f"ERRO CONFIG_MENSAGENS: Falha ao carregar/salvar configurações de mensagens: {e}")
-        traceback.print_exc()
-        flash('Erro ao carregar/salvar configurações de mensagens.', 'danger')
-        # Em caso de erro, ainda tenta renderizar com os valores padrão ou os últimos conhecidos
-        return render_template(
-            'config_messages.html',
-            welcome_message_bot=welcome_message_bot, # Garante que a variável exista
-            welcome_message_community=welcome_community_message # Garante que a variável exista
-        )
-    finally:
-        if conn: conn.close()
 
 # ────────────────────────────────────────────────────────────────────
 # 8. WORKER de mensagens agendadas
@@ -1652,9 +1599,15 @@ def scheduled_message_worker():
             with conn.cursor() as cur:
                 # Query para buscar mensagens pendentes cuja hora já passou
                 # Usamos NOW() que pega a hora atual do servidor (geralmente UTC)
-                cur.execute(
-                    "SELECT * FROM scheduled_messages WHERE status='pending' AND schedule_time <= NOW() ORDER BY schedule_time"
-                )
+                # Adicionado suporte a SQLite para NOW()
+                if isinstance(conn, sqlite3.Connection):
+                    cur.execute(
+                        "SELECT * FROM scheduled_messages WHERE status='pending' AND schedule_time <= DATETIME('now') ORDER BY schedule_time"
+                    )
+                else:
+                    cur.execute(
+                        "SELECT * FROM scheduled_messages WHERE status='pending' AND schedule_time <= NOW() ORDER BY schedule_time"
+                    )
                 rows = cur.fetchall()
 
                 if rows:
@@ -1667,13 +1620,17 @@ def scheduled_message_worker():
                     if row["target_chat_id"]:
                         targets.append(row["target_chat_id"])
                     else: # Se for para todos (broadcast)
-                        cur.execute("SELECT id FROM users WHERE is_active = TRUE")
+                        # Assumo que 'is_active' existe na tabela 'users'
+                        if isinstance(conn, sqlite3.Connection):
+                            cur.execute("SELECT id FROM users WHERE is_active = 1")
+                        else:
+                            cur.execute("SELECT id FROM users WHERE is_active = TRUE")
                         all_users = cur.fetchall()
                         targets = [u["id"] for u in all_users]
 
                     print(f"DEBUG WORKER: A mensagem {row['id']} será enviada para {len(targets)} usuários.")
                     
-                    sent_successfully = False
+                    sent_successfully = False # Inicialize sent_successfully para cada mensagem
                     for chat_id in targets:
                         try:
                             if row["image_url"]:
@@ -1683,13 +1640,20 @@ def scheduled_message_worker():
                             sent_successfully = True # Marca como sucesso se enviar para pelo menos um
                         except Exception as e:
                             print(f"ERRO WORKER: Falha ao enviar msg {row['id']} para o chat {chat_id}: {e}")
+                            traceback.print_exc()
                     
                     # Atualiza o status da mensagem para 'sent' ou 'failed'
-                    final_status = 'sent' if sent_successfully else 'failed'
-                    cur.execute(
-                        "UPDATE scheduled_messages SET status=%s, sent_at=NOW() WHERE id=%s",
-                        (final_status, row["id"]),
-                    )
+                    final_status = 'sent' if sent_successfully else 'failed' # Definir final_status aqui
+                    if isinstance(conn, sqlite3.Connection):
+                        cur.execute(
+                            "UPDATE scheduled_messages SET status=?, sent_at=DATETIME('now') WHERE id=?",
+                            (final_status, row["id"]),
+                        )
+                    else:
+                        cur.execute(
+                            "UPDATE scheduled_messages SET status=%s, sent_at=NOW() WHERE id=%s",
+                            (final_status, row["id"]),
+                        )
                     print(f"DEBUG WORKER: Mensagem ID {row['id']} atualizada para status '{final_status}'.")
             
             # Commit das alterações no final de cada ciclo bem-sucedido
@@ -1717,7 +1681,7 @@ def send_welcome(message):
     get_or_register_user(message.from_user)
 
     conn = None
-    welcome_message_text = "Olá, {first_name}! Bem-vindo(a) ao bot!"
+    welcome_message_text = "Olá, {first_name}! Bem-vindo(a) ao bot!" # Valor padrão para fallback
     try:
         conn = get_db_connection()
         if conn:
@@ -1729,10 +1693,10 @@ def send_welcome(message):
                 else:
                     cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_bot',))
                 row = cur.fetchone()
-                if row:
+                if row and row['value']: # Verifica se row não é None e se 'value' existe e não é vazio
                     welcome_message_text = row['value']
     except Exception as e:
-        print(f"ERRO ao carregar mensagem de boas-vindas: {e}")
+        print(f"ERRO ao carregar mensagem de boas-vindas do bot: {e}")
         traceback.print_exc()
     finally:
         if conn: conn.close()
