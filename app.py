@@ -851,10 +851,10 @@ def editar_produto(produto_id):
                     return redirect(url_for('produtos'))
 
                 return render_template('edit_product.html',
-                                         produto=produto,
-                                         nome_val=produto['nome'],
-                                         preco_val=f"{produto['preco']:.2f}",
-                                         link_val=produto['link'])
+                                       produto=produto,
+                                       nome_val=produto['nome'],
+                                       preco_val=f"{produto['preco']:.2f}",
+                                       link_val=produto['link'])
 
     except Exception as e:
         print(f"ERRO EDIT PRODUTO: Falha ao editar produto: {e}")
@@ -1550,6 +1550,10 @@ def config_messages():
     print(f"DEBUG CONFIG_MESSAGES: Requisição para /config_messages. Method: {request.method}")
 
     conn = None
+    # Inicializa as variáveis com valores padrão antes do bloco try
+    welcome_message_bot = 'Olá, {first_name}! Bem-vindo(a) ao bot!'
+    welcome_message_community = 'Bem-vindo(a) à nossa comunidade, {first_name}!'
+
     try:
         conn = get_db_connection()
         if conn is None:
@@ -1560,34 +1564,45 @@ def config_messages():
         with conn:
             cur = conn.cursor()
             if request.method == 'POST':
-                welcome_bot_message = request.form.get('welcome_message_bot')
-                welcome_community_message = request.form.get('welcome_message_community')
+                # Pega os valores do formulário. Se não vierem, serão None.
+                welcome_bot_message_form = request.form.get('welcome_message_bot')
+                welcome_community_message_form = request.form.get('welcome_message_community')
 
-                if welcome_bot_message is not None:
+                # Atualiza os valores das variáveis locais para refletir o que foi submetido,
+                # para que sejam passadas corretamente ao template em caso de redirecionamento ou re-render
+                welcome_message_bot = welcome_bot_message_form if welcome_bot_message_form is not None else welcome_message_bot
+                welcome_community_message = welcome_community_message_form if welcome_community_message_form is not None else welcome_message_community
+
+                if welcome_bot_message_form is not None:
                     if is_sqlite:
                         cur.execute(
                             "INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value;",
-                            ('welcome_message_bot', welcome_bot_message)
+                            ('welcome_message_bot', welcome_bot_message_form)
                         )
                     else:
                         cur.execute(
                             "INSERT INTO config (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;",
-                            ('welcome_message_bot', welcome_bot_message)
+                            ('welcome_message_bot', welcome_bot_message_form)
                         )
-                if welcome_community_message is not None:
+                
+                if welcome_community_message_form is not None:
                     if is_sqlite:
                         cur.execute(
                             "INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value;",
-                            ('welcome_message_community', welcome_community_message)
+                            ('welcome_message_community', welcome_community_message_form)
                         )
                     else:
                         cur.execute(
                             "INSERT INTO config (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;",
-                            ('welcome_message_community', welcome_community_message)
+                            ('welcome_message_community', welcome_community_message_form)
                         )
+                
                 flash('Configurações de mensagens atualizadas com sucesso!', 'success')
+                # O redirecionamento força um novo GET, o que é bom para recarregar as configs
                 return redirect(url_for('config_messages'))
 
+            # Lógica para GET request (ou fallback após POST se não houver redirect)
+            # Busca as configurações atuais do banco de dados
             if is_sqlite:
                 cur.execute("SELECT key, value FROM config WHERE key IN (?, ?)", ('welcome_message_bot', 'welcome_message_community'))
             else:
@@ -1595,9 +1610,12 @@ def config_messages():
             configs_raw = cur.fetchall()
             configs = {row['key']: row['value'] for row in configs_raw}
 
+            # Atribui os valores das configurações buscadas, usando defaults se não encontrados
             welcome_message_bot = configs.get('welcome_message_bot', 'Olá, {first_name}! Bem-vindo(a) ao bot!')
             welcome_message_community = configs.get('welcome_message_community', 'Bem-vindo(a) à nossa comunidade, {first_name}!')
 
+            # Agora, as variáveis welcome_message_bot e welcome_message_community
+            # sempre terão um valor (do DB ou o padrão) antes de renderizar o template.
             return render_template(
                 'config_messages.html',
                 welcome_message_bot=welcome_message_bot,
@@ -1608,7 +1626,12 @@ def config_messages():
         print(f"ERRO CONFIG_MENSAGENS: Falha ao carregar/salvar configurações de mensagens: {e}")
         traceback.print_exc()
         flash('Erro ao carregar/salvar configurações de mensagens.', 'danger')
-        return redirect(url_for('index'))
+        # Em caso de erro, ainda tenta renderizar com os valores padrão ou os últimos conhecidos
+        return render_template(
+            'config_messages.html',
+            welcome_message_bot=welcome_message_bot, # Garante que a variável exista
+            welcome_message_community=welcome_community_message # Garante que a variável exista
+        )
     finally:
         if conn: conn.close()
 
