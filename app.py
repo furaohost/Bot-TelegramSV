@@ -5,7 +5,7 @@ from telebot import types
 import traceback
 import time as time_module
 from datetime import datetime, timedelta, time
-from threading import Thread 
+from threading import Thread
 import sqlite3
 import base64
 import json
@@ -33,11 +33,11 @@ import pagamentos
 # Importa os módulos de handlers e blueprints
 from bot.utils.keyboards import confirm_18_keyboard, menu_principal
 from bot.handlers.chamadas import register_chamadas_handlers
-from bot.handlers.comunidades import register_comunidades_handlers 
+from bot.handlers.comunidades import register_comunidades_handlers
 
 from bot.handlers.conteudos import register_conteudos_handlers
-from bot.handlers.produtos import register_produtos_handlers 
-from web.routes.comunidades import comunidades_bp 
+from bot.handlers.produtos import register_produtos_handlers
+from web.routes.comunidades import comunidades_bp
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -88,7 +88,7 @@ def get_or_register_user(user: types.User):
             return
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn: 
+        with conn:
             cur = conn.cursor()
 
             cur.execute("SELECT id, is_active FROM users WHERE id = %s" if not is_sqlite else "SELECT id, is_active FROM users WHERE id = ?", (user.id,))
@@ -96,7 +96,7 @@ def get_or_register_user(user: types.User):
 
             if db_user is None:
                 cur.execute("INSERT INTO users (id, username, first_name, last_name, is_active) VALUES (%s, %s, %s, %s, %s)" if not is_sqlite else "INSERT INTO users (id, username, first_name, last_name, is_active) VALUES (?, ?, ?, ?, ?)",
-                             (user.id, user.username, user.first_name, user.last_name, True))
+                            (user.id, user.username, user.first_name, user.last_name, True))
                 print(f"DEBUG DB: Novo utilizador registado: {user.username or user.first_name} (ID: {user.id})")
             else:
                 if not db_user['is_active']:
@@ -159,7 +159,7 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
     venda_id = None
     try:
         conn = get_db_connection()
-        if conn is None: 
+        if conn is None:
             bot.send_message(chat_id, "Ocorreu um erro interno ao conectar ao banco de dados para gerar cobrança.")
             return
 
@@ -179,12 +179,12 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
             data_venda = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             if is_sqlite:
                 cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (?, ?, ?, ?, ?)",
-                             (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
+                            (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
                 cur.execute("SELECT last_insert_rowid()")
                 venda_id = cur.fetchone()[0]
             else:
                 cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                             (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
+                            (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
                 venda_id = cur.fetchone()[0]
 
             pagamento = pagamentos.criar_pagamento_pix(produto=produto, user=call.from_user, venda_id=venda_id)
@@ -249,9 +249,9 @@ register_chamadas_handlers(bot, get_db_connection)
 register_comunidades_handlers(bot, get_db_connection)
 
 register_conteudos_handlers(bot, get_db_connection)
-register_produtos_handlers(bot, get_db_connection) 
+register_produtos_handlers(bot, get_db_connection)
 
-app.register_blueprint(comunidades_bp, url_prefix='/') 
+app.register_blueprint(comunidades_bp, url_prefix='/')
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -295,6 +295,13 @@ def telegram_webhook():
     if request.headers.get('content-type') == 'application/json':
         json_str = request.get_data().decode('utf-8')
         update = types.Update.de_json(json_str)
+        # ADICIONEI ESTAS LINHAS DE LOG (se não estiverem, adicione-as novamente):
+        print(f"DEBUG WEBHOOK: Recebido update: {update}") # Isso vai logar a atualização completa
+        if update.message: # Se for uma mensagem de texto
+            print(f"DEBUG WEBHOOK MESSAGE: Texto da mensagem: '{update.message.text}'") # Loga o texto da mensagem
+        if update.callback_query: # Se for um clique de botão inline
+            print(f"DEBUG WEBHOOK CALLBACK: Callback data: '{update.callback_query.data}'") # Loga o callback data
+        
         bot.process_new_updates([update])
         return '!', 200
     else:
@@ -356,7 +363,7 @@ def webhook_mercado_pago():
                         payer_name = f"{payer_info.get('first_name', '')} {payer_info.get('last_name', '')}".strip()
                         payer_email = payer_info.get('email')
                         cur.execute('UPDATE vendas SET status = %s, payment_id = %s, payer_name = %s, payer_email = %s WHERE id = %s' if not is_sqlite else 'UPDATE vendas SET status = ?, payment_id = ?, payer_name = ?, payer_email = ? WHERE id = ?',
-                                     ('aprovado', payment_id, payer_name, payer_email, venda_id))
+                                    ('aprovado', payment_id, payer_name, payer_email, venda_id))
 
                         cur.execute('SELECT * FROM produtos WHERE id = %s' if not is_sqlite else 'SELECT * FROM produtos WHERE id = ?', (venda['produto_id'],))
                         produto = cur.fetchone()
@@ -793,7 +800,7 @@ def produtos():
 def editar_produto(produto_id):
     """
     Route to edit an existing product.
-    Accessible only to logged-in users.
+    Only accessible for logged-in users.
     """
     print(f"DEBUG EDITAR_PRODUTO: Requisição para /editar_produto/{produto_id}. Method: {request.method}")
 
@@ -864,7 +871,7 @@ def editar_produto(produto_id):
 def deletar_produto(produto_id):
     """
     Route to delete a product from the database.
-    Accessible only to logged-in users.
+    Only accessible for logged-in users.
     """
     print(f"DEBUG DELETAR_PRODUTO: Requisição para /deletar_produto/{produto_id}. Method: {request.method}")
 
@@ -1423,7 +1430,7 @@ def delete_scheduled_message(message_id):
 @app.route('/cancel_cloned_message/<int:message_id>', methods=['GET'])
 def cancel_cloned_message(message_id):
     """
-    Rota especial para deletar uma mensagem que foi clonada mas não será usada.
+    Ruta especial para deletar una mensahe que fue clonada pero no sera usada.
     """
     print(f"DEBUG CANCEL_CLONE: Requisição para cancelar e deletar o clone ID {message_id}.")
     conn = None
@@ -1439,7 +1446,7 @@ def cancel_cloned_message(message_id):
     finally:
         if conn:
             conn.close()
-    
+            
     return redirect(url_for('scheduled_messages'))
 
 @app.route('/send_broadcast', methods=['GET', 'POST'])
@@ -1594,11 +1601,11 @@ def config_messages():
             return render_template(
                 'config_messages.html',
                 welcome_message_bot=welcome_message_bot,
-                welcome_message_community=welcome_message_community
+                welcome_message_community=welcome_community_message
             )
 
     except Exception as e:
-        print(f"ERRO CONFIG_MESSAGES: Falha ao carregar/salvar configurações de mensagens: {e}")
+        print(f"ERRO CONFIG_MENSAGENS: Falha ao carregar/salvar configurações de mensagens: {e}")
         traceback.print_exc()
         flash('Erro ao carregar/salvar configurações de mensagens.', 'danger')
         return redirect(url_for('index'))
