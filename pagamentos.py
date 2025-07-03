@@ -79,13 +79,30 @@ def criar_pagamento_pix(produto, user, venda_id):
     print(f"DEBUG MP: Montando payload de pagamento para o produto '{produto.get('nome', 'N/A')}' (ID: {produto.get('id', 'N/A')}).")
     print(f"DEBUG MP: Notification URL para MP: {notification_url}")
 
-    # Validação do preço do produto para evitar erros na API do Mercado Pago
-    if not isinstance(produto.get('preco'), (int, float)) or float(produto.get('preco', 0)) <= 0:
-        print(f"[ERRO MP] Preço do produto inválido ou negativo: {produto.get('preco')}. Deve ser um número positivo.")
+    # --- ADICIONANDO LOGS PARA DEPURAR O PREÇO E TENTANDO CONVERSÃO ROBUSTA ---
+    preco_raw = produto.get('preco')
+    print(f"DEBUG MP: Valor bruto do preço: '{preco_raw}' (Tipo: {type(preco_raw)})")
+
+    transaction_amount = None # Inicializa para garantir que sempre tenha um valor
+
+    try:
+        # Tenta substituir vírgula por ponto se for string (formato BR)
+        if isinstance(preco_raw, str):
+            transaction_amount = float(preco_raw.replace(',', '.'))
+        else:
+            transaction_amount = float(preco_raw)
+
+        if transaction_amount <= 0:
+            print(f"[ERRO MP] Preço do produto inválido ou negativo após conversão: {transaction_amount}. Deve ser um número positivo.")
+            return None
+    except (ValueError, TypeError) as e:
+        print(f"[ERRO MP] Não foi possível converter o preço '{preco_raw}' para um número válido: {e}")
+        traceback.print_exc()
         return None
 
-    # Converte o preço para float para garantir o formato correto exigido pelo Mercado Pago
-    transaction_amount = float(produto['preco'])
+    # Se transaction_amount ainda for None aqui, significa que a conversão falhou
+    if transaction_amount is None:
+        return None
 
     # Dados do pagamento conforme a documentação do Mercado Pago (para PIX)
     # Inclui informações do pagador e do item para melhor qualidade da transação.
