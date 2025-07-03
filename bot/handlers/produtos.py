@@ -8,22 +8,23 @@ from psycopg2.extras import RealDictCursor # Importar RealDictCursor para Postgr
 import sqlite3 # Importar sqlite3 para verificar tipo de conexão
 from datetime import datetime
 import pagamentos
-import logging # Importar logging
+import logging
 
-# É crucial que `generar_cobranca` seja importada de `app` se ela estiver definida lá globalmente
-# conforme o seu `app.py` mais recente.
-from app import generar_cobranca as app_generar_cobranca 
+# IMPORTANTE: REMOVER A LINHA ABAIXO se existia, para evitar importação circular
+# from app import generar_cobranca as app_generar_cobranca 
 
 # Configuração de logging para este módulo
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG) # Nível de debug para ver logs detalhados
 
-def register_produtos_handlers(bot_instance: telebot.TeleBot, get_db_connection_func):
+# ADICIONADA generar_cobranca_func como argumento na definição da função
+def register_produtos_handlers(bot_instance: telebot.TeleBot, get_db_connection_func, generar_cobranca_func):
     """
     Registra os manipuladores (handlers) de comandos relacionados a produtos no bot.
     Args:
         bot_instance (telebot.TeleBot): A instância do bot.
         get_db_connection_func (function): Função para obter a conexão do DB.
+        generar_cobranca_func (function): Função para gerar cobrança (recebida de app.py).
     """
 
     def mostrar_produtos_bot(chat_id):
@@ -95,8 +96,8 @@ def register_produtos_handlers(bot_instance: telebot.TeleBot, get_db_connection_
         logger.debug(f"Callback de compra acionado: {call.data}")
         try:
             produto_id = int(call.data.split('_')[1])
-            # Chama a função generar_cobranca definida no app.py
-            app_generar_cobranca(call, produto_id) 
+            # CHAMA A FUNÇÃO GENERAR_COBRANCA PASSADA COMO ARGUMENTO
+            generar_cobranca_func(call, produto_id) 
         except Exception as e:
             bot_instance.answer_callback_query(call.id, "Erro ao processar a compra.")
             logger.error(f"Erro em handle_buy_callback: {e}", exc_info=True)
