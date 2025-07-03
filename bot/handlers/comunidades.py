@@ -3,62 +3,64 @@ from telebot import types
 import sqlite3 
 import traceback 
 import logging
-from bot.services.comunidades import ComunidadeService 
+# NÃO PRECISAMOS MAIS DO ComunidadeService AQUI PARA O HANDLER DE BOAS-VINDAS
+# from bot.services.comunidades import ComunidadeService 
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 user_states = {} 
 
-# AQUI ESTÃO OS HANDLERS DE COMANDO, eles são definidos dentro de register_comunidades_handlers
-# e não serão movidos para fora porque dependem de 'bot_instance' e 'comunidade_svc' serem passados.
+# --- Funções Auxiliares (mantidas para manter a estrutura e comandos existentes) ---
+# Seus handlers de /nova_comunidade, /editar_comunidade, /deletar_comunidade ainda dependem de ComunidadeService.
+# Então, o ComunidadeService será inicializado dentro de register_comunidades_handlers para esses comandos.
 
-# No entanto, o handler de new_chat_members pode ter um tratamento ligeiramente diferente
-# para garantir que ele seja sempre registrado.
+def _send_comunidades_list(bot_instance, comunidade_service, chat_id):
+    comunidades = comunidade_service.listar() 
 
-# A função handle_new_chat_members será definida *fora* do register_comunidades_handlers
-# para que possa ser registrada diretamente no bot_instance.
-# Para isso, ela precisará de acesso a 'comunidade_svc' e 'get_db_connection_func'
-# que são criados *dentro* de 'register_comunidades_handlers'.
+    if not comunidades:
+        bot_instance.send_message(chat_id, "Nenhuma comunidade encontrada.")
+        logger.info("Nenhuma comunidade encontrada no DB.")
+        return
 
-# A MELHOR FORMA (e mais limpa) é fazer com que `register_comunidades_handlers`
-# receba apenas o `bot_instance` e o `get_db_connection_func`,
-# e use o `comunidade_svc` E DEPOIS DEFINA OS HANDLERS.
-# Parece que você já tem isso.
-
-# O problema é a visibilidade do `sqlite3` dentro do handler aninhado, e a forma como o `telebot` registra.
-# A solução mais robusta é usar o `telebot.TeleBot` para registrar os handlers.
-
-# Vamos garantir que os módulos necessários (como `sqlite3`) estejam importados onde são usados.
-# O `sqlite3` já está importado no topo deste arquivo, então o `NameError` anterior era estranho.
-# Isso sugere um problema de deploy/cache ou uma versão antiga do arquivo em produção.
-
-# Vamos forçar a definição do handler de new_chat_members para ser bem explícita.
-
-# Funções que serão registradas como handlers. Elas recebem 'comunidade_svc' e 'get_db_connection_func'
-# como argumentos para que possam ser testadas isoladamente ou usadas de forma flexível.
+    response_text = "*Comunidades Cadastradas:*\n\n" 
+    for idx, com in enumerate(comunidades):
+        response_text += (
+            f"*{idx+1}. {com['nome']}*\n"
+            f"   ID: `{com['id']}`\n"
+            f"   Descrição: {com['descricao'] or 'N/A'}\n"
+            f"   Chat ID: `{com['chat_id'] or 'N/A'}`\n\n"
+        )
+    
+    bot_instance.send_message(chat_id, response_text, parse_mode="Markdown")
+    logger.debug(f"Comunidades enviadas para {chat_id}.")
 
 # Essa é a função que será decorada e atuará como o handler para new_chat_members
-def _handle_new_chat_members(message: types.Message, bot_instance: telebot.TeleBot, comunidade_service: ComunidadeService, get_db_connection_func):
+# Ela precisará de acesso ao bot_instance e ao get_db_connection_func diretamente,
+# e não mais ao comunidade_service para a lógica de boas-vindas.
+def _handle_new_chat_members(message: types.Message, bot_instance: telebot.TeleBot, get_db_connection_func):
     chat_id = message.chat.id
     
+    # 1. Ignorar mensagens de entrada do próprio bot se ele for adicionado
     if message.new_chat_members and bot_instance.get_me().id in [user.id for user in message.new_chat_members]:
         logger.debug(f"Bot foi adicionado ao chat {chat_id}. Ignorando mensagem de boas-vindas para o bot.")
         return
 
+    # 2. Ignorar se não for um grupo ou supergrupo
     if message.chat.type not in ['group', 'supergroup']:
         logger.debug(f"Nova entrada de membro em chat {message.chat.type}. Ignorando pois não é grupo/supergrupo.")
         return
 
-    logger.debug(f"Novo(s) membro(s) detectado(s) no chat ID: {chat_id}")
+    logger.debug(f"Novo(s) membro(s) detectado(s) no chat ID: {chat_id} para enviar boas-vindas a qualquer grupo admin.")
 
-    welcome_message_community = "Bem-vindo(a) à nossa comunidade, {first_name}!" 
+    # 3. Obter a mensagem de boas-vindas da comunidade do banco de dados (tabela config)
+    welcome_message_community = "Bem-vindo(a) à nossa comunidade, {first_name}!" # Valor padrão
 
     conn = None
     try:
         conn = get_db_connection_func() 
         if conn:
-            is_sqlite_conn = isinstance(conn, sqlite3.Connection) # sqlite3 já está importado no topo
+            is_sqlite_conn = isinstance(conn, sqlite3.Connection)
             
             with conn:
                 cur = conn.cursor() 
@@ -81,16 +83,20 @@ def _handle_new_chat_members(message: types.Message, bot_instance: telebot.TeleB
         if conn:
             conn.close()
 
-    comunidade = comunidade_service.obter_por_chat_id(chat_id) 
-    
-    if not comunidade: 
-        logger.debug(f"Chat ID {chat_id} não é uma comunidade registrada. Não enviando mensagem de boas-vindas.")
-        return 
+    # 4. Não há mais verificação de `comunidade.obter_por_chat_id` aqui.
+    # A mensagem será enviada se o bot for admin e o tipo de chat for grupo/supergrupo.
 
+    # 5. Enviar a mensagem para cada novo membro
     for user in message.new_chat_members:
         if user.is_bot: 
             logger.debug(f"Ignorando bot '{user.first_name}' (ID: {user.id}) adicionado ao grupo.")
             continue
+
+        # Nota: Não está mais registrando o usuário no DB aqui automaticamente,
+        # pois a lógica de get_or_register_user está em app.py para /start.
+        # Se você quiser registrar usuários que entram em grupos (não apenas por /start),
+        # precisaria chamar get_or_register_user aqui e importá-la de app.py,
+        # o que traria de volta o risco de importação circular se não for feito com cuidado.
 
         formatted_message = welcome_message_community.format(
             first_name=user.first_name,
@@ -113,7 +119,10 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
         bot_instance (telebot.TeleBot): A instância do bot.
         get_db_connection_func (function): Função para obter a conexão do DB.
     """
+    # Importar ComunidadeService aqui dentro para evitar importação circular no topo
+    from bot.services.comunidades import ComunidadeService 
     comunidade_svc = ComunidadeService(get_db_connection_func)
+
 
     # ------------------------------------------------------------------
     # COMANDO /nova_comunidade
@@ -210,29 +219,6 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
         chat_id = message.chat.id
         logger.debug(f"Handler do botão 'Comunidades' acionado. Mensagem: {message.text}")
         _send_comunidades_list(bot_instance, comunidade_svc, chat_id)
-
-    # ------------------------------------------------------------------
-    # FUNÇÃO AUXILIAR PARA ENVIAR A LISTA DE COMUNIDADES (REUTILIZÁVEL)
-    # ------------------------------------------------------------------
-    def _send_comunidades_list(bot_instance, comunidade_service, chat_id):
-        comunidades = comunidade_service.listar() 
-
-        if not comunidades:
-            bot_instance.send_message(chat_id, "Nenhuma comunidade encontrada.")
-            logger.info("Nenhuma comunidade encontrada no DB.")
-            return
-
-        response_text = "*Comunidades Cadastradas:*\n\n" 
-        for idx, com in enumerate(comunidades):
-            response_text += (
-                f"*{idx+1}. {com['nome']}*\n"
-                f"   ID: `{com['id']}`\n"
-                f"   Descrição: {com['descricao'] or 'N/A'}\n"
-                f"   Chat ID: `{com['chat_id'] or 'N/A'}`\n\n" # Confere se com['chat_id'] tem o valor
-            )
-        
-        bot_instance.send_message(chat_id, response_text, parse_mode="Markdown")
-        logger.debug(f"Comunidades enviadas para {chat_id}.")
 
     # ------------------------------------------------------------------
     # COMANDO /editar_comunidade
@@ -476,10 +462,97 @@ def register_comunidades_handlers(bot_instance: telebot.TeleBot, get_db_connecti
                 del user_states[chat_id]
 
     # ------------------------------------------------------------------
-    # NOVO HANDLER: Entrada de novos membros em grupos
+    # AGORA O HANDLER DE NEW_CHAT_MEMBERS ESTÁ AQUI, DENTRO DE register_comunidades_handlers
+    # PARA TER ACESSO DIRETO AO bot_instance E get_db_connection_func.
+    # ISSO É CRÍTICO para a nova abordagem.
     # ------------------------------------------------------------------
-    # AQUI DEFINIMOS O HANDLER DE FATO, usando uma função anônima (lambda)
-    # que chama nossa função auxiliar _handle_new_chat_members com os argumentos necessários.
     @bot_instance.message_handler(content_types=['new_chat_members'])
-    def handle_new_chat_members_wrapper(message: types.Message):
-        _handle_new_chat_members(message, bot_instance, comunidade_svc, get_db_connection_func)
+    def handle_new_chat_members(message: types.Message):
+        chat_id = message.chat.id
+        
+        # 1. Ignorar mensagens de entrada do próprio bot se ele for adicionado
+        if message.new_chat_members and bot_instance.get_me().id in [user.id for user in message.new_chat_members]:
+            logger.debug(f"Bot foi adicionado ao chat {chat_id}. Ignorando mensagem de boas-vindas para o bot.")
+            return
+
+        # 2. Ignorar se não for um grupo ou supergrupo
+        if message.chat.type not in ['group', 'supergroup']:
+            logger.debug(f"Nova entrada de membro em chat {message.chat.type}. Ignorando pois não é grupo/supergrupo.")
+            return
+
+        # NEW APPROACH: Do not check `comunidade_svc.obter_por_chat_id`
+        # Instead, check if the bot is an admin in this chat.
+        # This will send the welcome message to ANY group where the bot is admin.
+        
+        try:
+            # Check if the bot is an administrator in the current chat
+            chat_member = bot_instance.get_chat_member(chat_id, bot_instance.get_me().id)
+            if not chat_member.status in ['administrator', 'creator']:
+                logger.debug(f"Bot não é administrador no chat {chat_id}. Não enviando mensagem de boas-vindas.")
+                return # Bot is not admin, so don't send welcome message.
+            
+            # Additional check: Does the bot have permission to send messages?
+            if chat_member.status == 'administrator' and not chat_member.can_post_messages:
+                logger.warning(f"Bot é administrador no chat {chat_id} mas não tem permissão para enviar mensagens. Não enviando boas-vindas.")
+                return # Bot is admin, but can't send messages.
+
+        except Exception as e:
+            logger.error(f"Erro ao verificar status de administrador do bot no chat {chat_id}: {e}", exc_info=True)
+            # Continua a execução ou retorna, dependendo se quer que o erro impeça a mensagem.
+            # Por segurança, vamos retornar para não enviar a mensagem se não pudermos verificar o status.
+            return
+
+
+        logger.debug(f"Novo(s) membro(s) detectado(s) no chat ID: {chat_id} (Bot é admin).")
+
+        # 3. Obter a mensagem de boas-vindas da comunidade do banco de dados (tabela config)
+        welcome_message_community = "Bem-vindo(a) à nossa comunidade, {first_name}!" # Valor padrão
+
+        conn = None
+        try:
+            conn = get_db_connection_func() 
+            if conn:
+                is_sqlite_conn = isinstance(conn, sqlite3.Connection)
+                
+                with conn:
+                    cur = conn.cursor() 
+
+                    if is_sqlite_conn:
+                        cur.execute("SELECT value FROM config WHERE key = ?", ('welcome_message_community',))
+                    else:
+                        cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_community',))
+                    row = cur.fetchone()
+                    if row and row['value']:
+                        welcome_message_community = row['value']
+                        logger.debug(f"Mensagem de boas-vindas do DB carregada: '{welcome_message_community}'")
+                    else:
+                        logger.info(f"'welcome_message_community' não encontrada ou vazia no DB. Usando padrão.")
+            else:
+                logger.error(f"Não foi possível obter conexão com o DB para carregar welcome_message_community.")
+        except Exception as e:
+            logger.error(f"Falha ao carregar welcome_message_community do DB: {e}", exc_info=True)
+        finally:
+            if conn:
+                conn.close()
+
+        # 4. Enviar a mensagem para cada novo membro
+        for user in message.new_chat_members:
+            if user.is_bot: 
+                logger.debug(f"Ignorando bot '{user.first_name}' (ID: {user.id}) adicionado ao grupo.")
+                continue
+
+            # Opcional: registrar/atualizar o usuário no DB quando ele entra no grupo.
+            # from app import get_or_register_user # Importar de app.py se a função for global lá
+            # get_or_register_user(user) 
+
+            formatted_message = welcome_message_community.format(
+                first_name=user.first_name,
+                last_name=user.last_name or '',
+                username=user.username or 'usuário'
+            )
+            
+            try:
+                bot_instance.send_message(chat_id, formatted_message, parse_mode='Markdown')
+                logger.debug(f"Mensagem de boas-vindas enviada para {user.first_name} (ID: {user.id}) no chat {chat_id}.")
+            except Exception as e:
+                logger.error(f"Falha ao enviar mensagem de boas-vindas para {user.first_name} (ID: {user.id}) no chat {chat_id}: {e}", exc_info=True)
