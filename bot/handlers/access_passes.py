@@ -4,6 +4,7 @@ from telebot import types
 from database import get_db_connection
 import pagamentos  # Reutilizaremos a função de criar PIX
 import traceback
+import base64 # Para decodificar o QR Code
 
 def register_access_pass_handlers(bot):
     """Registra todos os handlers relacionados aos Passes de Acesso."""
@@ -85,12 +86,16 @@ def register_access_pass_handlers(bot):
             )
 
             if payment_info and 'point_of_interaction' in payment_info:
-                # Lógica para enviar o QR Code e o código PIX (igual à de produtos)
                 qr_code_base64 = payment_info['point_of_interaction']['transaction_data']['qr_code_base64']
                 qr_code_data = payment_info['point_of_interaction']['transaction_data']['qr_code']
-                # ... (resto da sua lógica de envio do PIX)
-                bot.send_message(chat_id, f"✅ PIX gerado para *{pass_item['name']}*!", parse_mode='Markdown')
-                bot.send_message(chat_id, qr_code_data)
+                qr_code_image = base64.b64decode(qr_code_base64)
+
+                caption_text = (
+                    f"✅ PIX gerado para *{pass_item['name']}*!\n\n"
+                    "Escaneie o QR Code acima ou copie o código completo na próxima mensagem."
+                )
+                bot.send_photo(chat_id, qr_code_image, caption=caption_text, parse_mode='Markdown')
+                bot.send_message(chat_id, f"`{qr_code_data}`", parse_mode='Markdown') # Envia o código em um bloco de código
                 bot.send_message(chat_id, "Seu acesso será liberado assim que o pagamento for confirmado.")
             else:
                 bot.send_message(chat_id, "😕 Desculpe, não foi possível gerar o seu pagamento PIX no momento.")
@@ -103,4 +108,3 @@ def register_access_pass_handlers(bot):
         finally:
             if conn:
                 conn.close()
-

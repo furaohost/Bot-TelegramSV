@@ -42,7 +42,7 @@ def criar_pagamento_pix(produto, user, venda_id):
         return None
     payment_data = {
         'transaction_amount': transaction_amount, 'payment_method_id': 'pix',
-        'payer': {'email': f"user_{user.id}@telegram.user", 'first_name': user.first_name or "Comprador", 'last_name': user.last_name or "Bot"},
+        'payer': {'email': f"user.{user.id}@example.com", 'first_name': user.first_name or "Comprador", 'last_name': user.last_name or "Bot"},
         'notification_url': notification_url, 'external_reference': str(venda_id), 'description': f"Venda de: {produto.get('nome', 'Produto Digital')}"
     }
     try:
@@ -160,5 +160,4 @@ def verificar_assinatura_mp(subscription_id):
     except Exception as e:
         print(f"ERRO CRÍTICO ao verificar assinatura no MP: {e}")
         return None
-    
     
