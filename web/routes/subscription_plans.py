@@ -2,16 +2,16 @@
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from database import get_db_connection
+import pagamentos  # Importa o nosso módulo de pagamentos
 import traceback
 
-# Cria um novo Blueprint para organizar as rotas de planos
 plans_bp = Blueprint('plans', __name__, template_folder='../templates')
 
 @plans_bp.route('/subscription-plans', methods=['GET', 'POST'])
 def list_plans():
     """
-    Rota para listar os planos de assinatura existentes e
-    adicionar novos planos.
+    Rota para listar os planos de assinatura e criar novos,
+    agora integrada com o Mercado Pago.
     """
     conn = None
     try:
@@ -21,38 +21,50 @@ def list_plans():
         if request.method == 'POST':
             name = request.form.get('name')
             description = request.form.get('description')
-            price = request.form.get('price')
-            frequency = request.form.get('frequency')
+            price = float(request.form.get('price'))
+            frequency = int(request.form.get('frequency'))
             frequency_type = request.form.get('frequency_type')
-            community_id = request.form.get('community_id')
+            community_id = int(request.form.get('community_id'))
 
             if not all([name, price, frequency, frequency_type, community_id]):
                 flash('Todos os campos são obrigatórios.', 'danger')
                 return redirect(url_for('plans.list_plans'))
 
-            # TODO: Futuramente, aqui entrará a lógica para criar o plano no Mercado Pago
-            # e salvar o mercadopago_plan_id. Por enquanto, salvamos como NULL.
+            # ETAPA 1: Criar o plano no Mercado Pago
+            plan_data_for_mp = {
+                "name": name,
+                "price": price,
+                "frequency": frequency,
+                "frequency_type": frequency_type
+            }
+            mp_plan_response = pagamentos.criar_plano_de_assinatura_mp(plan_data_for_mp)
+
+            # Verifica se a criação no MP falhou
+            if not mp_plan_response or 'id' not in mp_plan_response:
+                flash('Falha ao criar o plano no Mercado Pago. Verifique os logs do servidor.', 'danger')
+                return redirect(url_for('plans.list_plans'))
             
+            mercadopago_plan_id = mp_plan_response['id']
+
+            # ETAPA 2: Salvar o plano no nosso banco de dados com o ID do MP
             with conn.cursor() as cur:
                 cur.execute(
                     """
                     INSERT INTO subscription_plans 
-                    (name, description, price, frequency, frequency_type, community_id)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    (name, description, price, frequency, frequency_type, community_id, mercadopago_plan_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (name, description, float(price), int(frequency), frequency_type, int(community_id))
+                    (name, description, price, frequency, frequency_type, community_id, mercadopago_plan_id)
                 )
             conn.commit()
-            flash('Plano de assinatura criado com sucesso!', 'success')
+            flash(f'Plano de assinatura "{name}" criado com sucesso!', 'success')
             return redirect(url_for('plans.list_plans'))
 
         # Se a requisição for GET, busca os dados para exibir na página
         with conn.cursor() as cur:
-            # Busca os planos já existentes
-            cur.execute("SELECT * FROM subscription_plans ORDER BY created_at DESC")
+            cur.execute("SELECT p.*, c.nome as community_name FROM subscription_plans p LEFT JOIN comunidades c ON p.community_id = c.id ORDER BY p.created_at DESC")
             plans = cur.fetchall()
             
-            # Busca as comunidades para preencher o dropdown do formulário
             cur.execute("SELECT id, nome FROM comunidades ORDER BY nome ASC")
             communities = cur.fetchall()
 

@@ -209,3 +209,117 @@ def verificar_status_pagamento(payment_id):
         print(f"Erro geral ao verificar status do pagamento: {e}")
         traceback.print_exc()
         return None
+    
+# ====================================================================
+# FUNÇÃO PARA CRIAR PLANOS DE ASSINATURA NO MERCADO PAGO
+# ====================================================================
+def criar_plano_de_assinatura_mp(plan_data):
+    """
+    Cria um plano de assinatura recorrente no Mercado Pago.
+    
+    Args:
+        plan_data (dict): Um dicionário com os detalhes do plano.
+                          Ex: {'name': 'Plano VIP', 'price': 49.90, 
+                               'frequency': 1, 'frequency_type': 'months'}
+
+    Returns:
+        dict: A resposta da API do Mercado Pago se for bem-sucedido, ou None se falhar.
+    """
+    sdk = init_mercadopago_sdk()
+    if not sdk:
+        return None
+
+    # O back_url é para onde o usuário é redirecionado após assinar.
+    # O 'reason' é o que aparece na fatura do cliente.
+    # IMPORTANTE: Troque a back_url pela URL do seu bot ou uma página de "obrigado".
+    request_options = {
+        "reason": plan_data['name'],
+        "auto_recurring": {
+            "frequency": plan_data['frequency'],
+            "frequency_type": plan_data['frequency_type'],
+            "transaction_amount": plan_data['price'],
+            "currency_id": "BRL"
+        },
+        "back_url": f"https://t.me/{os.getenv('BOT_USERNAME', 'seu_bot_username')}",
+        "status": "active"
+    }
+
+    try:
+        print(f"DEBUG MP: Enviando dados para criar plano: {request_options}")
+        plan_response = sdk.preapproval_plan().create(request_options)
+        print(f"DEBUG MP: Resposta da API: {plan_response}")
+
+        if plan_response and plan_response.get("status") == 201:
+            print(f"SUCESSO: Plano criado no Mercado Pago com ID: {plan_response['response']['id']}")
+            return plan_response["response"]
+        else:
+            print(f"ERRO: Falha ao criar plano no Mercado Pago. Resposta: {plan_response}")
+            return None
+            
+    except Exception as e:
+        print(f"ERRO CRÍTICO ao criar plano no MP: {e}")
+        traceback.print_exc()
+        return None
+
+# ====================================================================
+# FUNÇÃO PARA CRIAR O LINK DE ASSINATURA PARA O USUÁRIO
+# ====================================================================
+def criar_link_de_assinatura(plan, user):
+    """
+    Cria uma assinatura para um usuário específico com base em um plano pré-aprovado.
+    """
+    sdk = init_mercadopago_sdk()
+    if not sdk:
+        return None
+
+    # Adiciona uma referência externa para ligar a assinatura ao nosso usuário e plano
+    external_reference = f"user:{user.id}_plan:{plan['id']}"
+
+    subscription_data = {
+        "preapproval_plan_id": plan['mercadopago_plan_id'],
+        "reason": plan['name'],
+        "payer_email": f"{user.id}@telegram.user",
+        "back_url": f"https://t.me/{os.getenv('BOT_USERNAME', 'seu_bot_username')}", # Use uma variável de ambiente para o nome do bot
+        "external_reference": external_reference
+    }
+
+    try:
+        print(f"DEBUG MP: Enviando dados para criar assinatura: {subscription_data}")
+        subscription_response = sdk.preapproval().create(subscription_data)
+        print(f"DEBUG MP: Resposta da API de assinatura: {subscription_response}")
+
+        if subscription_response and subscription_response.get("status") == 201:
+            return subscription_response["response"]
+        else:
+            return None
+            
+    except Exception as e:
+        print(f"ERRO CRÍTICO ao criar link de assinatura no MP: {e}")
+        traceback.print_exc()
+        return None
+
+# ====================================================================
+# FUNÇÃO PARA VERIFICAR O STATUS DE UMA ASSINATURA
+# ====================================================================
+def verificar_assinatura_mp(subscription_id):
+    """
+    Busca os detalhes de uma assinatura específica no Mercado Pago.
+    """
+    sdk = init_mercadopago_sdk()
+    if not sdk:
+        return None
+    
+    try:
+        print(f"DEBUG MP: Verificando assinatura com ID: {subscription_id}")
+        subscription_details = sdk.preapproval().get(subscription_id)
+        print(f"DEBUG MP: Detalhes da assinatura recebidos: {subscription_details}")
+
+        if subscription_details and subscription_details.get("status") == 200:
+            return subscription_details["response"]
+        else:
+            return None
+            
+    except Exception as e:
+        print(f"ERRO CRÍTICO ao verificar assinatura no MP: {e}")
+        traceback.print_exc()
+        return None

@@ -1,0 +1,57 @@
+{% extends "layout.html" %}
+
+{% block title %}Gerenciar Assinaturas{% endblock %}
+{% block page_title %}Gerenciar Assinaturas{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2 class="subtitle">Assinaturas de Usuários</h2>
+    <p class="section-description">Acompanhe todas as assinaturas ativas, canceladas e expiradas.</p>
+    
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assinante</th>
+                    <th>Plano</th>
+                    <th>Status</th>
+                    <th>Data de Início</th>
+                    <th>Data de Expiração</th>
+                    <th>Último Pagamento</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if subscriptions %}
+                    {% for sub in subscriptions %}
+                    <tr>
+                        <td>{{ sub.user_first_name or sub.user_username }}</td>
+                        <td>{{ sub.plan_name }}</td>
+                        <td>
+                            <span class="status 
+                                {%- if sub.status == 'active' or sub.status == 'authorized' %} status-success
+                                {%- elif sub.status == 'cancelled' %} status-danger
+                                {%- else %} status-warning {%- endif %}">
+                                {{ sub.status | capitalize }}
+                            </span>
+                        </td>
+                        <td>{{ sub.start_date | datetimeformat }}</td>
+                        <td>{{ sub.expiration_date | datetimeformat }}</td>
+                        <td>{{ sub.last_payment_date | datetimeformat if sub.last_payment_date else 'N/A' }}</td>
+                        <td class="actions-cell">
+                            <a href="#" class="btn-action primary" title="Ver Detalhes"><i class="fas fa-eye"></i></a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-light" style="padding: 2rem;">
+                            Nenhuma assinatura encontrada.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

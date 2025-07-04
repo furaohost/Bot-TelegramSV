@@ -38,6 +38,8 @@ from bot.handlers.conteudos import register_conteudos_handlers
 from bot.handlers.produtos import register_produtos_handlers 
 from web.routes.comunidades import comunidades_bp
 from web.routes.subscription_plans import plans_bp
+from bot.handlers.subscriptions import register_subscription_handlers
+from web.routes.user_subscriptions import subscriptions_bp
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -1656,6 +1658,143 @@ def scheduled_message_worker():
 
         time_module.sleep(60)
 
+# ====================================================================
+# FUNÇÕES AUXILIARES PARA GERENCIAR ASSINATURAS E ACESSO
+# ====================================================================
+
+def manage_community_access(user_id, community_id, should_have_access):
+    """
+    Adiciona ou remove um usuário de uma comunidade no Telegram.
+    """
+    try:
+        if should_have_access:
+            # Tenta "desbanir" o usuário, o que o permite voltar ao grupo/canal.
+            # O link de convite deve ser enviado separadamente.
+            bot.unban_chat_member(community_id, user_id, only_if_banned=True)
+            print(f"ACESSO CONCEDIDO: Acesso para user {user_id} na comunidade {community_id} liberado.")
+            # Envia uma mensagem de boas-vindas ou o link de convite
+            # bot.send_message(user_id, f"Sua assinatura foi ativada! Acesse a comunidade aqui: [LINK_CONVITE]")
+        else:
+            # Expulsa o usuário da comunidade.
+            bot.kick_chat_member(community_id, user_id)
+            print(f"ACESSO REMOVIDO: Acesso para user {user_id} na comunidade {community_id} revogado.")
+            bot.send_message(user_id, "Sua assinatura expirou ou foi cancelada. Seu acesso à comunidade foi removido.")
+    except Exception as e:
+        print(f"ERRO ao gerenciar acesso do user {user_id} na comunidade {community_id}: {e}")
+
+
+def handle_subscription_update(subscription_details):
+    """
+    Atualiza o banco de dados local com base nos detalhes da assinatura do Mercado Pago.
+    """
+    conn = None
+    try:
+        mp_subscription_id = subscription_details['id']
+        status = subscription_details['status']
+        external_reference = subscription_details.get('external_reference')
+
+        if not external_reference:
+            print("ERRO: Notificação de assinatura sem external_reference. Impossível processar.")
+            return
+
+        # Extrai user_id e plan_id da nossa referência
+        parts = external_reference.replace('user:', '').replace('plan:', '').split('_')
+        user_id = int(parts[0])
+        plan_id = int(parts[1])
+
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Busca o plano para saber a qual comunidade ele pertence
+            cur.execute("SELECT * FROM subscription_plans WHERE id = %s", (plan_id,))
+            plan = cur.fetchone()
+            if not plan:
+                print(f"ERRO: Plano com ID {plan_id} não encontrado no banco de dados.")
+                return
+
+            community_id = plan['community_id']
+            
+            # Calcula a data de expiração baseada na frequência do plano
+            now = datetime.now()
+            if plan['frequency_type'] == 'months':
+                expiration_date = now + timedelta(days=plan['frequency'] * 30) # Aproximação
+            else: # days
+                expiration_date = now + timedelta(days=plan['frequency'])
+
+            # Verifica se já existe uma assinatura para este usuário e plano
+            cur.execute("SELECT * FROM user_subscriptions WHERE mercadopago_subscription_id = %s", (mp_subscription_id,))
+            existing_subscription = cur.fetchone()
+
+            if existing_subscription:
+                # Atualiza uma assinatura existente
+                cur.execute(
+                    """
+                    UPDATE user_subscriptions 
+                    SET status = %s, last_payment_date = NOW(), expiration_date = %s
+                    WHERE id = %s
+                    """,
+                    (status, expiration_date, existing_subscription['id'])
+                )
+            else:
+                # Cria um novo registro de assinatura
+                cur.execute(
+                    """
+                    INSERT INTO user_subscriptions
+                    (user_id, plan_id, mercadopago_subscription_id, status, start_date, expiration_date, last_payment_date)
+                    VALUES (%s, %s, %s, %s, NOW(), %s, NOW())
+                    """,
+                    (user_id, plan_id, mp_subscription_id, status, expiration_date)
+                )
+            
+            conn.commit()
+            
+            # Gerencia o acesso à comunidade
+            should_have_access = (status == 'authorized')
+            manage_community_access(user_id, community_id, should_have_access)
+
+    except Exception as e:
+        print(f"ERRO CRÍTICO ao atualizar assinatura no banco de dados: {e}")
+        traceback.print_exc()
+    finally:
+        if conn:
+            conn.close()
+
+
+# ====================================================================
+# WEBHOOK ATUALIZADO PARA LIDAR COM NOTIFICAÇÕES DE ASSINATURA
+# ====================================================================
+
+@app.route('/webhook/mercado-pago', methods=['GET', 'POST'])
+def webhook_mercado_pago():
+    if request.method == 'GET':
+        return jsonify({'status': 'ok_test_webhook'}), 200
+
+    notification = request.json
+    print(f"DEBUG WEBHOOK MP: Notificação recebida: {notification}")
+
+    # Notificações de Pagamento Único (como você já tinha)
+    if notification and notification.get('type') == 'payment':
+        # ... (mantenha sua lógica de pagamento único aqui)
+        print("DEBUG WEBHOOK MP: Notificação de pagamento único recebida.")
+        return jsonify({'status': 'payment_notification_processed'}), 200
+
+    # NOVA LÓGICA: Notificações de Assinatura
+    if notification and notification.get('topic') == 'preapproval':
+        subscription_id = notification['resource'].split('/')[-1]
+        print(f"DEBUG WEBHOOK MP: Notificação de assinatura recebida para ID: {subscription_id}")
+        
+        # Busca os detalhes completos da assinatura na API do MP
+        subscription_details = pagamentos.verificar_assinatura_mp(subscription_id)
+        
+        if subscription_details:
+            # Processa a atualização no nosso sistema
+            handle_subscription_update(subscription_details)
+            return jsonify({'status': 'subscription_notification_processed'}), 200
+        else:
+            print(f"ERRO: Não foi possível obter detalhes da assinatura {subscription_id} do Mercado Pago.")
+            return jsonify({'status': 'error_fetching_subscription'}), 500
+
+    return jsonify({'status': 'notification_ignored'}), 200
+
 # ────────────────────────────────────────────────────────────────────
 # 9. FINAL INITIALIZATION AND EXECUTION
 # ────────────────────────────────────────────────────────────────────
@@ -1718,6 +1857,7 @@ if __name__ != '__main__':
         register_chamadas_handlers(bot, get_db_connection)
         register_comunidades_handlers(bot, get_db_connection)
         register_conteudos_handlers(bot, get_db_connection)
+        register_subscription_handlers(bot)
         # Passando 'generar_cobranca' como argumento. A função mostrar_produtos_bot não é mais retornada,
         # pois não é chamada diretamente do app.py no /start.
         register_produtos_handlers(bot, get_db_connection, generar_cobranca) 
@@ -1725,6 +1865,9 @@ if __name__ != '__main__':
         # REGISTRAR BLUEPRINT DE COMUNIDADES (EXISTENTE)
         app.register_blueprint(comunidades_bp, url_prefix='/') 
         app.register_blueprint(plans_bp)
+        app.register_blueprint(subscriptions_bp)
+
+        
 
     except Exception as e:
         print(f"ERRO NA INICIALIZAÇÃO DO SERVIDOR: {e}")
