@@ -215,23 +215,17 @@ def verificar_status_pagamento(payment_id):
 # ====================================================================
 def criar_plano_de_assinatura_mp(plan_data):
     """
-    Cria um plano de assinatura recorrente no Mercado Pago.
-    
-    Args:
-        plan_data (dict): Um dicionário com os detalhes do plano.
-                          Ex: {'name': 'Plano VIP', 'price': 49.90, 
-                               'frequency': 1, 'frequency_type': 'months'}
-
-    Returns:
-        dict: A resposta da API do Mercado Pago se for bem-sucedido, ou None se falhar.
+    Cria um plano de assinatura recorrente no Mercado Pago com melhor
+    tratamento de erros e back_url dinâmica.
     """
     sdk = init_mercadopago_sdk()
     if not sdk:
-        return None
+        return {"error": "SDK do Mercado Pago não foi inicializado."}
 
-    # O back_url é para onde o usuário é redirecionado após assinar.
-    # O 'reason' é o que aparece na fatura do cliente.
-    # IMPORTANTE: Troque a back_url pela URL do seu bot ou uma página de "obrigado".
+    # Usa a BASE_URL do ambiente para criar uma back_url válida e funcional.
+    # Se não encontrar, usa uma URL genérica.
+    base_url = os.getenv("BASE_URL", "https://www.google.com") 
+
     request_options = {
         "reason": plan_data['name'],
         "auto_recurring": {
@@ -240,7 +234,7 @@ def criar_plano_de_assinatura_mp(plan_data):
             "transaction_amount": plan_data['price'],
             "currency_id": "BRL"
         },
-        "back_url": f"https://t.me/{os.getenv('BOT_USERNAME', 'seu_bot_username')}",
+        "back_url": base_url, # Redireciona para a página principal do seu app
         "status": "active"
     }
 
@@ -253,13 +247,17 @@ def criar_plano_de_assinatura_mp(plan_data):
             print(f"SUCESSO: Plano criado no Mercado Pago com ID: {plan_response['response']['id']}")
             return plan_response["response"]
         else:
-            print(f"ERRO: Falha ao criar plano no Mercado Pago. Resposta: {plan_response}")
-            return None
+            # Tenta extrair uma mensagem de erro mais detalhada da resposta da API
+            error_message = "Resposta inválida da API do Mercado Pago."
+            if plan_response and "response" in plan_response and "message" in plan_response["response"]:
+                error_message = plan_response["response"]["message"]
+            print(f"ERRO: Falha ao criar plano no Mercado Pago. Detalhes: {error_message}")
+            return {"error": error_message, "details": plan_response}
             
     except Exception as e:
         print(f"ERRO CRÍTICO ao criar plano no MP: {e}")
         traceback.print_exc()
-        return None
+        return {"error": str(e)}
 
 # ====================================================================
 # FUNÇÃO PARA CRIAR O LINK DE ASSINATURA PARA O USUÁRIO

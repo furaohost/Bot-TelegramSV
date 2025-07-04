@@ -17,7 +17,6 @@ def list_plans():
     try:
         conn = get_db_connection()
         
-        # Se a requisição for POST, tenta criar um novo plano
         if request.method == 'POST':
             name = request.form.get('name')
             description = request.form.get('description')
@@ -39,9 +38,10 @@ def list_plans():
             }
             mp_plan_response = pagamentos.criar_plano_de_assinatura_mp(plan_data_for_mp)
 
-            # Verifica se a criação no MP falhou
+            # Verifica se a criação no MP falhou e mostra uma mensagem de erro específica
             if not mp_plan_response or 'id' not in mp_plan_response:
-                flash('Falha ao criar o plano no Mercado Pago. Verifique os logs do servidor.', 'danger')
+                error_details = mp_plan_response.get('error', 'Erro desconhecido.') if mp_plan_response else 'Nenhuma resposta da API.'
+                flash(f'Falha ao criar o plano no Mercado Pago: {error_details}', 'danger')
                 return redirect(url_for('plans.list_plans'))
             
             mercadopago_plan_id = mp_plan_response['id']
@@ -62,9 +62,16 @@ def list_plans():
 
         # Se a requisição for GET, busca os dados para exibir na página
         with conn.cursor() as cur:
-            cur.execute("SELECT p.*, c.nome as community_name FROM subscription_plans p LEFT JOIN comunidades c ON p.community_id = c.id ORDER BY p.created_at DESC")
+            # Busca os planos já existentes, juntando com o nome da comunidade
+            cur.execute("""
+                SELECT p.*, c.nome as community_name 
+                FROM subscription_plans p 
+                LEFT JOIN comunidades c ON p.community_id = c.id 
+                ORDER BY p.created_at DESC
+            """)
             plans = cur.fetchall()
             
+            # Busca as comunidades para preencher o dropdown do formulário
             cur.execute("SELECT id, nome FROM comunidades ORDER BY nome ASC")
             communities = cur.fetchall()
 
