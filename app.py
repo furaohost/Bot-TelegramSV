@@ -1759,42 +1759,6 @@ def handle_subscription_update(subscription_details):
             conn.close()
 
 
-# ====================================================================
-# WEBHOOK ATUALIZADO PARA LIDAR COM NOTIFICAÇÕES DE ASSINATURA
-# ====================================================================
-
-@app.route('/webhook/mercado-pago', methods=['GET', 'POST'])
-def webhook_mercado_pago():
-    if request.method == 'GET':
-        return jsonify({'status': 'ok_test_webhook'}), 200
-
-    notification = request.json
-    print(f"DEBUG WEBHOOK MP: Notificação recebida: {notification}")
-
-    # Notificações de Pagamento Único (como você já tinha)
-    if notification and notification.get('type') == 'payment':
-        # ... (mantenha sua lógica de pagamento único aqui)
-        print("DEBUG WEBHOOK MP: Notificação de pagamento único recebida.")
-        return jsonify({'status': 'payment_notification_processed'}), 200
-
-    # NOVA LÓGICA: Notificações de Assinatura
-    if notification and notification.get('topic') == 'preapproval':
-        subscription_id = notification['resource'].split('/')[-1]
-        print(f"DEBUG WEBHOOK MP: Notificação de assinatura recebida para ID: {subscription_id}")
-        
-        # Busca os detalhes completos da assinatura na API do MP
-        subscription_details = pagamentos.verificar_assinatura_mp(subscription_id)
-        
-        if subscription_details:
-            # Processa a atualização no nosso sistema
-            handle_subscription_update(subscription_details)
-            return jsonify({'status': 'subscription_notification_processed'}), 200
-        else:
-            print(f"ERRO: Não foi possível obter detalhes da assinatura {subscription_id} do Mercado Pago.")
-            return jsonify({'status': 'error_fetching_subscription'}), 500
-
-    return jsonify({'status': 'notification_ignored'}), 200
-
 # ────────────────────────────────────────────────────────────────────
 # 9. FINAL INITIALIZATION AND EXECUTION
 # ────────────────────────────────────────────────────────────────────
