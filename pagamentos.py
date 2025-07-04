@@ -100,7 +100,7 @@ def criar_plano_de_assinatura_mp(plan_data):
         # A nova API retorna o dicionário diretamente em caso de sucesso ou levanta uma exceção
         return plan_response
 
-    except mercadopago.exceptions.MPApiException as e:
+    except mercadopago.error.MPUnknownError as e:
         print(f"ERRO API MP ao criar plano: {e.response}")
         return {"error": e.message, "details": e.response}
     except Exception as e:
