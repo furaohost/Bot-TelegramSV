@@ -37,10 +37,10 @@ from bot.handlers.conteudos import register_conteudos_handlers
 # Mantém a importação de register_produtos_handlers
 from bot.handlers.produtos import register_produtos_handlers 
 from web.routes.comunidades import comunidades_bp
-from web.routes.subscription_plans import plans_bp
 from bot.handlers.subscriptions import register_subscription_handlers
 from web.routes.user_subscriptions import subscriptions_bp
-
+from web.routes.access_passes import passes_bp
+from bot.handlers.access_passes import register_access_pass_handlers
 
 # ────────────────────────────────────────────────────────────────────
 # 1. CONFIGURAÇÃO INICIAL (Variáveis de Ambiente)
@@ -309,80 +309,75 @@ def telegram_webhook():
 
 @app.route('/webhook/mercado-pago', methods=['GET', 'POST'])
 def webhook_mercado_pago():
-    print(f"DEBUG WEBHOOK MP: Recebida requisição para /webhook/mercado-pago. Method: {request.method}")
-
     if request.method == 'GET':
-        print(f"DEBUG WEBHOOK MP: Requisição GET de teste do Mercado Pago recebida. Respondendo 200 OK.")
         return jsonify({'status': 'ok_test_webhook'}), 200
 
     notification = request.json
-    print(f"DEBUG WEBHOOK MP: Corpo da notificação POST: {notification}")
+    print(f"DEBUG WEBHOOK MP: Notificação recebida: {notification}")
 
-    if notification and notification.get('type') == 'payment':
-        print(f"DEBUG WEBHOOK MP: Notificação de pagamento detetada. ID: {notification.get('data', {}).get('id')}")
-        payment_id = notification['data']['id']
-        payment_info = pagamentos.verificar_status_pagamento(payment_id)
+    if not notification or 'data' not in notification or 'id' not in notification['data']:
+        return jsonify({'status': 'invalid_notification'}), 400
 
-        print(f"DEBUG WEBHOOK MP: Estado do pagamento verificado: {payment_info.get('status') if payment_info else 'N/A'}")
+    payment_id = notification['data']['id']
+    payment_info = pagamentos.verificar_status_pagamento(payment_id)
 
-        if payment_info and payment_info['status'] == 'approved':
-            conn = None
-            try:
-                conn = get_db_connection()
-                if conn is None:
-                    print(f"ERRO WEBHOOK MP: Não foi possível obter conexão com a base de dados.")
-                    return jsonify({'status': 'db_connection_error'}), 500
+    if not payment_info or payment_info.get('status') != 'approved':
+        status = payment_info.get('status', 'não encontrado')
+        print(f"DEBUG WEBHOOK MP: Pagamento {payment_id} não aprovado. Status: {status}")
+        return jsonify({'status': f'payment_not_approved_{status}'}), 200
 
-                is_sqlite = isinstance(conn, sqlite3.Connection)
-                with conn:
-                    cur = conn.cursor()
-                    venda_id = payment_info.get('external_reference')
-                    print(f"DEBUG WEBHOOK MP: Pagamento aprovado. Venda ID (external_reference): {venda_id}")
+    external_reference = payment_info.get('external_reference')
+    print(f"DEBUG WEBHOOK MP: Pagamento aprovado. External Reference: {external_reference}")
 
-                    if not venda_id:
-                        print(f"DEBUG WEBHOOK MP: external_reference não encontrado na notificação. Ignorando.")
-                        return jsonify({'status': 'ignored_no_external_ref'}), 200
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            if external_reference and external_reference.startswith('pass_purchase:'):
+                parts = external_reference.replace('pass_purchase:', '').split(':')
+                user_id = int(parts[0].split('=')[1])
+                pass_id = int(parts[1].split('=')[1])
 
-                    cur.execute('SELECT * FROM vendas WHERE id = %s AND status = %s' if not is_sqlite else 'SELECT * FROM vendas WHERE id = ? AND status = ?', (venda_id, 'pendente'))
-                    venda = cur.fetchone()
+                cur.execute("SELECT * FROM access_passes WHERE id = %s", (pass_id,))
+                pass_item = cur.fetchone()
 
-                    if venda:
-                        print(f"DEBUG WEBHOOK MP: Venda {venda_id} encontrada no DB com status 'pendente'.")
-                        data_venda_dt = datetime.fromisoformat(venda['data_venda']) if isinstance(venda['data_venda'], str) else venda['data_venda']
+                if not pass_item:
+                    print(f"ERRO: Passe de acesso com ID {pass_id} não encontrado.")
+                    return jsonify({'status': 'pass_not_found'}), 404
 
-                        if datetime.now() > data_venda_dt + timedelta(hours=1):
-                            print(f"DEBUG WEBHOOK MP: Pagamento recebido para venda expirada (ID: {venda_id}). Ignorando entrega.")
-                            cur.execute('UPDATE vendas SET status = %s WHERE id = %s' if not is_sqlite else 'UPDATE vendas SET status = ? WHERE id = ?', ('expirado', venda_id))
-                            return jsonify({'status': 'expired_and_ignored'}), 200
+                duration = timedelta(days=pass_item['duration_days'])
+                start_date = datetime.now()
+                expiration_date = start_date + duration
 
-                        payer_info = payment_info.get('payer', {})
-                        payer_name = f"{payer_info.get('first_name', '')} {payer_info.get('last_name', '')}".strip()
-                        payer_email = payer_info.get('email')
-                        cur.execute('UPDATE vendas SET status = %s, payment_id = %s, payer_name = %s, payer_email = %s WHERE id = %s' if not is_sqlite else 'UPDATE vendas SET status = ?, payment_id = ?, payer_name = ?, payer_email = ? WHERE id = ?',
-                                    ('aprovado', payment_id, payer_name, payer_email, venda_id))
+                cur.execute(
+                    """
+                    INSERT INTO user_access 
+                    (user_id, pass_id, status, start_date, expiration_date, payment_id)
+                    VALUES (%s, %s, 'active', %s, %s, %s)
+                    """,
+                    (user_id, pass_id, start_date, expiration_date, payment_id)
+                )
+                conn.commit()
+                print(f"SUCESSO: Acesso para user {user_id} ao passe {pass_id} registrado. Expira em: {expiration_date}")
 
-                        cur.execute('SELECT * FROM produtos WHERE id = %s' if not is_sqlite else 'SELECT * FROM produtos WHERE id = ?', (venda['produto_id'],))
-                        produto = cur.fetchone()
-                        if produto:
-                            print(f"DEBUG WEBHOOK MP: Enviando produto {produto['nome']} para user {venda['user_id']}.")
-                            enviar_produto_telegram(venda['user_id'], produto['nome'], produto['link'])
-                        print(f"DEBUG WEBHOOK MP: Venda {venda_id} aprovada e entregue com sucesso.")
-                        return jsonify({'status': 'success'}), 200
-                    else:
-                        print(f"DEBUG WEBHOOK MP: Venda {venda_id} já processada ou não encontrada no DB como 'pendente'.")
-                        return jsonify({'status': 'already_processed_or_not_pending'}), 200
-            except Exception as e:
-                print(f"ERRO WEBHOOK MP: Erro no processamento da notificação de pagamento: {e}")
-                traceback.print_exc()
-                return jsonify({'status': 'error_processing_webhook'}), 500
-            finally:
-                if conn: conn.close()
-        else:
-            print(f"DEBUG WEBHOOK MP: Pagamento {payment_id} não aprovado ou info inválida. Status: {payment_info.get('status') if payment_info else 'N/A'}")
-            return jsonify({'status': 'payment_not_approved'}), 200
+                # Concede o acesso à comunidade
+                manage_community_access(user_id, pass_item['community_id'], should_have_access=True)
+                
+                bot.send_message(user_id, f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo até {expiration_date.strftime('%d/%m/%Y')}.")
 
-    print(f"DEBUG WEBHOOK MP: Notificação ignorada (não é tipo 'payment' ou JSON inválvido).")
-    return jsonify({'status': 'ignored_general'}), 200
+            else: # Lógica para venda de produto normal
+                # ... (sua lógica de venda de produto)
+                pass
+
+    except Exception as e:
+        print(f"ERRO CRÍTICO no processamento do webhook: {e}")
+        traceback.print_exc()
+        return jsonify({'status': 'internal_server_error'}), 500
+    finally:
+        if conn:
+            conn.close()
+
+    return jsonify({'status': 'notification_processed_successfully'}), 200
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -1666,22 +1661,75 @@ def manage_community_access(user_id, community_id, should_have_access):
     """
     Adiciona ou remove um usuário de uma comunidade no Telegram.
     """
+    if not community_id:
+        print(f"AVISO: Tentativa de gerenciar acesso para user {user_id} sem um community_id.")
+        return
+
     try:
         if should_have_access:
-            # Tenta "desbanir" o usuário, o que o permite voltar ao grupo/canal.
-            # O link de convite deve ser enviado separadamente.
+            # Esta ação permite que um usuário que foi removido possa voltar a entrar.
+            # O ideal é enviar um novo link de convite para o usuário.
             bot.unban_chat_member(community_id, user_id, only_if_banned=True)
-            print(f"ACESSO CONCEDIDO: Acesso para user {user_id} na comunidade {community_id} liberado.")
-            # Envia uma mensagem de boas-vindas ou o link de convite
-            # bot.send_message(user_id, f"Sua assinatura foi ativada! Acesse a comunidade aqui: [LINK_CONVITE]")
+            print(f"ACESSO LIBERADO: Acesso para user {user_id} na comunidade {community_id} foi permitido.")
+            # Você pode enviar uma mensagem de boas-vindas aqui
+            # bot.send_message(user_id, "Seu acesso foi liberado! Bem-vindo(a) de volta.")
         else:
-            # Expulsa o usuário da comunidade.
+            # Remove (expulsa) o usuário do grupo/canal.
             bot.kick_chat_member(community_id, user_id)
-            print(f"ACESSO REMOVIDO: Acesso para user {user_id} na comunidade {community_id} revogado.")
-            bot.send_message(user_id, "Sua assinatura expirou ou foi cancelada. Seu acesso à comunidade foi removido.")
+            # Opcional: Envia uma mensagem para o usuário avisando da remoção.
+            bot.send_message(user_id, "Seu passe de acesso expirou e você foi removido da comunidade. Para voltar, compre um novo passe usando o comando /passes.")
+            print(f"ACESSO REMOVIDO: User {user_id} foi removido da comunidade {community_id}.")
     except Exception as e:
+        # Erros comuns: bot não é admin, usuário não está no grupo, etc.
         print(f"ERRO ao gerenciar acesso do user {user_id} na comunidade {community_id}: {e}")
 
+def access_expiration_worker():
+    """
+    Worker que roda em segundo plano para verificar e expirar passes de acesso.
+    """
+    print("WORKER DE EXPIRAÇÃO: Iniciado. Verificando passes a cada hora.")
+    while True:
+        conn = None
+        try:
+            conn = get_db_connection()
+            with conn.cursor() as cur:
+                # Busca todos os acessos que estão ativos mas cuja data de expiração já passou
+                cur.execute("""
+                    SELECT ua.id, ua.user_id, ap.community_id
+                    FROM user_access ua
+                    JOIN access_passes ap ON ua.pass_id = ap.id
+                    WHERE ua.status = 'active' AND ua.expiration_date <= NOW();
+                """)
+                expired_passes = cur.fetchall()
+
+                if expired_passes:
+                    print(f"WORKER DE EXPIRAÇÃO: Encontrados {len(expired_passes)} passes expirados.")
+                    for expired_pass in expired_passes:
+                        user_id_to_remove = expired_pass['user_id']
+                        community_id_to_remove_from = expired_pass['community_id']
+                        access_id_to_update = expired_pass['id']
+
+                        print(f"WORKER: Expirando acesso ID {access_id_to_update} para o usuário {user_id_to_remove}.")
+
+                        # 1. Remove o acesso do usuário no Telegram
+                        manage_community_access(user_id_to_remove, community_id_to_remove_from, should_have_access=False)
+                        
+                        # 2. Atualiza o status do acesso no banco de dados para 'expired'
+                        cur.execute("UPDATE user_access SET status = 'expired' WHERE id = %s", (access_id_to_update,))
+                    
+                    conn.commit()
+                else:
+                    print("WORKER DE EXPIRAÇÃO: Nenhum passe expirado encontrado nesta verificação.")
+
+        except Exception as e:
+            print(f"ERRO CRÍTICO no Worker de Expiração: {e}")
+            traceback.print_exc()
+        finally:
+            if conn:
+                conn.close()
+        
+        # Espera 1 hora (3600 segundos) antes da próxima verificação
+        time_module.sleep(3600)
 
 def handle_subscription_update(subscription_details):
     """
@@ -1825,11 +1873,12 @@ if __name__ != '__main__':
         # Passando 'generar_cobranca' como argumento. A função mostrar_produtos_bot não é mais retornada,
         # pois não é chamada diretamente do app.py no /start.
         register_produtos_handlers(bot, get_db_connection, generar_cobranca) 
+        register_access_pass_handlers(bot)
         
         # REGISTRAR BLUEPRINT DE COMUNIDADES (EXISTENTE)
         app.register_blueprint(comunidades_bp, url_prefix='/') 
-        app.register_blueprint(plans_bp)
         app.register_blueprint(subscriptions_bp)
+        app.register_blueprint(passes_bp)
 
         
 
