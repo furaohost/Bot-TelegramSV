@@ -9,7 +9,6 @@ sdk = None
 def init_mercadopago_sdk():
     """
     Inicializa o SDK do Mercado Pago e armazena na variável global 'sdk'.
-    Deve ser chamada UMA VEZ na inicialização da aplicação (app.py).
     """
     global sdk
     access_token = os.getenv('MERCADOPAGO_ACCESS_TOKEN')
@@ -27,7 +26,7 @@ def init_mercadopago_sdk():
         traceback.print_exc()
         sdk = None
 
-# --- SUAS FUNÇÕES DE PAGAMENTO PIX (MANTIDAS) ---
+# --- SUAS FUNÇÕES DE PAGAMENTO PIX (MANTIDAS COMO ESTAVAM) ---
 
 def criar_pagamento_pix(produto, user, venda_id):
     global sdk
@@ -67,7 +66,7 @@ def verificar_status_pagamento(payment_id):
         traceback.print_exc()
         return None
 
-# --- FUNÇÕES DE ASSINATURA REVERTIDAS PARA SINTAXE ANTIGA (v1.x) ---
+# --- FUNÇÕES DE ASSINATURA CORRIGIDAS COM A SINTAXE ANTIGA (v1.x) ---
 
 def criar_plano_de_assinatura_mp(plan_data):
     """
@@ -91,7 +90,7 @@ def criar_plano_de_assinatura_mp(plan_data):
         }
         
         print(f"DEBUG MP: Enviando dados para criar plano (sintaxe antiga): {request_options}")
-        # REVERSÃO: Usando a sintaxe antiga
+        # CORREÇÃO: Usando a sintaxe antiga que o seu ambiente espera
         plan_response = sdk.preapproval_plan().create(request_options)
         print(f"DEBUG MP: Resposta da API: {plan_response}")
         
@@ -103,6 +102,7 @@ def criar_plano_de_assinatura_mp(plan_data):
 
     except Exception as e:
         print(f"ERRO CRÍTICO ao criar plano no MP: {e}")
+        # Tratamento de erro mais genérico para a versão antiga da lib
         if hasattr(e, 'response'):
              print(f"ERRO API MP ao criar plano: {e.response}")
              return {"error": getattr(e, 'message', str(e)), "details": e.response}
@@ -127,7 +127,7 @@ def criar_link_de_assinatura(plan, user):
         }
 
         print(f"DEBUG MP: Enviando dados para criar assinatura (sintaxe antiga): {subscription_data}")
-        # REVERSÃO: Usando a sintaxe antiga
+        # CORREÇÃO: Usando a sintaxe antiga
         subscription_response = sdk.preapproval().create(subscription_data)
         print(f"DEBUG MP: Resposta da API de assinatura: {subscription_response}")
         
@@ -149,7 +149,7 @@ def verificar_assinatura_mp(subscription_id):
     
     try:
         print(f"DEBUG MP: Verificando assinatura com ID (sintaxe antiga): {subscription_id}")
-        # REVERSÃO: Usando a sintaxe antiga
+        # CORREÇÃO: Usando a sintaxe antiga
         subscription_details = sdk.preapproval().get(subscription_id)
         print(f"DEBUG MP: Detalhes da assinatura recebidos: {subscription_details}")
 
@@ -160,3 +160,5 @@ def verificar_assinatura_mp(subscription_id):
     except Exception as e:
         print(f"ERRO CRÍTICO ao verificar assinatura no MP: {e}")
         return None
+    
+    
