@@ -37,6 +37,7 @@ from bot.handlers.conteudos import register_conteudos_handlers
 # Mantém a importação de register_produtos_handlers
 from bot.handlers.produtos import register_produtos_handlers 
 from web.routes.comunidades import comunidades_bp
+from web.routes.subscription_plans import plans_bp
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -1723,6 +1724,7 @@ if __name__ != '__main__':
         
         # REGISTRAR BLUEPRINT DE COMUNIDADES (EXISTENTE)
         app.register_blueprint(comunidades_bp, url_prefix='/') 
+        app.register_blueprint(plans_bp)
 
     except Exception as e:
         print(f"ERRO NA INICIALIZAÇÃO DO SERVIDOR: {e}")

@@ -1061,6 +1061,13 @@
                         Comunidades
                     </a>
                 </li>
+                <!-- NOVO LINK PARA PLANOS DE ASSINATURA -->
+                <li class="nav-item">
+                    <a href="{{ url_for('plans.list_plans') }}" class="nav-link {% if request.endpoint.startswith('plans') %}active{% endif %}">
+                        <span class="material-icons">star_outline</span>
+                        Planos de Assinatura
+                    </a>
+                </li>
                 <li class="nav-item">
                     <a href="{{ url_for('scheduled_messages') }}" class="nav-link {% if request.endpoint.startswith('scheduled_messages') or request.endpoint == 'add_scheduled_message' or request.endpoint == 'edit_scheduled_message' %}active{% endif %}">
                         <span class="material-icons">schedule</span>

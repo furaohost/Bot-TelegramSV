@@ -1,0 +1,100 @@
+{% extends "layout.html" %}
+
+{% block title %}Planos de Assinatura{% endblock %}
+{% block page_title %}Planos de Assinatura{% endblock %}
+
+{% block content %}
+<!-- Formulário para Adicionar Novo Plano -->
+<div class="card">
+    <h2 class="subtitle">Criar Novo Plano de Assinatura</h2>
+    <form method="POST" action="{{ url_for('plans.list_plans') }}" class="form-grid">
+        <!-- Linha 1: Nome e Preço -->
+        <div class="form-group">
+            <label for="name" class="form-label">Nome do Plano</label>
+            <input type="text" id="name" name="name" required class="form-input" placeholder="Ex: Assinatura VIP Mensal">
+        </div>
+        <div class="form-group">
+            <label for="price" class="form-label">Preço (R$)</label>
+            <input type="number" id="price" name="price" step="0.01" min="0.50" required class="form-input" placeholder="Ex: 49.90">
+        </div>
+
+        <!-- Linha 2: Frequência e Comunidade -->
+        <div class="form-group">
+            <label for="frequency" class="form-label">Frequência da Cobrança</label>
+            <div class="flex items-center gap-2">
+                <input type="number" id="frequency" name="frequency" min="1" required class="form-input" style="width: 80px;" value="1">
+                <select id="frequency_type" name="frequency_type" class="form-select">
+                    <option value="days">Dias</option>
+                    <option value="months" selected>Meses</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="community_id" class="form-label">Comunidade Associada</label>
+            <select id="community_id" name="community_id" required class="form-select">
+                <option value="" disabled selected>Selecione uma comunidade...</option>
+                {% for community in communities %}
+                <option value="{{ community.id }}">{{ community.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Linha 3: Descrição -->
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <label for="description" class="form-label">Descrição (Opcional)</label>
+            <textarea id="description" name="description" rows="3" class="form-textarea" placeholder="Descreva os benefícios deste plano..."></textarea>
+        </div>
+
+        <!-- Botão de Envio -->
+        <div class="form-actions" style="grid-column: 1 / -1;">
+            <button type="submit" class="btn btn-primary">Criar Plano</button>
+        </div>
+    </form>
+</div>
+
+<!-- Tabela de Planos Existentes -->
+<div class="card">
+    <h2 class="subtitle">Planos Existentes</h2>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Preço</th>
+                    <th>Recorrência</th>
+                    <th>Comunidade</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if plans %}
+                    {% for plan in plans %}
+                    <tr>
+                        <td>{{ plan.id }}</td>
+                        <td>{{ plan.name }}</td>
+                        <td>R$ {{ "%.2f"|format(plan.price|float) }}</td>
+                        <td>{{ plan.frequency }} {{ plan.frequency_type.replace('months', 'Mês' if plan.frequency == 1 else 'Meses').replace('days', 'Dia' if plan.frequency == 1 else 'Dias') }}</td>
+                        <td>{{ plan.community_id }}</td>
+                        <td>
+                            <span class="status-badge {{ 'active' if plan.is_active else 'inactive' }}">
+                                {{ 'Ativo' if plan.is_active else 'Inativo' }}
+                            </span>
+                        </td>
+                        <td class="actions-cell">
+                            <a href="#" class="btn-action edit" title="Editar"><i class="fas fa-edit"></i></a>
+                            <a href="#" class="btn-action delete" title="Desativar"><i class="fas fa-toggle-on"></i></a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-light" style="padding: 2rem;">Nenhum plano de assinatura criado.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
