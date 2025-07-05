@@ -1,163 +1,164 @@
 import os
-import mercadopago
-import json
-import traceback
+import mercadopago 
+import json 
+import traceback 
 
-# Variável global para guardar a instância do SDK.
 sdk = None
+BASE_URL_FOR_MP_WEBHOOK = None
+
 
 def init_mercadopago_sdk():
-    """
-    Inicializa o SDK do Mercado Pago e armazena na variável global 'sdk'.
-    """
-    global sdk
+    global sdk, BASE_URL_FOR_MP_WEBHOOK
     access_token = os.getenv('MERCADOPAGO_ACCESS_TOKEN')
+    base_url_env = os.getenv('BASE_URL')
 
-    if not access_token:
-        print("[ERRO FATAL MP] MERCADOPAGO_ACCESS_TOKEN não está definida.")
-        return
+    if access_token is None or access_token == "":
+        print(f"[ERRO FATAL MP] MERCADOPAGO_ACCESS_TOKEN não está definida ou está vazia.")
+        raise ValueError("MERCADOPAGO_ACCESS_TOKEN é obrigatória e não foi definida corretamente.")
+
+    if base_url_env is None or base_url_env == "":
+        print(f"[ERRO FATAL MP] BASE_URL não está definida ou está vazia para o webhook do Mercado Pago.")
+        raise ValueError("BASE_URL é obrigatória para configurar o webhook do Mercado Pago.")
 
     try:
-        print("DEBUG MP: Inicializando SDK do Mercado Pago...")
         sdk = mercadopago.SDK(access_token)
-        print("DEBUG MP: SDK inicializado com sucesso.")
+        BASE_URL_FOR_MP_WEBHOOK = base_url_env
+        print(f"DEBUG MP: SDK do Mercado Pago inicializado com sucesso e BASE_URL para webhook definida.")
     except Exception as e:
         print(f"[ERRO FATAL MP] Erro ao inicializar SDK do Mercado Pago: {e}")
-        traceback.print_exc()
-        sdk = None
+        traceback.print_exc() 
+        raise 
 
-# --- SUAS FUNÇÕES DE PAGAMENTO PIX (MANTIDAS COMO ESTAVAM) ---
 
 def criar_pagamento_pix(produto, user, venda_id):
-    global sdk
-    if sdk is None:
-        print("[ERRO MP] Tentativa de criar pagamento PIX, mas o SDK não está inicializado.")
-        return None
-    
-    notification_url = f"{os.getenv('BASE_URL')}/webhook/mercado-pago"
+    global sdk, BASE_URL_FOR_MP_WEBHOOK
+
+    print(f"DEBUG MP (INICIO FUNCAO): Entrando em criar_pagamento_pix. SDK={'Inicializado' if sdk else 'NULO'}, BASE_URL={'Definida' if BASE_URL_FOR_MP_WEBHOOK else 'INDDEFINIDA'}.")
+
+    if sdk is None or BASE_URL_FOR_MP_WEBHOOK is None:
+        print(f"[AVISO MP] SDK do Mercado Pago não inicializado ou BASE_URL_FOR_MP_WEBHOOK não definida. Tentando inicializar...")
+        try:
+            init_mercadopago_sdk()
+        except ValueError as e:
+            print(f"[ERRO MP] Falha na inicialização do SDK antes de criar pagamento: {e}")
+            traceback.print_exc() 
+            return None
+
+    notification_url = f"{BASE_URL_FOR_MP_WEBHOOK}/webhook/mercado-pago"
+
+    print(f"DEBUG MP: Montando payload de pagamento para o produto '{produto.get('nome', 'N/A')}' (ID: {produto.get('id', 'N/A')}).")
+    print(f"DEBUG MP: Notification URL para MP: {notification_url}")
+
+    preco_raw = produto.get('preco')
+    print(f"DEBUG MP: Valor bruto do preço: '{preco_raw}' (Tipo: {type(preco_raw)})")
+
+    transaction_amount = None 
+
     try:
-        transaction_amount = float(str(produto.get('preco')).replace(',', '.'))
-    except (ValueError, TypeError):
-        print(f"[ERRO MP] Preço inválido para o produto ID {produto.get('id')}: {produto.get('preco')}")
-        return None
-    payment_data = {
-        'transaction_amount': transaction_amount, 'payment_method_id': 'pix',
-        'payer': {'email': f"user.{user.id}@example.com", 'first_name': user.first_name or "Comprador", 'last_name': user.last_name or "Bot"},
-        'notification_url': notification_url, 'external_reference': str(venda_id), 'description': f"Venda de: {produto.get('nome', 'Produto Digital')}"
-    }
-    try:
-        payment_response = sdk.payment().create(payment_data)
-        return payment_response.get("response")
-    except Exception as e:
-        print(f"[ERRO GERAL MP] Falha ao criar pagamento PIX: {e}")
+        if isinstance(preco_raw, str):
+            transaction_amount = float(preco_raw.replace(',', '.'))
+        else:
+            transaction_amount = float(preco_raw)
+
+        print(f"DEBUG MP: Preço convertido para float (transaction_amount): '{transaction_amount}' (Tipo: {type(transaction_amount)})")
+
+        if transaction_amount <= 0:
+            print(f"[ERRO MP] Preço do produto inválido ou negativo após conversão: {transaction_amount}. Deve ser um número positivo.")
+            return None
+    except (ValueError, TypeError) as e:
+        print(f"[ERRO MP] Não foi possível converter o preço '{preco_raw}' para um número válido: {e}")
         traceback.print_exc()
         return None
+
+    if transaction_amount is None:
+        return None
+
+    payment_data = {
+        'transaction_amount': transaction_amount,
+        'payment_method_id': 'pix',
+        'payer': {
+            'email': f"user_{user.id}@email.com",
+            'first_name': user.first_name or "Comprador",
+            'last_name': user.last_name or "Bot",
+            'identification': {
+                'type': 'OTHER', 
+                'number': str(user.id) 
+            }
+        },
+        'notification_url': notification_url, 
+        'external_reference': str(venda_id), 
+        'description': f"Venda de produto digital: {produto.get('nome', 'Sem Nome')}",
+        'statement_descriptor': 'BOTVENDAS', 
+        'additional_info': { 
+            "items": [
+                {
+                    "id": str(produto.get('id', 'N/A')),
+                    "title": produto.get('nome', 'Produto'),
+                    "description": f"Conteúdo digital: {produto.get('nome', 'Produto')}",
+                    "category_id": "digital_content", 
+                    "quantity": 1,
+                    "unit_price": transaction_amount,
+                }
+            ],
+            "payer": { 
+                "first_name": user.first_name or "Comprador",
+                "last_name": user.last_name or "Bot",
+                "phone": { 
+                    "area_code": "11", 
+                    "number": "999999999" 
+                }
+            },
+        }
+    }
+
+    print(f"DEBUG MP: Payload completo enviado ao Mercado Pago: {json.dumps(payment_data, indent=2)}")
+
+    try:
+        print(f"DEBUG MP: Chamando sdk.payment().create(payment_data)...")
+        payment_response = sdk.payment().create(payment_data)
+        payment = payment_response["response"] 
+        print(f"DEBUG MP: Resposta COMPLETA do Mercado Pago recebida: {json.dumps(payment, indent=2)}")
+        return payment
+    except mercadopago.exceptions.MPApiException as e:
+        print(f"[ERRO MP - API] Falha ao criar pagamento PIX. Status HTTP: {e.status}")
+        if e.response:
+            print(f"Detalhes do Erro Mercado Pago (e.response): {json.dumps(e.response, indent=2)}")
+        else:
+            print(f"Nenhum detalhe de erro da API do Mercado Pago disponível no objeto de exceção 'e.response'.")
+        traceback.print_exc() 
+        return None
+    except Exception as e:
+        print(f"[ERRO GERAL MP] Falha ao criar pagamento PIX (Exceção Inesperada): {e}")
+        print(f"Tipo da exceção: {type(e)}")
+        traceback.print_exc() 
+        return None
+
 
 def verificar_status_pagamento(payment_id):
     global sdk
     if sdk is None:
-        print("[ERRO MP] Tentativa de verificar pagamento, mas o SDK não está inicializado.")
-        return None
+        print(f"[AVISO MP] SDK do Mercado Pago não inicializado. Tentando inicializar antes de verificar pagamento...")
+        try:
+            init_mercadopago_sdk()
+        except ValueError as e:
+            print(f"[ERRO MP] Falha na inicialização do SDK antes de verificar pagamento: {e}")
+            traceback.print_exc()
+            return None
     try:
-        payment_info = sdk.payment().get(payment_id)
-        return payment_info.get("response")
+        print(f"DEBUG MP: Verificando status do pagamento ID: {payment_id}")
+        payment_info = sdk.payment().get(payment_id) 
+        status = payment_info['response'].get('status')
+        print(f"DEBUG MP: Status do pagamento {payment_id} recebido: {status}")
+        return payment_info["response"]
+    except mercadopago.exceptions.MPApiException as e:
+        print(f"[ERRO MP] Falha ao verificar status do pagamento (API Error). Status HTTP: {e.status}")
+        if e.response:
+            print(f"Detalhes do Erro Mercado Pago: {e.response}")
+        else:
+            print(f"Nenhum detalhe de erro da API do Mercado Pago disponível no objeto de exceção.")
+        traceback.print_exc()
+        return None
     except Exception as e:
         print(f"Erro geral ao verificar status do pagamento: {e}")
         traceback.print_exc()
         return None
-
-# --- FUNÇÕES DE ASSINATURA CORRIGIDAS COM A SINTAXE ANTIGA (v1.x) ---
-
-def criar_plano_de_assinatura_mp(plan_data):
-    """
-    Cria um plano de assinatura recorrente no Mercado Pago usando a sintaxe antiga (v1.x).
-    """
-    global sdk
-    if not sdk:
-        return {"error": "SDK do Mercado Pago não foi inicializado."}
-
-    try:
-        request_options = {
-            "reason": plan_data['name'],
-            "auto_recurring": {
-                "frequency": plan_data['frequency'],
-                "frequency_type": plan_data['frequency_type'],
-                "transaction_amount": plan_data['price'],
-                "currency_id": "BRL"
-            },
-            "back_url": os.getenv("BASE_URL", "https://www.google.com"),
-            "status": "active"
-        }
-        
-        print(f"DEBUG MP: Enviando dados para criar plano (sintaxe antiga): {request_options}")
-        # CORREÇÃO: Usando a sintaxe antiga que o seu ambiente espera
-        plan_response = sdk.preapproval_plan().create(request_options)
-        print(f"DEBUG MP: Resposta da API: {plan_response}")
-        
-        if plan_response and plan_response.get("status") == 201:
-            return plan_response["response"]
-        else:
-            error_message = plan_response.get("response", {}).get("message", "Erro desconhecido da API.")
-            return {"error": error_message, "details": plan_response}
-
-    except Exception as e:
-        print(f"ERRO CRÍTICO ao criar plano no MP: {e}")
-        # Tratamento de erro mais genérico para a versão antiga da lib
-        if hasattr(e, 'response'):
-             print(f"ERRO API MP ao criar plano: {e.response}")
-             return {"error": getattr(e, 'message', str(e)), "details": e.response}
-        return {"error": str(e)}
-
-def criar_link_de_assinatura(plan, user):
-    """
-    Cria uma assinatura para um usuário usando a sintaxe antiga (v1.x).
-    """
-    global sdk
-    if not sdk:
-        return None
-
-    try:
-        external_reference = f"user:{user.id}_plan:{plan['id']}"
-        subscription_data = {
-            "preapproval_plan_id": plan['mercadopago_plan_id'],
-            "reason": plan['name'],
-            "payer_email": f"{user.id}@telegram.user",
-            "back_url": f"https://t.me/{os.getenv('BOT_USERNAME', 'seu_bot_username')}",
-            "external_reference": external_reference
-        }
-
-        print(f"DEBUG MP: Enviando dados para criar assinatura (sintaxe antiga): {subscription_data}")
-        # CORREÇÃO: Usando a sintaxe antiga
-        subscription_response = sdk.preapproval().create(subscription_data)
-        print(f"DEBUG MP: Resposta da API de assinatura: {subscription_response}")
-        
-        if subscription_response and subscription_response.get("status") == 201:
-            return subscription_response["response"]
-        return None
-
-    except Exception as e:
-        print(f"ERRO CRÍTICO ao criar link de assinatura no MP: {e}")
-        return None
-
-def verificar_assinatura_mp(subscription_id):
-    """
-    Busca os detalhes de uma assinatura usando a sintaxe antiga (v1.x).
-    """
-    global sdk
-    if not sdk:
-        return None
-    
-    try:
-        print(f"DEBUG MP: Verificando assinatura com ID (sintaxe antiga): {subscription_id}")
-        # CORREÇÃO: Usando a sintaxe antiga
-        subscription_details = sdk.preapproval().get(subscription_id)
-        print(f"DEBUG MP: Detalhes da assinatura recebidos: {subscription_details}")
-
-        if subscription_details and subscription_details.get("status") == 200:
-            return subscription_details["response"]
-        return None
-
-    except Exception as e:
-        print(f"ERRO CRÍTICO ao verificar assinatura no MP: {e}")
-        return None
-    

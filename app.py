@@ -29,7 +29,7 @@ from database.db_init import init_db
 import pagamentos
 
 # Importa os módulos de handlers e blueprints
-# Importa inline_ver_produtos_keyboard para o botão inline
+# IMPORTANTE: AQUI ESTÁ A IMPORTAÇÃO DE 'inline_ver_produtos_keyboard'
 from bot.utils.keyboards import confirm_18_keyboard, menu_principal, inline_ver_produtos_keyboard 
 from bot.handlers.chamadas import register_chamadas_handlers
 from bot.handlers.comunidades import register_comunidades_handlers
@@ -58,7 +58,7 @@ print(f"DEBUG: MERCADOPAGO_ACCESS_TOKEN lido: {'***' if MERCADOPAGO_ACCESS_TOKEN
 
 
 if not API_TOKEN:
-    print("ERRO: A variável de ambiente 'API_TOKEN' não está definida. O bot não pode funcionar.")
+    print(f"ERRO: A variável de ambiente 'API_TOKEN' não está definida. O bot não pode funcionar.")
     raise RuntimeError("API_TOKEN não configurado. O bot não pode funcionar.")
 
 
@@ -186,7 +186,6 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
                 qr_code_data = pagamento['point_of_interaction']['transaction_data']['qr_code']
                 qr_code_image = base64.b64decode(qr_code_base64)
 
-                # --- CORREÇÃO AQUI: FORÇAR UMA ÚNICA LINHA NO QR_CODE_DATA E USAR HTML ---
                 qr_code_data_clean = qr_code_data.replace('\n', '').strip()
                 
                 caption_text = (
@@ -195,13 +194,10 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
                 )
                 bot.send_photo(chat_id, qr_code_image, caption=caption_text, parse_mode='Markdown')
 
-                # Usar <pre> tag com HTML parse_mode para melhor copiabilidade em blocos de código.
-                # O botão inline permite "Copiar texto" mais facilmente em muitos clientes.
                 markup_copy = types.InlineKeyboardMarkup()
                 btn_copy = types.InlineKeyboardButton("📋 Copiar Código PIX", callback_data="copy_pix")
                 markup_copy.add(btn_copy)
 
-                # Enviei a mensagem com o código PIX usando HTML <pre> para melhor copiabilidade
                 bot.send_message(chat_id, f"<pre>{qr_code_data_clean}</pre>", parse_mode='HTML', reply_markup=markup_copy)
                 
                 bot.send_message(chat_id, "Você receberá o produto aqui assim que o pagamento for confirmado.")
@@ -218,7 +214,7 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
 
 
 # ────────────────────────────────────────────────────────────────────
-# ADICIONAR UM HANDLER PARA O BOTÃO 'COPIAR PIX' (opcional, para feedback)
+# ADICIONAR UM HANDLER PARA O BOTÃO 'COPIAR PIX'
 # ────────────────────────────────────────────────────────────────────
 @bot.callback_query_handler(func=lambda call: call.data == "copy_pix")
 def handle_copy_pix_callback(call: types.CallbackQuery):
@@ -255,7 +251,6 @@ app.jinja_env.filters['datetimeformat'] = format_datetime
 
 # ────────────────────────────────────────────────────────────────────
 # 5. MIDDLEWARE DE AUTENTICAÇÃO (para painel web)
-# IMPORTANTE: Definir antes das rotas que o utilizam
 # ────────────────────────────────────────────────────────────────────
 @app.before_request
 def require_login():
@@ -432,7 +427,1235 @@ def login():
 # ==============================================================================
 # !! ROTA TEMPORÁRIA PARA RESET DE SENHA !!
 # !! REMOVA ESTA ROTA APÓS O USO EM PRODUÇÃO !!
-# =================================────────────────────────────────────
+# ==============================================================================
+@app.route('/reset-admin-password-now/muito-secreto-12345')
+def reset_admin_password_route():
+    print(f"DEBUG RESET: Requisição para /reset-admin-password-now/muito-secreto-12345. Method: {request.method}")
+
+    USERNAME_TO_RESET = 'admin'
+    NEW_PASSWORD = 'admin123' 
+
+    print(f"DEBUG RESET: Password reset route accessed for user '{USERNAME_TO_RESET}'.")
+
+    hashed_password = generate_password_hash(NEW_PASSWORD)
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return f"<h1>Error</h1><p>Database connection error.</p>", 500
+
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        with conn:
+            cur = conn.cursor()
+            if is_sqlite:
+                cur.execute("UPDATE admin SET password_hash = ? WHERE username = ?", (hashed_password, USERNAME_TO_RESET))
+            else:
+                cur.execute("UPDATE admin SET password_hash = %s WHERE username = %s", (hashed_password, USERNAME_TO_RESET))
+
+            if cur.rowcount == 0:
+                print(f"DEBUG RESET: User '{USERNAME_TO_RESET}' not found for update. Attempting to create...")
+                if is_sqlite:
+                    cur.execute("INSERT INTO admin (username, password_hash) VALUES (?, ?)", (USERNAME_TO_RESET, hashed_password))
+                else:
+                    cur.execute("INSERT INTO admin (username, password_hash) VALUES (%s, %s)", (USERNAME_TO_RESET, hashed_password))
+                message = f"User '{USERNAME_TO_RESET}' not found. A new user was created with the default password. PLEASE, REMOVE THIS ROUTE NOW!"
+                print(f"[SUCCESS RESET] {message}")
+                return f"<h1>Success</h1><p>{message}</p>", 200
+
+            message = f"Password for user '{USERNAME_TO_RESET}' has been reset successfully. PLEASE, REMOVE THIS ROUTE FROM 'app.py' IMMEDIATELY!"
+            print(f"[SUCCESS RESET] {message}")
+            return f"<h1>Success</h1><p>{message}</p>", 200
+
+    except Exception as e:
+        error_message = f"An error occurred while resetting the password: {e}"
+        print(f"ERRO RESET: {error_message}")
+        traceback.print_exc()
+        return f"<h1>Error</h1><p>{error_message}</p>", 500
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/logout')
+def logout():
+    print(f"DEBUG LOGOUT: Requisição para /logout. Method: {request.method}")
+
+    session.clear()
+    flash('You have been logged out.', 'info')
+    return redirect(url_for('login')) 
+
+
+@app.route('/')
+def index():
+    print(f"DEBUG INDEX: Requisição para /. session.get('logged_in'): {session.get('logged_in')}")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('login')) 
+
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        with conn:
+            cur = conn.cursor()
+
+            # Inicializa as variáveis com valores padrão
+            total_usuarios = 0
+            total_produtos = 0
+            receita_total = 0.0 
+            vendas_recentes = []
+            chart_labels = []
+            chart_data_receita = [] 
+            chart_data_quantidade = []
+
+            # --- Métricas de Período Atual e Período Anterior ---
+            today = datetime.now().date() 
+            
+            start_of_current_month = datetime(today.year, today.month, 1)
+            last_day_of_month = (datetime(today.year, today.month + 1, 1) - timedelta(days=1)).replace(hour=23, minute=59, second=59, microsecond=999999) if today.month < 12 else datetime(today.year, 12, 31, 23, 59, 59, 999999)
+            end_of_current_month = last_day_of_month
+
+            start_of_previous_month = (start_of_current_month - timedelta(days=1)).replace(day=1) 
+            end_of_previous_month = (start_of_current_month - timedelta(microseconds=1)).replace(hour=23, minute=59, second=59, microsecond=999999) 
+            
+            def get_sales_data_for_period_internal(start_dt, end_dt, cursor, is_sqlite_db):
+                if is_sqlite_db:
+                    cursor.execute(
+                        "SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = 'aprovado' AND data_venda BETWEEN ? AND ?",
+                        (start_dt.isoformat(), end_dt.isoformat())
+                    )
+                else: 
+                    cursor.execute(
+                        "SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s",
+                        ('aprovado', start_dt, end_dt)
+                    )
+                row = cursor.fetchone()
+                count = row['count'] if row and 'count' in row and row['count'] is not None else 0
+                total_sum = float(row['sum']) if row and 'sum' in row and row['sum'] is not None else 0.0
+                return count, total_sum
+
+            periodo_atual_vendas_quantidade, periodo_atual_vendas_valor = get_sales_data_for_period_internal(start_of_current_month, end_of_current_month, cur, is_sqlite)
+            
+            periodo_anterior_vendas_quantidade, periodo_anterior_vendas_valor = get_sales_data_for_period_internal(start_of_previous_month, end_of_previous_month, cur, is_sqlite)
+
+            if periodo_anterior_vendas_quantidade > 0:
+                variacao_vendas_quantidade = ((periodo_atual_vendas_quantidade - periodo_anterior_vendas_quantidade) / periodo_anterior_vendas_quantidade) * 100
+            else:
+                variacao_vendas_quantidade = 100.0 if periodo_atual_vendas_quantidade > 0 else 0.0
+            
+            if periodo_anterior_vendas_valor > 0:
+                variacao_vendas_valor = ((periodo_atual_vendas_valor - periodo_anterior_vendas_valor) / periodo_anterior_vendas_valor) * 100
+            else:
+                variacao_vendas_valor = 100.0 if periodo_atual_vendas_valor > 0 else 0.0
+
+
+            cur.execute('SELECT COUNT(id) AS count FROM users WHERE is_active = TRUE' if not is_sqlite else 'SELECT COUNT(id) AS count FROM users WHERE is_active = 1')
+            total_usuarios_row = cur.fetchone()
+            if total_usuarios_row and 'count' in total_usuarios_row and total_usuarios_row['count'] is not None:
+                total_usuarios = total_usuarios_row['count']
+
+            cur.execute('SELECT COUNT(id) AS count FROM produtos')
+            total_produtos_row = cur.fetchone()
+            if total_produtos_row and 'count' in total_produtos_row and total_produtos_row['count'] is not None:
+                total_produtos = total_produtos_row['count']
+
+            cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s" if not is_sqlite else "SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = ?", ('aprovado',))
+            vendas_data_row_geral = cur.fetchone()
+            if vendas_data_row_geral and 'sum' in vendas_data_row_geral and vendas_data_row_geral['sum'] is not None:
+                receita_total = float(vendas_data_row_geral['sum'])
+            
+            if is_sqlite:
+                cur.execute("""
+                    SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, p.id AS produto_id,
+                    CASE WHEN v.status = 'aprovado' THEN 'aprovado'
+                         WHEN v.status = 'pendente' AND (strftime('%s', 'now') - strftime('%s', v.data_venda)) > 3600 THEN 'expirado'
+                         ELSE v.status
+                    END AS status
+                    FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id
+                    ORDER BY v.id DESC LIMIT 5
+                """)
+            else: 
+                cur.execute("""
+                    SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, p.id AS produto_id,
+                    CASE WHEN v.status = 'aprovado' THEN 'aprovado'
+                         WHEN v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - v.data_venda)) > 3600 THEN 'expirado'
+                         ELSE v.status
+                    END AS status
+                    FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id
+                    ORDER BY v.id DESC LIMIT 5
+                """)
+            vendas_recentes = cur.fetchall()
+
+            today_date_chart = datetime.now().date()
+            for i in range(6, -1, -1): 
+                day = today_date_chart - timedelta(days=i)
+                start_of_day = datetime.combine(day, time.min)
+                end_of_day = datetime.combine(day, time.max)
+                chart_labels.append(day.strftime('%d/%m'))
+
+                if is_sqlite:
+                    cur.execute(
+                        "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = ? AND data_venda BETWEEN ? AND ?",
+                        ('aprovado', start_of_day.isoformat(), end_of_day.isoformat())
+                    )
+                else: 
+                    cur.execute(
+                        "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s",
+                        ('aprovado', start_of_day, end_of_day)
+                    )
+
+                daily_data_row = cur.fetchone()
+                daily_revenue = float(daily_data_row['sum']) if daily_data_row and 'sum' in daily_data_row and daily_data_row['sum'] is not None else 0
+                daily_quantity = int(daily_data_row['count']) if daily_data_row and 'count' in daily_data_row and daily_data_row['count'] is not None else 0
+
+                chart_data_receita.append(daily_revenue)
+                chart_data_quantidade.append(daily_quantity)
+                
+            print(f"DEBUG INDEX: Rendering index.html with dashboard data.")
+            return render_template(
+                'index.html',
+                total_usuarios=total_usuarios,
+                total_produtos=total_produtos,
+                receita_total=receita_total,
+                periodo_atual_vendas_quantidade=periodo_atual_vendas_quantidade,
+                periodo_atual_vendas_valor=periodo_atual_vendas_valor,
+                variacao_vendas_quantidade=f"{variacao_vendas_quantidade:.1f}", 
+                variacao_vendas_valor=f"{variacao_vendas_valor:.1f}",
+                periodo_anterior_vendas_quantidade=periodo_anterior_vendas_quantidade,
+                periodo_anterior_vendas_valor=periodo_anterior_vendas_valor,
+                
+                vendas_recentes=vendas_recentes,
+                chart_labels=json.dumps(chart_labels),
+                chart_data_receita=json.dumps(chart_data_receita), 
+                chart_data_quantidade=json.dumps(chart_data_quantidade), 
+                current_year=datetime.now().year,
+                data_inicio_periodo_atual=start_of_current_month.strftime('%d/%m/%Y'),
+                data_fim_periodo_atual=today.strftime('%d/%m/%Y') 
+            )
+    except Exception as e:
+        print(f"ERRO INDEX: Falha ao renderizar o dashboard: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar o dashboard.', 'danger')
+        return redirect(url_for('login')) 
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/api/sales_data', methods=['GET'])
+def get_sales_data():
+    print(f"DEBUG API SALES DATA: Requisição para /api/sales_data. Method: {request.method}")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({'error': 'Erro de conexão com o banco de dados'}), 500
+
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        
+        start_date_str = request.args.get('start_date')
+        end_date_str = request.args.get('end_date')
+
+        if not start_date_str or not end_date_str:
+            end_date = datetime.now().date()
+            start_date = end_date - timedelta(days=6)
+        else:
+            try:
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return jsonify({'error': 'Formato de data inválido. UsebeginPath-MM-DD.'}), 400
+        
+        chart_labels = []
+        chart_data_receita = []
+        chart_data_quantidade = []
+
+        print(f"DEBUG API SALES DATA: start_date={start_date}, end_date={end_date}")
+
+        current_day = start_date 
+        
+        with conn: 
+            cur = conn.cursor()
+            while current_day <= end_date: 
+                chart_labels.append(current_day.strftime('%d/%m')) 
+                start_of_day_dt = datetime.combine(current_day, time.min)
+                end_of_day_dt = datetime.combine(current_day, time.max)
+
+                if is_sqlite:
+                    cur.execute(
+                        "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = 'aprovado' AND data_venda BETWEEN ? AND ?",
+                        ('aprovado', start_of_day_dt.isoformat(), end_of_day_dt.isoformat())
+                    )
+                else: 
+                    cur.execute(
+                        "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s",
+                        ('aprovado', start_of_day_dt, end_of_day_dt)
+                    )
+
+                daily_data_row = cur.fetchone()
+                daily_revenue = float(daily_data_row['sum']) if daily_data_row and 'sum' in daily_data_row and daily_data_row['sum'] is not None else 0
+                daily_quantity = int(daily_data_row['count']) if daily_data_row and 'count' in daily_data_row and daily_data_row['count'] is not None else 0
+
+                chart_data_receita.append(daily_revenue)
+                chart_data_quantidade.append(daily_quantity)
+                
+                current_day += timedelta(days=1) 
+                
+        return jsonify({
+            'labels': chart_labels,
+            'data_receita': chart_data_receita,
+            'data_quantidade': chart_data_quantidade
+        }), 200
+    except Exception as e:
+        print(f"ERRO API SALES DATA: Falha ao obter dados de vendas: {e}")
+        traceback.print_exc()
+        return jsonify({'error': 'Erro interno do servidor'}), 500
+    finally:
+        if conn: conn.close()
+
+
+@app.route('/produtos', methods=['GET', 'POST'])
+def produtos():
+    print(f"DEBUG PRODUTOS: Requisição para /produtos. Method: {request.method}")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'error')
+            return redirect(url_for('index')) 
+
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        with conn:
+            cur = conn.cursor()
+            if request.method == 'POST':
+                nome = request.form.get('nome').strip()
+                preco_str = request.form.get('preco')
+                link = request.form.get('link').strip()
+
+                if not nome or not preco_str or not link:
+                    flash('Todos os campos (Nome, Preço, Link) são obrigatórios.', 'danger')
+                    return redirect(url_for('produtos', nome_val=nome, preco_val=preco_str, link_val=link))
+                try:
+                    preco = float(preco_str)
+                    if preco <= 0:
+                        flash('O preço deve ser um valor positivo.', 'danger')
+                        return redirect(url_for('produtos', nome_val=nome, preco_val=preco_str, link_val=link))
+                except ValueError:
+                    flash('Preço inválido. Use um número.', 'danger')
+                    return redirect(url_for('produtos', nome_val=nome, preco_val=preco_str, link_val=link))
+
+                if is_sqlite:
+                    cur.execute('INSERT INTO produtos (nome, preco, link) VALUES (?, ?, ?)', (nome, preco, link))
+                else:
+                    cur.execute('INSERT INTO produtos (nome, preco, link) VALUES (%s, %s, %s)', (nome, preco, link))
+                flash('Produto adicionado com sucesso!', 'success')
+                return redirect(url_for('produtos'))
+
+            # For GET request, just fetch and display products
+            if is_sqlite:
+                cur.execute('SELECT * FROM produtos ORDER BY id DESC')
+            else:
+                cur.execute('SELECT * FROM produtos ORDER BY id DESC')
+            produtos_lista = cur.fetchall()
+            print(f"DEBUG PRODUTOS: {len(produtos_lista)} produtos encontrados.")
+            return render_template('produtos.html', produtos=produtos_lista)
+
+    except Exception as e:
+        print(f"ERRO PRODUTOS: Falha ao gerenciar produtos: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar ou adicionar produtos.', 'danger')
+        return redirect(url_for('index')) 
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/editar_produto/<int:produto_id>', methods=['GET', 'POST'])
+def editar_produto(produto_id):
+    print(f"DEBUG EDITAR_PRODUTO: Requisição para /editar_produto/{produto_id}. Method: {request.method}")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados para editar produto.', 'danger')
+            return redirect(url_for('produtos')) 
+
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        with conn:
+            cur = conn.cursor()
+            if request.method == 'POST':
+                nome = request.form.get('nome').strip()
+                preco_str = request.form.get('preco')
+                link = request.form.get('link').strip()
+
+                if not nome or not preco_str or not link:
+                    flash('Todos os campos são obrigatórios!', 'danger')
+                    return redirect(url_for('produtos', edit_id=produto_id, nome_val=nome, preco_val=preco_str, link_val=link))
+
+                try:
+                    preco = float(preco_str)
+                    if preco <= 0:
+                        flash('O preço deve ser um valor positivo.', 'danger')
+                        return redirect(url_for('produtos', nome_val=nome, preco_val=preco_str, link_val=link))
+                except ValueError:
+                    flash('Preço inválido. Use um número.', 'danger')
+                    return redirect(url_for('produtos', nome_val=nome, preco_val=preco_str, link_val=link))
+
+                if is_sqlite:
+                    cur.execute("UPDATE produtos SET nome = ?, preco = ?, link = ? WHERE id = ?", (nome, preco, link, produto_id))
+                else:
+                    cur.execute("UPDATE produtos SET nome = %s, preco = %s, link = %s WHERE id = %s", (nome, preco, link, produto_id))
+                print(f"DEBUG EDITAR_PRODUTO: Produto ID {produto_id} atualizado com sucesso.")
+                flash('Produto atualizado com sucesso!', 'success')
+                return redirect(url_for('produtos')) 
+            else: # GET request to show edit form
+                if is_sqlite:
+                    cur.execute('SELECT * FROM produtos WHERE id = ?', (produto_id,))
+                else:
+                    cur.execute('SELECT * FROM produtos WHERE id = %s', (produto_id,))
+                produto = cur.fetchone()
+
+                if not produto:
+                    flash('Produto não encontrado.', 'danger')
+                    return redirect(url_for('produtos')) 
+
+                return render_template('edit_product.html',
+                                       produto=produto,
+                                       nome_val=produto['nome'],
+                                       preco_val=f"{produto['preco']:.2f}",
+                                       link_val=produto['link'])
+
+    except Exception as e:
+        print(f"ERRO EDIT PRODUTO: Falha ao editar produto: {e}")
+        traceback.print_exc()
+        flash('Erro ao editar produto.', 'danger')
+        return redirect(url_for('produtos', edit_id=produto_id,
+                                 nome_val=request.form.get('nome', ''),
+                                 preco_val=request.form.get('preco', ''),
+                                 link_val=request.form.get('link', '')))
+    finally:
+        if conn: conn.close()
+
+@app.route('/deletar_produto/<int:produto_id>', methods=['POST'])
+def deletar_produto(produto_id):
+    print(f"DEBUG DELETAR_PRODUTO: Requisição para /deletar_produto/{produto_id}. Method: {request.method}")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'error')
+            return redirect(url_for('produtos')) 
+
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        with conn:
+            cur = conn.cursor()
+            if is_sqlite:
+                cur.execute('SELECT id FROM produtos WHERE id = ?', (produto_id,))
+            else:
+                cur.execute('SELECT id FROM produtos WHERE id = %s', (produto_id,))
+            if not cur.fetchone():
+                flash('Produto não encontrado.', 'danger')
+                return redirect(url_for('produtos')) 
+
+            if is_sqlite:
+                cur.execute('DELETE FROM produtos WHERE id = ?', (produto_id,))
+            else:
+                cur.execute('DELETE FROM produtos WHERE id = %s', (produto_id,))
+            print(f"DEBUG DELETAR_PRODUTO: Produto ID {produto_id} deletado com sucesso.")
+            flash('Produto deletado com sucesso!', 'success')
+            return redirect(url_for('produtos')) 
+    except Exception as e:
+        print(f"ERRO REMOVER PRODUTO: Falha ao remover produto: {e}")
+        traceback.print_exc()
+        flash('Erro ao remover produto.', 'error')
+        return redirect(url_for('produtos')) 
+    finally:
+        if conn: conn.close()
+
+@app.route('/vendas')
+def vendas():
+    print(f"DEBUG VENDAS: Requisição para /vendas. Method: {request.method}")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'error')
+            return redirect(url_for('index')) 
+
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        with conn:
+            cur = conn.cursor()
+            # Fetch available products for the filter
+            cur.execute('SELECT id, nome FROM produtos ORDER BY nome')
+            produtos_disponiveis = cur.fetchall()
+
+            # Base SQL query for sales
+            query_base = """
+                SELECT
+                    v.id,
+                    u.username,
+                    u.first_name,
+                    p.nome AS nome_produto,
+                    v.preco,
+                    v.data_venda,
+                    v.payment_id,
+                    v.payer_name,
+                    v.payer_email,
+                    CASE
+                        WHEN v.status = 'aprovado' THEN 'aprovado'
+                        WHEN v.status = 'pendente' """
+
+            if is_sqlite:
+                query_base += " AND (strftime('%s', 'now') - strftime('%s', v.data_venda)) > 3600 THEN 'expirado'"
+            else: # PostgreSQL
+                query_base += " AND EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - v.data_venda)) > 3600 THEN 'expirado'"
+            query_base += """
+                        ELSE v.status
+                    END AS status
+                FROM vendas v
+                JOIN users u ON v.user_id = u.id
+                JOIN produtos p ON v.produto_id = p.id
+            """
+            conditions = []
+            params = []
+
+            data_inicio_str = request.args.get('data_inicio')
+            data_fim_str = request.args.get('data_fim')
+            pesquisa_str = request.args.get('pesquisa')
+            produto_id_str = request.args.get('produto_id')
+            status_str = request.args.get('status')
+
+            if data_inicio_str:
+                conditions.append("DATE(v.data_venda) >= %s" if not is_sqlite else "DATE(v.data_venda) >= ?")
+                params.append(data_inicio_str)
+            if data_fim_str:
+                conditions.append("DATE(v.data_venda) <= %s" if not is_sqlite else "DATE(v.data_venda) <= ?")
+                params.append(data_fim_str)
+            if pesquisa_str:
+                conditions.append("(u.username {} %s OR p.nome {} %s OR u.first_name {} %s)".format("ILIKE" if not is_sqlite else "LIKE", "ILIKE" if not is_sqlite else "LIKE", "ILIKE" if not is_sqlite else "LIKE"))
+                params.extend([f'%{pesquisa_str}%'] * 3)
+            if produto_id_str:
+                conditions.append("p.id = %s" if not is_sqlite else "p.id = ?")
+                params.append(int(produto_id_str))
+            if status_str:
+                if status_str == 'expirado':
+                    if is_sqlite:
+                        conditions.append("(v.status = 'pendente' AND (strftime('%s', 'now') - strftime('%s', v.data_venda)) > 3600)")
+                    else:
+                        conditions.append("(v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - v.data_venda)) > 3600)")
+                else:
+                    conditions.append("v.status = %s" if not is_sqlite else "v.status = ?")
+                    params.append(status_str)
+
+            if conditions:
+                query_base += " WHERE " + " AND ".join(conditions)
+
+            query_base += " ORDER BY v.id DESC"
+
+            cur.execute(query_base, tuple(params))
+            vendas_lista = cur.fetchall()
+            return render_template('vendas.html', vendas=vendas_lista, produtos_disponiveis=produtos_disponiveis)
+    except Exception as e:
+        print(f"ERRO VENDAS: Falha ao carregar vendas para o dashboard: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar as vendas.', 'danger')
+        return redirect(url_for('index')) 
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/venda_detalhes/<int:id>')
+def venda_detalhes(id):
+    print(f"DEBUG VENDA DETALHES: Requisição para /venda_detalhes. Method: {request.method}")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({'error': 'Erro de conexão com o banco de dados'}), 500
+
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        with conn:
+            cur = conn.cursor()
+            if is_sqlite:
+                cur.execute('SELECT * FROM vendas WHERE id = ?', (id,))
+            else:
+                cur.execute('SELECT * FROM vendas WHERE id = %s', (id,))
+
+            venda = cur.fetchone()
+            if venda:
+                venda_dict = dict(venda)
+                if 'data_venda' in venda_dict and isinstance(venda_dict['data_venda'], datetime):
+                    venda_dict['data_venda'] = venda_dict['data_venda'].isoformat()
+                return jsonify(venda_dict)
+            return jsonify({'error': 'Venda não encontrada'}), 404
+    except Exception as e:
+        print(f"ERRO VENDA DETALHES: Falha ao obter detalhes da venda: {e}")
+        traceback.print_exc()
+        return jsonify({'error': 'Erro interno do servidor'}), 500
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/usuarios')
+def usuarios():
+    print(f"DEBUG USUARIOS: Requisição para /usuarios. Method: {request.method}")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'error')
+            return redirect(url_for('index')) 
+
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        with conn:
+            cur = conn.cursor()
+            if is_sqlite:
+                cur.execute('SELECT * FROM users ORDER BY data_registro DESC')
+            else:
+                cur.execute('SELECT * FROM users ORDER BY data_registro DESC')
+            usuarios_lista = cur.fetchall()
+            print(f"DEBUG USUARIOS: {len(usuarios_lista)} usuários encontrados.")
+
+        return render_template('usuarios.html', usuarios=usuarios_lista)
+
+    except Exception as e:
+        print(f"ERRO UTILIZADORES: Falha ao carregar utilizadores: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar utilizadores.', 'error')
+        return redirect(url_for('index')) 
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/toggle_user_status/<int:user_id>', methods=['POST'])
+def toggle_user_status(user_id):
+    print(f"DEBUG TOGGLE_USER_STATUS: Requisição para /toggle_user_status/{user_id}. Method: {request.method}")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'error')
+            return redirect(url_for('usuarios')) 
+
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        with conn:
+            cur = conn.cursor()
+            if is_sqlite:
+                cur.execute('SELECT is_active FROM users WHERE id = ?', (user_id,))
+            else:
+                cur.execute('SELECT is_active FROM users WHERE id = %s', (user_id,))
+            user = cur.fetchone()
+
+            if not user:
+                flash('Usuário não encontrado.', 'danger')
+                return redirect(url_for('usuarios')) 
+
+            new_status = not user['is_active']
+            if is_sqlite:
+                cur.execute('UPDATE users SET is_active = ? WHERE id = ?', (new_status, user_id))
+            else:
+                cur.execute('UPDATE users SET is_active = %s WHERE id = %s', (new_status, user_id))
+
+            status_text = "ativado" if new_status else "desativado"
+            print(f"DEBUG TOGGLE_USER_STATUS: Usuário {user_id} {status_text} com sucesso.")
+            flash(f'Usuário {user_id} {status_text} com sucesso!', 'success')
+            return redirect(url_for('usuarios')) 
+    except Exception as e:
+        print(f"ERRO REMOVER UTILIZADOR: Falha ao remover utilizador: {e}")
+        traceback.print_exc()
+        flash('Erro ao remover utilizador.', 'error')
+        return redirect(url_for('usuarios')) 
+    finally:
+        if conn: conn.close()
+
+@app.route('/scheduled_messages')
+def scheduled_messages():
+    print(f"DEBUG SCHEDULED_MESSAGES: Requisição para /scheduled_messages. Method: {request.method}")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'error')
+            return redirect(url_for('login')) 
+
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        with conn:
+            cur = conn.cursor()
+            if is_sqlite:
+                cur.execute("""
+                    SELECT
+                        sm.id,
+                        sm.message_text,
+                        sm.target_chat_id,
+                        sm.image_url,
+                        sm.schedule_time,
+                        sm.status,
+                        sm.created_at,
+                        sm.sent_at,
+                        COALESCE(u.username, 'Todos os usuários') AS target_username
+                    FROM scheduled_messages sm
+                    LEFT JOIN users u ON sm.target_chat_id = u.id
+                    ORDER BY sm.schedule_time DESC
+                """)
+            else:
+                cur.execute("""
+                    SELECT
+                        sm.id,
+                        sm.message_text,
+                        sm.target_chat_id,
+                        sm.image_url,
+                        sm.schedule_time,
+                        sm.status,
+                        sm.created_at,
+                        sm.sent_at,
+                        COALESCE(u.username, 'Todos os usuários') AS target_username
+                    FROM scheduled_messages sm
+                    LEFT JOIN users u ON sm.target_chat_id = u.id
+                    ORDER BY sm.schedule_time DESC
+                """)
+            messages_list = cur.fetchall()
+            print(f"DEBUG SCHEDULED_MESSAGES: {len(messages_list)} mensagens agendadas encontradas.")
+
+        return render_template('scheduled_messages.html', messages=messages_list)
+    except Exception as e:
+        print(f"ERRO SCHEDULED MESSAGES: Falha ao carregar mensagens agendadas: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar ou atualizar mensagens.', 'error')
+        return redirect(url_for('index')) 
+    finally:
+        if conn: conn.close()
+
+@app.route('/add_scheduled_message', methods=['GET', 'POST'])
+def add_scheduled_message():
+    print(f"DEBUG ADD SCHEDULED MESSAGE: Requisição para /add_scheduled_message. Method: {request.method}")
+
+    if request.method == 'POST':
+        try:
+            message_text = request.form.get('message_text')
+            target_chat_id = request.form.get('target_chat_id')
+            image_url = request.form.get('image_url')
+            schedule_time_str = request.form.get('schedule_time')
+            recurrence_rule = request.form.get('recurrence_rule', 'none') 
+
+            if not message_text or not schedule_time_str:
+                flash('Texto da mensagem e data/hora são obrigatórios!', 'danger')
+                return redirect(url_for('add_scheduled_message'))
+
+            schedule_time = datetime.strptime(schedule_time_str, '%Y-%m-%dT%H:%M')
+
+            if schedule_time <= datetime.now():
+                flash('A data e hora de agendamento devem ser no futuro.', 'danger')
+                return redirect(url_for('add_scheduled_message'))
+
+            target_chat_id_db = None if target_chat_id == 'all_users' else int(target_chat_id)
+            
+            conn = get_db_connection()
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO scheduled_messages 
+                    (message_text, target_chat_id, image_url, schedule_time, status, recurrence_rule) 
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    (message_text, target_chat_id_db, image_url or None, schedule_time, 'pending', recurrence_rule)
+                )
+            conn.commit()
+            conn.close()
+
+            flash('Mensagem agendada com sucesso!', 'success')
+            return redirect(url_for('scheduled_messages')) 
+
+        except ValueError:
+            flash('Formato de dados inválido.', 'danger')
+        except Exception as e:
+            print(f"ERRO ADD SCHEDULED MESSAGE: {e}")
+            traceback.print_exc()
+            flash('Ocorreu um erro inesperado ao agendar a mensagem.', 'danger')
+        
+        return redirect(url_for('add_scheduled_message'))
+
+    # Lógica para GET (exibir formulário)
+    conn = get_db_connection()
+    with conn.cursor() as cur:
+        cur.execute('SELECT id, username, first_name FROM users WHERE is_active = TRUE ORDER BY username ASC')
+        users = cur.fetchall()
+    conn.close()
+    return render_template('add_scheduled_message.html', users=users)
+
+@app.route('/edit_scheduled_message/<int:message_id>', methods=['GET', 'POST'])
+def edit_scheduled_message(message_id):
+    print(f"DEBUG EDIT SCHEDULED MESSAGE: Requisição para /edit_scheduled_message/{message_id}. Method: {request.method}")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('scheduled_messages')) 
+
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        
+        # Busca os dados da mensagem para o GET e para o POST
+        with conn.cursor() as cur:
+            if is_sqlite:
+                cur.execute('SELECT * FROM scheduled_messages WHERE id = ?', (message_id,))
+            else:
+                cur.execute('SELECT * FROM scheduled_messages WHERE id = %s', (message_id,))
+            message = cur.fetchone()
+
+        if not message:
+            flash('Mensagem agendada não encontrada.', 'danger')
+            return redirect(url_for('scheduled_messages')) 
+
+        # Se a requisição for POST, tenta salvar as alterações
+        if request.method == 'POST':
+            message_text = request.form.get('message_text')
+            target_chat_id_str = request.form.get('target_chat_id', '').strip()
+            image_url = request.form.get('image_url')
+            schedule_time_str = request.form.get('schedule_time')
+
+            if not message_text or not schedule_time_str:
+                flash('Texto da mensagem e tempo de agendamento são obrigatórios!', 'danger')
+                return render_template('edit_scheduled_message.html', message=message)
+
+            target_chat_id_db = None
+            if target_chat_id_str:
+                try:
+                    target_chat_id_db = int(target_chat_id_str)
+                except ValueError:
+                    flash('ID do chat de destino inválido. Deve ser um número.', 'danger')
+                    return render_template('edit_scheduled_message.html', message=message)
+            
+            schedule_time = datetime.strptime(schedule_time_str, '%Y-%m-%dT%H:%M')
+
+            # Atualiza o banco de dados SEM ALTERAR O STATUS
+            with conn.cursor() as cur:
+                if is_sqlite:
+                    cur.execute(
+                        "UPDATE scheduled_messages SET message_text = ?, target_chat_id = ?, image_url = ?, schedule_time = ? WHERE id = ?",
+                        (message_text, target_chat_id_db, image_url or None, schedule_time, message_id)
+                    )
+                else:
+                    cur.execute(
+                        "UPDATE scheduled_messages SET message_text = %s, target_chat_id = %s, image_url = %s, schedule_time = %s WHERE id = %s",
+                        (message_text, target_chat_id_db, image_url or None, schedule_time, message_id)
+                    )
+            conn.commit()
+            flash('Mensagem agendada atualizada com sucesso!', 'success')
+            return redirect(url_for('scheduled_messages')) 
+
+        # Se a requisição for GET, apenas exibe o formulário
+        message['schedule_time_formatted'] = message['schedule_time'].strftime('%Y-%m-%dT%H:%M') if message['schedule_time'] else ''
+        return render_template('edit_scheduled_message.html', message=message)
+
+    except Exception as e:
+        print(f"ERRO EDIT SCHEDULED MESSAGE: Falha ao editar mensagem agendada: {e}")
+        traceback.print_exc()
+        flash('Erro ao editar mensagem agendada.', 'danger')
+        return redirect(url_for('scheduled_messages')) 
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/resend_scheduled_message/<int:message_id>', methods=['POST'])
+def resend_scheduled_message(message_id):
+    print(f"DEBUG CLONE SCHEDULED MESSAGE: Requisição para clonar a mensagem ID {message_id}.")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('scheduled_messages')) 
+
+        with conn.cursor() as cur:
+            if isinstance(conn, sqlite3.Connection):
+                 cur.execute("SELECT * FROM scheduled_messages WHERE id = ?", (message_id,))
+            else:
+                 cur.execute("SELECT * FROM scheduled_messages WHERE id = %s", (message_id,))
+            original_message = cur.fetchone()
+
+            if not original_message:
+                flash('Mensagem original não encontrada para clonar.', 'warning')
+                return redirect(url_for('scheduled_messages')) 
+
+            insert_query = """
+                INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, status, schedule_time)
+                VALUES (%s, %s, %s, 'pending', NOW())
+                RETURNING id
+                """
+            insert_params = (
+                original_message['message_text'],
+                original_message['target_chat_id'],
+                original_message['image_url']
+            )
+
+            is_sqlite = isinstance(conn, sqlite3.Connection)
+            if is_sqlite:
+                insert_query = "INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, status, schedule_time) VALUES (?, ?, ?, ?, ?)"
+                insert_params = (
+                    original_message['message_text'],
+                    original_message['target_chat_id'],
+                    original_message['image_url'],
+                    'pending',
+                    datetime.now()
+                )
+                cur.execute(insert_query, insert_params)
+                cur.execute("SELECT last_insert_rowid()")
+                new_message_id = cur.fetchone()[0]
+            else:
+                cur.execute(insert_query, insert_params)
+                new_message_id = cur.fetchone()['id']
+            
+            conn.commit()
+
+            flash('Mensagem clonada com sucesso! Por favor, defina um novo horário de agendamento.', 'success')
+            
+            return redirect(url_for('edit_scheduled_message', message_id=new_message_id, from_clone=True)) 
+
+    except Exception as e:
+        print(f"ERRO CLONE MESSAGE: {e}")
+        traceback.print_exc()
+        flash('Ocorreu um erro ao tentar clonar a mensagem.', 'danger')
+        return redirect(url_for('scheduled_messages')) 
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/delete_scheduled_message/<int:message_id>', methods=['POST'])
+def delete_scheduled_message(message_id):
+    print(f"DEBUG DELETE SCHEDULED MESSAGE: Requisição para deletar a mensagem ID {message_id}.")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('scheduled_messages')) 
+
+        with conn.cursor() as cur:
+            if isinstance(conn, sqlite3.Connection):
+                cur.execute("SELECT id FROM scheduled_messages WHERE id = ?", (message_id,))
+            else:
+                cur.execute("SELECT id FROM scheduled_messages WHERE id = %s", (message_id,))
+            
+            if cur.fetchone() is None:
+                flash('Mensagem não encontrada para deletar.', 'warning')
+            else:
+                if isinstance(conn, sqlite3.Connection):
+                    cur.execute("DELETE FROM scheduled_messages WHERE id = ?", (message_id,))
+                else:
+                    cur.execute("DELETE FROM scheduled_messages WHERE id = %s", (message_id,))
+                conn.commit()
+                flash('Mensagem agendada deletada com sucesso!', 'success')
+                
+    except Exception as e:
+        print(f"ERRO DELETE MESSAGE: {e}")
+        traceback.print_exc() 
+        flash('Ocorreu um erro ao tentar deletar a mensagem.', 'danger')
+    finally:
+        if conn:
+            conn.close()
+            
+    return redirect(url_for('scheduled_messages')) 
+
+@app.route('/cancel_cloned_message/<int:message_id>', methods=['GET'])
+def cancel_cloned_message(message_id):
+    print(f"DEBUG CANCEL CLONE: Requisição para cancelar e deletar o clone ID {message_id}.")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None: 
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('scheduled_messages')) 
+
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        with conn.cursor() as cur:
+            if is_sqlite:
+                cur.execute("DELETE FROM scheduled_messages WHERE id = ?", (message_id,))
+            else:
+                cur.execute("DELETE FROM scheduled_messages WHERE id = %s", (message_id,))
+        conn.commit()
+        flash('Reenvio cancelado e cópia da mensagem descartada.', 'info')
+    except Exception as e:
+        print(f"ERRO CANCEL CLONE: {e}")
+        traceback.print_exc() 
+        flash('Ocorreu um erro ao descartar a cópia da mensagem.', 'danger')
+    finally:
+        if conn:
+            conn.close()
+            
+    return redirect(url_for('scheduled_messages')) 
+
+@app.route('/send_broadcast', methods=['GET', 'POST'])
+def send_broadcast():
+    print(f"DEBUG SEND BROADCAST: Requisição para /send_broadcast. Method: {request.method}")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('index', error='broadcast_db_connection_error')) 
+
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        with conn:
+            cur = conn.cursor()
+            if is_sqlite:
+                cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
+            else:
+                cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
+            active_users = cur.fetchall()
+
+        if request.method == 'POST':
+            message_text = request.form.get('message_text')
+            image_url = request.form.get('image_url')
+
+            if not message_text:
+                flash('O texto da mensagem é obrigatório para o broadcast!', 'danger')
+                return render_template('send_broadcast.html', active_users=active_users, message_text_val=message_text, image_url_val=image_url)
+
+            sent_count = 0
+            failed_count = 0
+
+            cur_conn_send = get_db_connection()
+            if cur_conn_send is None:
+                flash('Erro de conexão com o banco de dados.', 'danger')
+                return render_template('send_broadcast.html', active_users=active_users, message_text_val=message_text, image_url_val=image_url)
+
+            try:
+                with cur_conn_send:
+                    cur_send = cur_conn_send.cursor()
+                    if is_sqlite:
+                        cur_send.execute("SELECT id FROM users WHERE is_active = 1")
+                    else:
+                        cur_send.execute("SELECT id FROM users WHERE is_active = TRUE")
+                    users_to_send = cur_send.fetchall()
+
+                    for user_data in users_to_send:
+                        user_id = user_data['id']
+                        try:
+                            if image_url:
+                                bot.send_photo(user_id, image_url, caption=message_text, parse_mode="Markdown")
+                            else:
+                                bot.send_message(user_id, message_text, parse_mode="Markdown")
+                            sent_count += 1
+                        except telebot.apihelper.ApiTelegramException as e:
+                            print(f"ERRO BROADCAST para {user_id}: {e}")
+                            if "blocked" in str(e).lower() or "not found" in str(e).lower() or "deactivated" in str(e).lower():
+                                print(f"AVISO: Usuário {user_id} blocked/not found during broadcast. Deactivating...")
+                                temp_conn_update = get_db_connection()
+                                if temp_conn_update:
+                                    temp_is_sqlite = isinstance(temp_conn_update, sqlite3.Connection)
+                                    try:
+                                        with temp_conn_update:
+                                            cur_u = temp_conn_update.cursor()
+                                            if temp_is_sqlite:
+                                                cur_u.execute("UPDATE users SET is_active=0 WHERE id=?", (user_id,))
+                                            else:
+                                                cur_u.execute("UPDATE users SET is_active=FALSE WHERE id=%s", (user_id,))
+                                    except Exception as db_e:
+                                        print(f"ERRO inactivating user {user_id} during broadcast: {db_e}")
+                                        traceback.print_exc()
+                                    finally:
+                                        if temp_conn_update: temp_conn_update.close()
+                        except Exception as e:
+                            print(f"ERRO UNEXPECTED BROADCAST to {user_id}: {e}")
+                            traceback.print_exc()
+                            failed_count += 1 
+
+                flash(f'Broadcast enviado com sucesso para {sent_count} usuários. Falha em {failed_count} usuários.', 'success')
+                return redirect(url_for('index')) 
+            except Exception as e:
+                print(f"ERRO SEND BROADCAST (send logic): {e}")
+                traceback.print_exc()
+                flash('Ocorreu um erro ao tentar enviar o broadcast.', 'danger')
+                return render_template('send_broadcast.html', active_users=active_users, message_text_val=message_text, image_url_val=image_url)
+            finally:
+                if cur_conn_send: cur_conn_send.close()
+
+        return render_template('send_broadcast.html', active_users=active_users)
+
+    except Exception as e:
+        print(f"ERRO SEND BROADCAST (GET): Falha ao carregar usuários para o formulário: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar a página de broadcast.', 'danger')
+        return redirect(url_for('index')) 
+    finally:
+        if conn: conn.close()
+
+@app.route('/config_messages', methods=['GET', 'POST'])
+def config_messages():
+    print(f"DEBUG CONFIG_MESSAGES: Requisição para /config_messages. Method: {request.method}")
+
+    conn = None
+    welcome_message_bot = 'Olá, {first_name}! Bem-vindo(a) ao bot!'
+    welcome_message_community = 'Bem-vindo(a) à nossa comunidade, {first_name}!'
+
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados. Não foi possível carregar/salvar configurações.', 'danger')
+            return render_template(
+                'config_messages.html',
+                welcome_message_bot=welcome_message_bot,
+                welcome_message_community=welcome_message_community
+            )
+
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        with conn:
+            cur = conn.cursor()
+            
+            if request.method == 'POST':
+                welcome_bot_message_form = request.form.get('welcome_message_bot')
+                welcome_community_message_form = request.form.get('welcome_message_community')
+
+                if welcome_bot_message_form is not None:
+                    if is_sqlite:
+                        cur.execute(
+                            "INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value;",
+                            ('welcome_message_bot', welcome_bot_message_form)
+                        )
+                    else:
+                        cur.execute(
+                            "INSERT INTO config (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;",
+                            ('welcome_message_bot', welcome_bot_message_form)
+                        )
+                
+                if welcome_community_message_form is not None:
+                    if is_sqlite:
+                        cur.execute(
+                            "INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value;",
+                            ('welcome_message_community', welcome_community_message_form)
+                        )
+                    else:
+                        cur.execute(
+                            "INSERT INTO config (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;",
+                            ('welcome_message_community', welcome_community_message_form)
+                        )
+                
+                flash('Configurações de mensagens atualizadas com sucesso!', 'success')
+                return redirect(url_for('config_messages')) 
+
+            # Lógica para GET request (ou após POST e redirecionamento)
+            if is_sqlite:
+                cur.execute("SELECT key, value FROM config WHERE key IN (?, ?)", ('welcome_message_bot', 'welcome_message_community'))
+            else:
+                cur.execute("SELECT key, value FROM config WHERE key IN (%s, %s)", ('welcome_message_bot', 'welcome_message_community'))
+            configs_raw = cur.fetchall()
+            configs = {row['key']: row['value'] for row in configs_raw}
+
+            welcome_message_bot = configs.get('welcome_message_bot', welcome_message_bot)
+            welcome_message_community = configs.get('welcome_message_community', welcome_message_community)
+
+            return render_template(
+                'config_messages.html',
+                welcome_message_bot=welcome_message_bot,
+                welcome_message_community=welcome_message_community
+            )
+
+    except Exception as e:
+        print(f"ERRO CONFIG_MESSAGES: Falha ao carregar/salvar configurações de mensagens: {e}")
+        traceback.print_exc()
+        flash('Erro ao carregar/salvar configurações de mensagens.', 'danger')
+        return render_template(
+            'config_messages.html',
+            welcome_message_bot=welcome_message_bot,
+            welcome_message_community=welcome_message_community
+        )
+    finally:
+        if conn: conn.close()
+
+# ────────────────────────────────────────────────────────────────────
+# 7. WORKER de mensagens agendadas
+# ────────────────────────────────────────────────────────────────────
+def scheduled_message_worker():
+    print(f"DEBUG WORKER: Iniciado e aguardando para verificar mensagens...")
+    while True:
+        conn = None
+        try:
+            conn = get_db_connection()
+            if conn is None:
+                print(f"ERRO WORKER: Não foi possível obter conexão. Tentando novamente em 60s...")
+                time_module.sleep(60)
+                continue
+
+            with conn.cursor() as cur:
+                if isinstance(conn, sqlite3.Connection):
+                    cur.execute(
+                        "SELECT * FROM scheduled_messages WHERE status='pending' AND schedule_time <= DATETIME('now') ORDER BY schedule_time"
+                    )
+                else:
+                    cur.execute(
+                        "SELECT * FROM scheduled_messages WHERE status='pending' AND schedule_time <= NOW() ORDER BY schedule_time"
+                    )
+                rows = cur.fetchall()
+
+                if rows:
+                    print(f"DEBUG WORKER: Encontradas {len(rows)} mensagens para enviar.")
+
+                for row in rows:
+                    print(f"DEBUG WORKER: Processando mensagem ID {row['id']} para o alvo: {row['target_chat_id'] or 'Todos'}")
+                    
+                    targets = []
+                    if row["target_chat_id"]:
+                        targets.append(row["target_chat_id"])
+                    else: # Se for para todos (broadcast)
+                        if isinstance(conn, sqlite3.Connection):
+                            cur.execute("SELECT id FROM users WHERE is_active = 1")
+                        else:
+                            cur.execute("SELECT id FROM users WHERE is_active = TRUE")
+                        all_users = cur.fetchall()
+                        targets = [u["id"] for u in all_users]
+
+                    print(f"DEBUG WORKER: A mensagem {row['id']} será enviada para {len(targets)} usuários.")
+                    
+                    sent_successfully = False 
+                    for chat_id in targets:
+                        try:
+                            if row["image_url"]:
+                                bot.send_photo(chat_id, row["image_url"], caption=row["message_text"], parse_mode="Markdown")
+                            else:
+                                bot.send_message(chat_id, row["message_text"], parse_mode="Markdown")
+                            sent_successfully = True 
+                        except Exception as e:
+                            print(f"ERRO WORKER: Falha ao enviar msg {row['id']} para o chat {chat_id}: {e}")
+                            traceback.print_exc()
+                    
+                    final_status = 'sent' if sent_successfully else 'failed'
+                    if isinstance(conn, sqlite3.Connection):
+                        cur.execute(
+                            "UPDATE scheduled_messages SET status=?, sent_at=DATETIME('now') WHERE id=?",
+                            (final_status, row["id"]),
+                        )
+                    else:
+                        cur.execute(
+                            "UPDATE scheduled_messages SET status=%s, sent_at=NOW() WHERE id=%s",
+                            (final_status, row["id"]),
+                        )
+                    print(f"DEBUG WORKER: Mensagem ID {row['id']} atualizada para status '{final_status}'.")
+            
+            conn.commit()
+
+        except Exception as e:
+            print(f"ERRO CRÍTICO no Loop do Worker: {e}")
+            traceback.print_exc()
+        finally:
+            if conn:
+                conn.close()
+
+        time_module.sleep(60)
+
+# ────────────────────────────────────────────────────────────────────
 # 9. FINAL INITIALIZATION AND EXECUTION
 # ────────────────────────────────────────────────────────────────────
 
@@ -448,7 +1671,6 @@ def send_welcome(message):
         conn = get_db_connection()
         if conn is None:
             print(f"ERRO: Não foi possível obter conexão com o DB para carregar mensagem de boas-vindas do bot.")
-            # Fallback para mensagem padrão se DB não disponível
             pass
         else:
             is_sqlite = isinstance(conn, sqlite3.Connection)
@@ -473,11 +1695,12 @@ def send_welcome(message):
         username=message.from_user.username or 'usuário'
     )
     
-    # Comportamento: Mensagem de boas-vindas COM botão inline "Melhores Vips e Novinhas"
+    # MUDANÇA AQUI: Mensagem de boas-vindas com botão INLINE "Melhores Vips e Novinhas"
     bot.reply_to(message, formatted_message, reply_markup=inline_ver_produtos_keyboard())
 
-    # NÃO chamar mostrar_produtos_bot_func() aqui se a intenção é que o botão inline faça isso.
-    # O clique no botão inline acionará o `handle_ver_produtos_inline` que chamará `mostrar_produtos_bot`.
+    # REMOVIDO: A chamada direta a `mostrar_produtos_bot_func` não é mais feita aqui,
+    # pois o clique no botão inline "Melhores Vips e Novinhas" acionará a listagem.
+
 
 if __name__ != '__main__':
     print(f"DEBUG: Executando em modo de produção (gunicorn/Render).")
@@ -494,14 +1717,14 @@ if __name__ != '__main__':
         worker_thread.start()
         print(f"DEBUG: Worker de mensagens agendadas iniciado em background para o modo de produção.")
 
-        # REGISTRAR HANDLERS (COM A CORREÇÃO DE IMPORTAÇÃO CIRCULAR PARA PRODUTOS)
+        # REGISTRAR HANDLERS 
         register_chamadas_handlers(bot, get_db_connection)
         register_comunidades_handlers(bot, get_db_connection)
         register_conteudos_handlers(bot, get_db_connection)
         
         # Passando 'generar_cobranca' como argumento.
-        # A função mostrar_produtos_bot NÃO é mais retornada para o escopo global do app.py,
-        # pois ela será chamada pelo handler do botão inline em bot/handlers/produtos.py.
+        # A função `mostrar_produtos_bot` NÃO é mais retornada,
+        # pois ela será chamada pelo handler do botão inline em `bot/handlers/produtos.py`.
         register_produtos_handlers(bot, get_db_connection, generar_cobranca) 
         
         # REGISTRAR BLUEPRINT DE COMUNIDADES (EXISTENTE)

@@ -3,18 +3,25 @@ from telebot import types
 def menu_principal():
     """
     Cria o teclado de menu principal para o bot.
-    Agora apenas com "Melhores vips".
-    Corrigido para melhor compatibilidade com iOS (row_width=1).
+    Retorna None, pois o botão de produtos agora é inline e não faz parte do ReplyKeyboard.
     """
-    # MUDANÇA AQUI: row_width=1 pois você só tem um botão nesta linha
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1) 
-    
-    # Botão "Melhores vips"
-    btn_melhores_vips = types.KeyboardButton("🎁 Melhores Vips e Novinhas") 
-    
-    # Adiciona o botão
-    markup.add(btn_melhores_vips) 
-    
+    # Se não houver outros botões de ReplyKeyboard que você queira exibir,
+    # esta função pode simplesmente retornar None.
+    # Se houver outros botões de menu fixos, adicione-os aqui.
+    # Ex: markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
+    #     markup.add(types.KeyboardButton("Outra Opção"))
+    #     return markup
+    return None 
+
+def inline_ver_produtos_keyboard():
+    """
+    Cria um teclado inline com o botão "Melhores Vips e Novinhas".
+    Este é o botão que você quer que apareça diretamente na mensagem.
+    """
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    # O callback_data "ver_produtos_inline" será usado em bot/handlers/produtos.py
+    btn_ver_produtos = types.InlineKeyboardButton("🎁 Melhores Vips e Novinhas", callback_data="ver_produtos_inline")
+    markup.add(btn_ver_produtos)
     return markup
 
 def confirm_18_keyboard():
