@@ -796,8 +796,8 @@
         }
 
         .modal-footer {
-            background-color: var(--sidebar-bg);
             padding: 0.75rem 1.5rem;
+            background-color: var(--sidebar-bg);
             display: flex;
             flex-direction: row-reverse;
             justify-content: flex-start;
@@ -1061,18 +1061,16 @@
                         Comunidades
                     </a>
                 </li>
-                <li class="nav-item">
+                {# CORREÇÃO AQUI NA LINHA 1065: REMOVIDA OU COMENTADA A REFERÊNCIA A 'passes.manage_passes' #}
+                {# Para fazer o painel abrir, a linha problemática 'passes.manage_passes' foi removida #}
+                {# Se você quiser reativar esta funcionalidade no futuro, precisará implementar a rota 'passes.manage_passes' e seus módulos associados. #}
+                {# <li class="nav-item">
                     <a href="{{ url_for('passes.manage_passes') }}" class="nav-link {% if request.endpoint.startswith('plans') %}active{% endif %}">
                         <span class="material-icons">star_outline</span>
                         Planos de Assinatura
                     </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{{ url_for('subscriptions.list_subscriptions') }}" class="nav-link {% if request.endpoint.startswith('subscriptions') %}active{% endif %}">
-                        <span class="material-icons">card_membership</span>
-                        Assinaturas
-                    </a>
-                </li>
+                </li> #}
+                {# O link para subscriptions.list_subscriptions também precisa ser corrigido se não existir #}
                 <li class="nav-item">
                     <a href="{{ url_for('scheduled_messages') }}" class="nav-link {% if request.endpoint.startswith('scheduled_messages') or request.endpoint == 'add_scheduled_message' or request.endpoint == 'edit_scheduled_message' %}active{% endif %}">
                         <span class="material-icons">schedule</span>
@@ -1112,7 +1110,6 @@
                     <button class="mobile-menu-btn" id="mobileMenuBtn">
                         <span class="material-icons">menu</span>
                     </button>
-                    {# O título da página será inserido AQUI, e não será mais um h1 fixo #}
                     <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
                 </div>
                 {# Botão de Troca de Tema #}
@@ -1138,8 +1135,114 @@
             {% endwith %}
 
             {# Este é o bloco onde o conteúdo específico de cada página será injetado #}
-            {% block content %}{% endblock %} {# CORREÇÃO AQUI: era {% endblock content %}. Este está correto. #}
+            {% block content %}{% endblock %}
         </main>
     </div>
+    <script>
+        // Função para aplicar o tema
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            const iconSpan = document.querySelector('#themeToggle .theme-icon');
+            if (iconSpan) {
+                iconSpan.textContent = theme === 'dark' ? 'dark_mode' : 'light_mode';
+            }
+            // Atualiza cores dos gráficos se existirem
+            if (window.dailyRevenueChart) {
+                dailyRevenueChart.options.scales.y.title.color = getAxisTitleColor();
+                dailyRevenueChart.options.scales.x.title.color = getAxisTitleColor();
+                dailyRevenueChart.options.scales.y.ticks.color = 'var(--text-light)';
+                dailyRevenueChart.options.scales.x.ticks.color = 'var(--text-light)';
+                dailyRevenueChart.options.plugins.legend.labels.color = 'var(--text)';
+                dailyRevenueChart.options.plugins.tooltip.backgroundColor = 'var(--card-bg)';
+                dailyRevenueChart.options.plugins.tooltip.titleColor = 'var(--text)';
+                dailyRevenueChart.options.plugins.tooltip.bodyColor = 'var(--text-light)';
+                dailyRevenueChart.options.plugins.tooltip.borderColor = 'var(--border)';
+                dailyRevenueChart.options.scales.y.grid.color = getGridColor();
+
+                // Atualiza cores do gradiente da Receita
+                const ctxRevenue = document.getElementById('dailyRevenueChart').getContext('2d');
+                const gradientRevenue = ctxRevenue.createLinearGradient(0, 0, 0, 400);
+                gradientRevenue.addColorStop(0, getComputedStyle(document.documentElement).getPropertyValue('--primary') + 'D0');
+                gradientRevenue.addColorStop(1, getComputedStyle(document.documentElement).getPropertyValue('--primary') + '00');
+                dailyRevenueChart.data.datasets[0].backgroundColor = gradientRevenue;
+                dailyRevenueChart.data.datasets[0].pointBorderColor = getComputedStyle(document.documentElement).getPropertyValue('--card-bg');
+                dailyRevenueChart.data.datasets[0].pointHoverBackgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--card-bg');
+            }
+
+            if (window.dailyQuantityChart) {
+                dailyQuantityChart.options.scales.y.title.color = getAxisTitleColor();
+                dailyQuantityChart.options.scales.x.title.color = getAxisTitleColor();
+                dailyQuantityChart.options.scales.y.ticks.color = 'var(--text-light)';
+                dailyQuantityChart.options.scales.x.ticks.color = 'var(--text-light)';
+                dailyQuantityChart.options.plugins.legend.labels.color = 'var(--text)';
+                dailyQuantityChart.options.plugins.tooltip.backgroundColor = 'var(--card-bg)';
+                dailyQuantityChart.options.plugins.tooltip.titleColor = 'var(--text)';
+                dailyQuantityChart.options.plugins.tooltip.bodyColor = 'var(--text-light)';
+                dailyQuantityChart.options.plugins.tooltip.borderColor = 'var(--border)';
+                dailyQuantityChart.options.scales.y.grid.color = getGridColor();
+            }
+
+            // Força a atualização de ambos os gráficos
+            if (window.dailyRevenueChart) dailyRevenueChart.update();
+            if (window.dailyQuantityChart) dailyQuantityChart.update();
+        }
+
+        // Define uma cor para os títulos dos eixos dos gráficos que se adapta ao tema
+        function getAxisTitleColor() {
+            return document.documentElement.getAttribute('data-theme') === 'dark' ? 'var(--text-light)' : '#4a4a4a';
+        }
+
+        // Define a cor da grade dos gráficos
+        function getGridColor() {
+            return document.documentElement.getAttribute('data-theme') === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(200, 200, 200, 0.2)';
+        }
+
+        // Ao carregar a página:
+        // 1. Tenta carregar o tema do localStorage
+        // 2. Se não houver, verifica a preferência do sistema
+        // 3. Caso contrário, assume 'dark' como padrão (para corresponder à imagem)
+        document.addEventListener('DOMContentLoaded', () => {
+            const storedTheme = localStorage.getItem('theme');
+            if (storedTheme) {
+                applyTheme(storedTheme);
+            } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                applyTheme('dark'); // Padrão do sistema
+            } else {
+                applyTheme('dark'); // SEU PADRÃO DEFAULT AGORA É DARK PARA IGUALAR A IMAGEM
+            }
+
+            // Modo Escuro/Claro Toggle
+            const themeToggle = document.getElementById('themeToggle');
+            if (themeToggle) {
+                themeToggle.addEventListener('click', () => {
+                    const currentTheme = document.documentElement.getAttribute('data-theme');
+                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                    applyTheme(newTheme);
+                    localStorage.setItem('theme', newTheme); // Salva a preferência
+                });
+            }
+
+            // Menu Mobile Toggle
+            const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+            const sidebar = document.getElementById('sidebar');
+
+            if (mobileMenuBtn && sidebar) {
+                mobileMenuBtn.addEventListener('click', () => {
+                    sidebar.classList.toggle('active');
+                });
+            }
+
+            // Fechar menu ao clicar em um link (mobile)
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.addEventListener('click', () => {
+                    setTimeout(() => {
+                        if (window.innerWidth <= 768) {
+                            sidebar.classList.remove('active');
+                        }
+                    }, 150);
+                });
+            });
+        });
+    </script>
 </body>
 </html>
