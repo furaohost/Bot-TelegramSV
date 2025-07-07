@@ -1089,6 +1089,12 @@
                         Configurações
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('passes.manage_passes') }}" class="nav-link {% if request.endpoint.startswith('passes') %}active{% endif %}">
+                        <span class="material-icons">key</span>
+                        Passes de Acesso
+                    </a>
+                </li>
                 {# Link de Sair (Logout) #}
                 <li class="nav-item">
                     <a href="{{ url_for('logout') }}" class="nav-link">
