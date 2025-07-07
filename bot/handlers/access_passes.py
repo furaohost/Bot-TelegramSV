@@ -2,9 +2,9 @@
 
 from telebot import types
 from database import get_db_connection
-import pagamentos  # Reutilizaremos a função de criar PIX
+import pagamentos
 import traceback
-import base64 # Para decodificar o QR Code
+import base64
 
 def register_access_pass_handlers(bot):
     """Registra todos os handlers relacionados aos Passes de Acesso."""
@@ -38,7 +38,6 @@ def register_access_pass_handlers(bot):
                 )
                 
                 markup = types.InlineKeyboardMarkup()
-                # O callback_data agora identifica uma compra de passe
                 buy_button = types.InlineKeyboardButton("Comprar Passe", callback_data=f"buy_pass_{pass_item['id']}")
                 markup.add(buy_button)
                 
@@ -59,8 +58,16 @@ def register_access_pass_handlers(bot):
         """
         chat_id = call.message.chat.id
         user = call.from_user
-        pass_id = int(call.data.split('_')[1])
         
+        # --- CORREÇÃO AQUI ---
+        # Pegamos o terceiro elemento (índice 2) depois de dividir a string
+        try:
+            pass_id = int(call.data.split('_')[2])
+        except (IndexError, ValueError) as e:
+            print(f"ERRO: Callback data inválido para compra de passe: {call.data}. Erro: {e}")
+            bot.answer_callback_query(call.id, "Erro no botão. Tente novamente.")
+            return
+
         bot.answer_callback_query(call.id, "Gerando seu pagamento PIX...")
         print(f"DEBUG: Usuário {user.id} tentando comprar o passe {pass_id}")
 
@@ -75,14 +82,12 @@ def register_access_pass_handlers(bot):
                 bot.send_message(chat_id, "Este passe de acesso não está mais disponível.")
                 return
 
-            # Criamos uma referência externa única para identificar esta compra no webhook
             external_reference = f"pass_purchase:user_id={user.id}:pass_id={pass_id}"
 
-            # Reutilizamos a função de criar PIX, tratando o passe como um "produto"
             payment_info = pagamentos.criar_pagamento_pix(
                 produto=pass_item, 
                 user=user, 
-                venda_id=external_reference # Usamos nossa referência customizada aqui
+                venda_id=external_reference
             )
 
             if payment_info and 'point_of_interaction' in payment_info:
@@ -95,7 +100,7 @@ def register_access_pass_handlers(bot):
                     "Escaneie o QR Code acima ou copie o código completo na próxima mensagem."
                 )
                 bot.send_photo(chat_id, qr_code_image, caption=caption_text, parse_mode='Markdown')
-                bot.send_message(chat_id, f"`{qr_code_data}`", parse_mode='Markdown') # Envia o código em um bloco de código
+                bot.send_message(chat_id, f"`{qr_code_data}`", parse_mode='Markdown')
                 bot.send_message(chat_id, "Seu acesso será liberado assim que o pagamento for confirmado.")
             else:
                 bot.send_message(chat_id, "😕 Desculpe, não foi possível gerar o seu pagamento PIX no momento.")
