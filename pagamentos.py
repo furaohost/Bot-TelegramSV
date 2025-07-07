@@ -46,6 +46,10 @@ def criar_pagamento_pix(produto, user, venda_id):
 
     notification_url = f"{BASE_URL_FOR_MP_WEBHOOK}/webhook/mercado-pago"
 
+    # Lógica genérica que usa o argumento 'produto'
+    preco_raw = produto.get('price', produto.get('preco'))
+    nome_item = produto.get('name', produto.get('nome', 'Item Desconhecido'))
+
     print(f"DEBUG MP: Montando payload de pagamento para o produto '{produto.get('nome', 'N/A')}' (ID: {produto.get('id', 'N/A')}).")
     print(f"DEBUG MP: Notification URL para MP: {notification_url}")
 
