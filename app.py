@@ -337,8 +337,14 @@ def webhook_mercado_pago():
                 user_id = int(parts[0].split('=')[1])
                 pass_id = int(parts[1].split('=')[1])
 
-                cur.execute("SELECT * FROM access_passes WHERE id = %s", (pass_id,))
+                cur.execute("""
+                    SELECT ap.*, c.invite_link 
+                    FROM access_passes ap
+                    JOIN comunidades c ON ap.community_id = c.id
+                    WHERE ap.id = %s
+                """, (pass_id,))
                 pass_item = cur.fetchone()
+
 
                 if not pass_item:
                     print(f"ERRO: Passe de acesso com ID {pass_id} não encontrado no banco.")
