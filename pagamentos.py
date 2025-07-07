@@ -57,7 +57,7 @@ def criar_pagamento_pix(produto, user, venda_id):
     print(f"DEBUG MP: Montando payload de pagamento para o produto '{produto.get('nome', 'N/A')}' (ID: {produto.get('id', 'N/A')}).")
     print(f"DEBUG MP: Notification URL para MP: {notification_url}")
 
-    preco_raw = produto.get('preco')
+    
     print(f"DEBUG MP: Valor bruto do preço: '{preco_raw}' (Tipo: {type(preco_raw)})")
 
     transaction_amount = None 
