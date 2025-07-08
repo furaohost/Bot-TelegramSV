@@ -18,12 +18,15 @@ def manage_passes():
         
         # Se a requisição for POST, tenta criar um novo passe
         if request.method == 'POST':
+            # Primeiro, pegamos TODOS os dados do formulário.
             name = request.form.get('name')
             description = request.form.get('description')
             price = request.form.get('price')
             duration_days = request.form.get('duration_days')
             community_id = request.form.get('community_id')
+            invite_link = request.form.get('invite_link')
 
+            # Validação para garantir que todos os campos obrigatórios foram preenchidos
             if not all([name, price, duration_days, community_id]):
                 flash('Todos os campos são obrigatórios.', 'danger')
                 return redirect(url_for('passes.manage_passes'))
