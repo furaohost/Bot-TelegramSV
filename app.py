@@ -337,13 +337,15 @@ def webhook_mercado_pago():
                 user_id = int(parts[0].split('=')[1])
                 pass_id = int(parts[1].split('=')[1])
 
+                # Busca os detalhes do passe E o link da comunidade associada
                 cur.execute("""
                     SELECT ap.*, c.invite_link 
                     FROM access_passes ap
-                    JOIN comunidades c ON ap.community_id = c.id
+                    LEFT JOIN comunidades c ON ap.community_id = c.id
                     WHERE ap.id = %s
                 """, (pass_id,))
                 pass_item = cur.fetchone()
+
 
 
                 if not pass_item:
@@ -370,6 +372,19 @@ def webhook_mercado_pago():
                 
                 bot.send_message(user_id, f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo até {expiration_date.strftime('%d/%m/%Y')}.")
 
+                # --- LÓGICA DE ENVIO DO LINK ---
+                invite_link = pass_item.get('invite_link')
+                if invite_link:
+                    success_message = (
+                        f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo.\n\n"
+                        f"Clique no link abaixo para entrar na nossa comunidade exclusiva:\n"
+                        f"{invite_link}"
+                    )
+                    bot.send_message(user_id, success_message, parse_mode='Markdown', disable_web_page_preview=True)
+                else:
+                    # Fallback caso não haja link cadastrado
+                    bot.send_message(user_id, f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo.")
+                    print(f"AVISO: Acesso concedido, mas o passe ID {pass_item['id']} não tem um link de convite cadastrado.")
             # LÓGICA PARA VENDA DE PRODUTO NORMAL (o que você já tinha)
             else:
                 venda_id = external_reference

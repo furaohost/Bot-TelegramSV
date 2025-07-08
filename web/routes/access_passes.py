@@ -32,10 +32,10 @@ def manage_passes():
                 cur.execute(
                     """
                     INSERT INTO access_passes 
-                    (name, description, price, duration_days, community_id)
-                    VALUES (%s, %s, %s, %s, %s)
+                    (name, description, price, duration_days, community_id, invite_link)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     """,
-                    (name, description, float(price), int(duration_days), int(community_id))
+                    (name, description, float(price), int(duration_days), int(community_id), invite_link)
                 )
             conn.commit()
             flash('Passe de Acesso criado com sucesso!', 'success')
