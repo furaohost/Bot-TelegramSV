@@ -367,24 +367,29 @@ def webhook_mercado_pago():
                 conn.commit()
                 print(f"SUCESSO: Acesso para user {user_id} ao passe {pass_id} registrado. Expira em: {expiration_date}")
 
-                # Concede o acesso à comunidade
-                manage_community_access(user_id, pass_item['community_id'], should_have_access=True)
-                
-                bot.send_message(user_id, f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo até {expiration_date.strftime('%d/%m/%Y')}.")
-
-                # --- LÓGICA DE ENVIO DO LINK ---
-                invite_link = pass_item.get('invite_link')
-                if invite_link:
-                    success_message = (
-                        f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo.\n\n"
-                        f"Clique no link abaixo para entrar na nossa comunidade exclusiva:\n"
-                        f"{invite_link}"
-                    )
-                    bot.send_message(user_id, success_message, parse_mode='Markdown', disable_web_page_preview=True)
+                # --- LÓGICA DE GERAÇÃO E ENVIO DE LINK ÚNICO ---
+                community_id = pass_item.get('community_id')
+                if community_id:
+                    try:
+                        # Gera um novo link de convite que expira em 1 dia e só pode ser usado 1 vez.
+                        link_info = bot.create_chat_invite_link(
+                            chat_id=community_id,
+                            expire_date=int(time_module.time()) + 86400, # Expira em 24 horas
+                            member_limit=1 # Apenas 1 pessoa pode usar
+                        )
+                        invite_link = link_info.invite_link
+                        
+                        success_message = (
+                            f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo.\n\n"
+                            f"Use o seu link de acesso exclusivo e de uso único abaixo. Ele é válido por 24 horas:\n"
+                            f"{invite_link}"
+                        )
+                        bot.send_message(user_id, success_message, parse_mode='Markdown')
+                    except Exception as e:
+                        print(f"ERRO ao criar link de convite para a comunidade {community_id}: {e}")
+                        bot.send_message(user_id, f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo, mas houve um erro ao gerar seu link. Por favor, entre em contato com o suporte.")
                 else:
-                    # Fallback caso não haja link cadastrado
                     bot.send_message(user_id, f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo.")
-                    print(f"AVISO: Acesso concedido, mas o passe ID {pass_item['id']} não tem um link de convite cadastrado.")
             # LÓGICA PARA VENDA DE PRODUTO NORMAL (o que você já tinha)
             else:
                 venda_id = external_reference
