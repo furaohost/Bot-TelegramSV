@@ -10,42 +10,40 @@ passes_bp = Blueprint('passes', __name__, template_folder='../templates')
 def manage_passes():
     """
     Rota para listar os passes de acesso existentes e adicionar novos.
+    AGORA SEM O CAMPO DE LINK DE CONVITE.
     """
     conn = None
     try:
         conn = get_db_connection()
         
-        # Se a requisição for POST, tenta criar um novo passe
         if request.method == 'POST':
-            # --- CORREÇÃO AQUI ---
-            # Primeiro, pegamos TODOS os dados do formulário.
+            # Pega os dados do formulário (sem o campo de link)
             name = request.form.get('name')
             description = request.form.get('description')
             price = request.form.get('price')
             duration_days = request.form.get('duration_days')
             community_id = request.form.get('community_id')
-            invite_link = request.form.get('invite_link') # Esta linha estava em falta ou no lugar errado.
 
-            # Validação para garantir que todos os campos obrigatórios foram preenchidos
-            if not all([name, price, duration_days, community_id, invite_link]):
-                flash('Todos os campos, incluindo o Link de Convite, são obrigatórios.', 'danger')
+            # Validação atualizada, não verifica mais o invite_link
+            if not all([name, price, duration_days, community_id]):
+                flash('Todos os campos são obrigatórios.', 'danger')
                 return redirect(url_for('passes.manage_passes'))
 
-            # Agora que temos todas as variáveis, podemos salvar no banco.
             with conn.cursor() as cur:
+                # A query SQL foi atualizada para não incluir 'invite_link'
                 cur.execute(
                     """
                     INSERT INTO access_passes 
-                    (name, description, price, duration_days, community_id, invite_link)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    (name, description, price, duration_days, community_id)
+                    VALUES (%s, %s, %s, %s, %s)
                     """,
-                    (name, description, float(price), int(duration_days), int(community_id), invite_link)
+                    (name, description, float(price), int(duration_days), int(community_id))
                 )
             conn.commit()
             flash('Passe de Acesso criado com sucesso!', 'success')
             return redirect(url_for('passes.manage_passes'))
 
-        # Se a requisição for GET, busca os dados para exibir na página
+        # Lógica para GET (exibir a página)
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT ap.*, c.nome as community_name 

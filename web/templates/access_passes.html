@@ -1,68 +1,97 @@
-# web/routes/access_passes.py
+{% extends "layout.html" %}
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash
-from database import get_db_connection
-import traceback
+{% block title %}Passes de Acesso{% endblock %}
+{% block page_title %}Gerenciar Passes de Acesso{% endblock %}
 
-passes_bp = Blueprint('passes', __name__, template_folder='../templates')
+{% block content %}
+<!-- Formulário para Adicionar Novo Passe -->
+<div class="card">
+    <h2 class="section-subtitle">Criar Novo Passe de Acesso</h2>
+    <form method="POST" action="{{ url_for('passes.manage_passes') }}" class="form-grid gap-form">
+        <!-- Linha 1: Nome e Preço -->
+        <div class="form-group">
+            <label for="name" class="form-label">Nome do Passe</label>
+            <input type="text" id="name" name="name" required class="form-input" placeholder="Ex: Acesso VIP 30 Dias">
+        </div>
+        <div class="form-group">
+            <label for="price" class="form-label">Preço (R$)</label>
+            <input type="number" id="price" name="price" step="0.01" min="0.50" required class="form-input" placeholder="Ex: 49.90">
+        </div>
 
-@passes_bp.route('/access-passes', methods=['GET', 'POST'])
-def manage_passes():
-    """
-    Rota para listar os passes de acesso existentes e adicionar novos.
-    AGORA SEM O CAMPO DE LINK DE CONVITE.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        
-        if request.method == 'POST':
-            # Pega os dados do formulário (sem o campo de link)
-            name = request.form.get('name')
-            description = request.form.get('description')
-            price = request.form.get('price')
-            duration_days = request.form.get('duration_days')
-            community_id = request.form.get('community_id')
+        <!-- Linha 2: Duração e Comunidade -->
+        <div class="form-group">
+            <label for="duration_days" class="form-label">Duração do Acesso (dias)</label>
+            <input type="number" id="duration_days" name="duration_days" min="1" required class="form-input" placeholder="Ex: 30, 90, 365">
+        </div>
+        <div class="form-group">
+            <label for="community_id" class="form-label">Comunidade Associada</label>
+            <select id="community_id" name="community_id" required class="form-select">
+                <option value="" disabled selected>Selecione uma comunidade...</option>
+                {% for community in communities %}
+                <option value="{{ community.id }}">{{ community.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
 
-            # Validação atualizada, não verifica mais o invite_link
-            if not all([name, price, duration_days, community_id]):
-                flash('Todos os campos são obrigatórios.', 'danger')
-                return redirect(url_for('passes.manage_passes'))
+        <!-- Linha 3: Descrição -->
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <label for="description" class="form-label">Descrição (Opcional)</label>
+            <textarea id="description" name="description" rows="3" class="form-textarea" placeholder="Descreva os benefícios deste passe..."></textarea>
+        </div>
 
-            with conn.cursor() as cur:
-                # A query SQL foi atualizada para não incluir 'invite_link'
-                cur.execute(
-                    """
-                    INSERT INTO access_passes 
-                    (name, description, price, duration_days, community_id)
-                    VALUES (%s, %s, %s, %s, %s)
-                    """,
-                    (name, description, float(price), int(duration_days), int(community_id))
-                )
-            conn.commit()
-            flash('Passe de Acesso criado com sucesso!', 'success')
-            return redirect(url_for('passes.manage_passes'))
+        <!-- Botão de Envio -->
+        <div class="form-actions" style="grid-column: 1 / -1; justify-content: flex-end;">
+            <button type="submit" class="btn btn-primary">
+                <span class="material-icons">add_circle_outline</span>
+                Criar Passe
+            </button>
+        </div>
+    </form>
+</div>
 
-        # Lógica para GET (exibir a página)
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT ap.*, c.nome as community_name 
-                FROM access_passes ap
-                LEFT JOIN comunidades c ON ap.community_id = c.id
-                ORDER BY ap.created_at DESC
-            """)
-            passes = cur.fetchall()
-            
-            cur.execute("SELECT id, nome FROM comunidades ORDER BY nome ASC")
-            communities = cur.fetchall()
-
-        return render_template('access_passes.html', passes=passes, communities=communities)
-
-    except Exception as e:
-        print("ERRO EM PASSES DE ACESSO:", e)
-        traceback.print_exc()
-        flash('Ocorreu um erro ao gerenciar os passes de acesso.', 'danger')
-        return redirect(url_for('index'))
-    finally:
-        if conn:
-            conn.close()
+<!-- Tabela de Passes Existentes -->
+<div class="card table-listing-card">
+    <h2 class="section-subtitle">Passes Existentes</h2>
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Preço</th>
+                    <th>Duração</th>
+                    <th>Comunidade</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if passes %}
+                    {% for p in passes %}
+                    <tr>
+                        <td>{{ p.id }}</td>
+                        <td>{{ p.name }}</td>
+                        <td>R$ {{ "%.2f"|format(p.price|float) }}</td>
+                        <td>{{ p.duration_days }} dias</td>
+                        <td>{{ p.community_name or 'N/A' }}</td>
+                        <td>
+                            <span class="status {{ 'status-success' if p.is_active else 'status-danger' }}">
+                                {{ 'Ativo' if p.is_active else 'Inativo' }}
+                            </span>
+                        </td>
+                        <td class="actions-cell" style="text-align: right;">
+                            <a href="#" class="btn-action edit" title="Editar"><i class="fas fa-edit"></i></a>
+                            <a href="#" class="btn-action delete" title="Desativar"><i class="fas fa-toggle-on"></i></a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-light" style="padding: 2rem;">Nenhum passe de acesso criado.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
