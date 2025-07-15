@@ -1838,17 +1838,13 @@ if __name__ != '__main__':
         register_comunidades_handlers(bot, get_db_connection)
         register_conteudos_handlers(bot, get_db_connection)
         
-        # ADICIONE A IMPORTAÇÃO DE 'register_access_pass_handlers' AQUI DENTRO,
-        # LOGO ANTES DE CHAMÁ-LA.
-        from bot.handlers.access_passes import register_access_pass_handlers #
+        from bot.handlers.access_passes import register_access_pass_handlers
         register_access_pass_handlers(bot)
         
-        # Passando 'generar_cobranca' como argumento.
-        # A função `mostrar_produtos_bot` NÃO é mais retornada,
-        # pois ela será chamada pelo handler do botão inline em `bot/handlers/produtos.py`.
         register_produtos_handlers(bot, get_db_connection, generar_cobranca)
         
         # REGISTRAR BLUEPRINT DE COMUNIDADES (EXISTENTE)
+        print(f"DEBUG FLASK: Tipo de comunidades_bp antes do registro: {type(comunidades_bp)}") #
         app.register_blueprint(comunidades_bp, url_prefix='/')
         app.register_blueprint(passes_bp)
 
