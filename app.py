@@ -1,5 +1,3 @@
-# app.py (CONTEÚDO COMPLETO - Copiar e colar tudo)
-
 import os
 import requests
 import telebot
@@ -11,7 +9,7 @@ import sqlite3
 import base64
 import json
 from threading import Thread
-import logging 
+import logging # Adicionar import de logging aqui para _send_comunidades_list
 
 # Importações Flask e Werkzeug
 from flask import (
@@ -34,15 +32,15 @@ import pagamentos
 # Importa os módulos de handlers e blueprints
 from bot.utils.keyboards import confirm_18_keyboard, menu_principal, inline_ver_produtos_keyboard
 from bot.handlers.chamadas import register_chamadas_handlers
-from bot.handlers.comunidades import register_comunidades_handlers 
+from bot.handlers.comunidades import register_comunidades_handlers # <--- RE-ADICIONADO: Esta importação é necessária!
 from bot.handlers.conteudos import register_conteudos_handlers
 from bot.handlers.produtos import register_produtos_handlers
 # from web.routes.comunidades import comunidades_bp # Continua REMOVIDO: Rotas web de comunidades estão em app.py
-# from web.routes.access_passes import passes_bp # REMOVIDO: Rotas web de access_passes agora estarão em app.py
+from web.routes.access_passes import passes_bp
 
-# Importando ComunidadeService e AccessPassService diretamente para app.py
+# Importando ComunidadeService diretamente para app.py (para as rotas web)
 from bot.services.comunidades import ComunidadeService 
-from bot.services.access_passes_service import AccessPassService # Você precisará garantir que este arquivo e classe existam
+
 
 # ────────────────────────────────────────────────────────────────────
 # 1. CONFIGURAÇÃO INICIAL (Variáveis de Ambiente)
@@ -1786,7 +1784,13 @@ def access_expiration_worker():
 @app.route('/comunidades') # <--- Nova rota de comunidades diretamente no app.py
 def manage_comunidades(): # <--- Função movida de web/routes/comunidades.py
     """ Rota para listar todas as comunidades. """
+    # Nota: A linha de debug "DEBUG: Módulo comunidades.py está sendo carregado!"
+    # agora faria mais sentido no topo do app.py, se quisermos depurar a importação.
+    # Mas como a função está aqui, ela será executada quando a rota for acessada.
     try:
+        # A importação do ComunidadeService deve ser feita fora desta função ou no topo
+        # caso contrário, cada chamada de rota irá importá-lo.
+        # Ele já está importado no topo do app.py agora, então está ok.
         service = ComunidadeService(get_db_connection)
         comunidades_list = service.listar()
         if comunidades_list is None:
@@ -1860,7 +1864,7 @@ def editar_comunidade(id): # <--- Função movida de web/routes/comunidades.py
             traceback.print_exc()
             flash('Ocorreu um erro ao editar a comunidade.', 'danger')
     
-    # Para a requisição GET, apenas exibe o formulário
+    # Para a requisição GET, apenas exibe a página de edição
     return render_template('editar_comunidade.html', comunidade=comunidade)
 
 @app.route('/comunidades/deletar/<int:id>', methods=['POST']) # <--- Nova rota de comunidades diretamente no app.py
@@ -1941,138 +1945,15 @@ if __name__ != '__main__':
         register_comunidades_handlers(bot, get_db_connection) # Este ainda registra os handlers do bot (comandos)
         register_conteudos_handlers(bot, get_db_connection)
         
-        # from bot.handlers.access_passes import register_access_pass_handlers # COMENTADO/REMOVIDO: Para mover a lógica para cá
-        # register_access_pass_handlers(bot) # REMOVIDO: A lógica será colada aqui.
-
-        # ----- INÍCIO: Conteúdo de register_access_pass_handlers movido para app.py -----
-        # Conteúdo copiado de bot/handlers/access_passes.py -> register_access_pass_handlers
-        # Importante: Ensure AccessPassService is imported globally in app.py
-        # from bot.services.access_passes_service import AccessPassService # Já importado no topo do app.py
-        access_pass_svc = AccessPassService(get_db_connection)
-
-        @bot.message_handler(commands=['passes'])
-        def handle_show_passes(message):
-            chat_id = message.chat.id
-            print(f"DEBUG: Comando /passes recebido do chat {chat_id}")
-            conn = None
-            try:
-                conn = get_db_connection()
-                if conn is None:
-                    bot.send_message(chat_id, "Erro interno: banco de dados indisponível.")
-                    print(f"ERRO DB: Conexão com o banco de dados é None em handle_show_passes.")
-                    return
-
-                is_sqlite_conn = isinstance(conn, sqlite3.Connection)
-                if is_sqlite_conn:
-                    conn.row_factory = sqlite3.Row # Garante que as linhas retornem como dicionários
-                
-                with conn.cursor() as cur:
-                    cur.execute("SELECT * FROM access_passes WHERE is_active = TRUE ORDER BY price ASC" if not is_sqlite_conn else "SELECT * FROM access_passes WHERE is_active = 1 ORDER BY price ASC")
-                    passes = cur.fetchall()
-
-                if not passes:
-                    bot.send_message(chat_id, "😕 Nenhum passe de acesso disponível no momento.")
-                    return
-
-                bot.send_message(chat_id, "✨ Nossos Passes de Acesso:")
-
-                for pass_item in passes:
-                    pass_description = (
-                        f"*{pass_item['name']}*\n"
-                        f"_{pass_item['description'] or 'Acesso exclusivo.'}_\n\n"
-                        f"⏳ *Duração:* {pass_item['duration_days']} dias\n"
-                        f"💰 *Preço:* R$ {pass_item['price']:.2f}"
-                    )
-
-                    markup = types.InlineKeyboardMarkup()
-                    buy_button = types.InlineKeyboardButton("Comprar Passe", callback_data=f"buy_pass_{pass_item['id']}")
-                    markup.add(buy_button)
-
-                    bot.send_message(chat_id, pass_description, reply_markup=markup, parse_mode='Markdown')
-
-            except Exception as e:
-                print(f"ERRO ao mostrar passes: {e}")
-                traceback.print_exc()
-                bot.send_message(chat_id, "Ocorreu um erro ao buscar os passes. Tente novamente mais tarde.")
-            finally:
-                if conn:
-                    conn.close()
-
-        @bot.callback_query_handler(func=lambda call: call.data.startswith('buy_pass_'))
-        def handle_buy_pass_callback(call):
-            chat_id = call.message.chat.id
-            user = call.from_user
-
-            try:
-                pass_id = int(call.data.split('_')[2]) # Corrigido: índice 2 para pegar o ID após 'buy_pass_'
-            except (IndexError, ValueError) as e:
-                print(f"ERRO: Callback data inválido para compra de passe: {call.data}. Erro: {e}")
-                bot.answer_callback_query(call.id, "Erro no botão. Tente novamente.")
-                return
-
-            bot.answer_callback_query(call.id, "Gerando seu pagamento PIX...")
-            print(f"DEBUG: Usuário {user.id} tentando comprar o passe {pass_id}")
-
-            conn = None
-            try:
-                conn = get_db_connection()
-                if conn is None:
-                    bot.send_message(chat_id, "Ocorreu um erro interno ao conectar ao banco de dados.")
-                    return
-                
-                is_sqlite_conn = isinstance(conn, sqlite3.Connection)
-                if is_sqlite_conn:
-                    conn.row_factory = sqlite3.Row # Garante que as linhas retornem como dicionários
-
-                with conn.cursor() as cur:
-                    cur.execute("SELECT * FROM access_passes WHERE id = %s AND is_active = TRUE" if not is_sqlite_conn else "SELECT * FROM access_passes WHERE id = ? AND is_active = 1", (pass_id,))
-                    pass_item = cur.fetchone()
-
-                if not pass_item:
-                    bot.send_message(chat_id, "Este passe de acesso não está mais disponível.")
-                    return
-
-                external_reference = f"pass_purchase:user_id={user.id}:pass_id={pass_id}"
-
-                payment_info = pagamentos.criar_pagamento_pix(
-                    produto=pass_item,
-                    user=user,
-                    venda_id=external_reference
-                )
-
-                if payment_info and 'point_of_interaction' in payment_info:
-                    qr_code_base64 = payment_info['point_of_interaction']['transaction_data']['qr_code_base64']
-                    qr_code_data = payment_info['point_of_interaction']['transaction_data']['qr_code']
-                    qr_code_image = base64.b64decode(qr_code_base64)
-
-                    caption_text = (
-                        f"✅ PIX gerado para *{pass_item['name']}*!\n\n"
-                        "Escaneie o QR Code acima ou copie o código completo na próxima mensagem."
-                    )
-                    bot.send_photo(chat_id, qr_code_image, caption=caption_text, parse_mode='Markdown')
-                    bot.send_message(chat_id, f"`{qr_code_data}`", parse_mode='Markdown')
-                    bot.send_message(chat_id, "Seu acesso será liberado assim que o pagamento for confirmado.")
-                else:
-                    bot.send_message(chat_id, "😕 Desculpe, não foi possível gerar o seu pagamento PIX no momento.")
-                    print(f"ERRO: Falha ao obter PIX para passe. Resposta: {payment_info}")
-
-            except Exception as e:
-                print(f"ERRO no callback de compra de passe: {e}")
-                traceback.print_exc()
-                bot.send_message(chat_id, "Ocorreu um erro inesperado. Nossa equipe já foi notificada.")
-            finally:
-                if conn:
-                    conn.close()
-        # ----- FIM: Conteúdo de register_access_pass_handlers movido para app.py -----
-
-
+        from bot.handlers.access_passes import register_access_pass_handlers
+        register_access_pass_handlers(bot)
+        
         register_produtos_handlers(bot, get_db_connection, generar_cobranca)
         
         # O REGISTRO DO BLUEPRINT 'comunidades_bp' FOI REMOVIDO DAQUI
         # app.register_blueprint(comunidades_bp, url_prefix='/') # REMOVIDO
 
-        # O REGISTRO DO BLUEPRINT 'passes_bp' TAMBÉM FOI REMOVIDO DAQUI
-        # app.register_blueprint(passes_bp) # REMOVIDO
+        app.register_blueprint(passes_bp) # Este continua, pois é um blueprint diferente
 
     except Exception as e:
         print(f"ERRO NA INICIALIZAÇÃO DO SERVIDOR: {e}")
