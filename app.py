@@ -1,4 +1,4 @@
-# app.py (CONTEÚDO COMPLETO - Copiar e colar tudo)
+# app.py (CONTEÚDO COMPLETO - Copiar e colar tudo com DEBUG)
 
 import os
 import requests
@@ -12,6 +12,17 @@ import base64
 import json
 from threading import Thread
 import logging 
+import sys # Adicionado para depuração
+
+# Configurar logging para DEBUG logo no início
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.getLogger('telebot').setLevel(logging.DEBUG) # Para logs detalhados do telebot
+logging.getLogger('flask').setLevel(logging.DEBUG) # Para logs detalhados do Flask
+
+# ────────────────────────────────────────────────────────────────────
+# DEBUG: Imprimir sys.path para verificar caminhos de importação
+print("DEBUG: sys.path =", sys.path)
+# ────────────────────────────────────────────────────────────────────
 
 # Importações Flask e Werkzeug
 from flask import (
@@ -32,37 +43,38 @@ from database.db_init import init_db
 import pagamentos
 
 # Importa os módulos de handlers e blueprints
-<<<<<<< HEAD
-<<<<<<< HEAD
 from bot.utils.keyboards import confirm_18_keyboard, menu_principal, inline_ver_produtos_keyboard
-=======
-# IMPORTANTE: AQUI ESTÁ A IMPORTAÇÃO DE 'inline_ver_produtos_keyboard'
-from bot.utils.keyboards import confirm_18_keyboard, menu_principal, inline_ver_produtos_keyboard 
->>>>>>> parent of 5471413 (Ajuste de Rotas)
-=======
-# IMPORTANTE: AQUI ESTÁ A IMPORTAÇÃO DE 'inline_ver_produtos_keyboard'
-from bot.utils.keyboards import confirm_18_keyboard, menu_principal, inline_ver_produtos_keyboard 
->>>>>>> parent of 5471413 (Ajuste de Rotas)
 from bot.handlers.chamadas import register_chamadas_handlers
 from bot.handlers.comunidades import register_comunidades_handlers 
 from bot.handlers.conteudos import register_conteudos_handlers
-<<<<<<< HEAD
-<<<<<<< HEAD
 from bot.handlers.produtos import register_produtos_handlers
 # from web.routes.comunidades import comunidades_bp # Continua REMOVIDO: Rotas web de comunidades estão em app.py
-from web.routes.access_passes import passes_bp # Certifique-se de que esta linha esteja aqui
-=======
-=======
->>>>>>> parent of 5471413 (Ajuste de Rotas)
-from bot.handlers.produtos import register_produtos_handlers 
-from web.routes.comunidades import comunidades_bp
-from bot.handlers.access_passes import register_access_pass_handlers
-from web.routes.access_passes import passes_bp
->>>>>>> parent of 5471413 (Ajuste de Rotas)
+
+print("DEBUG: Tentando importar passes_bp de web.routes.access_passes...")
+try:
+    from web.routes.access_passes import passes_bp # Certifique-se de que esta linha esteja aqui
+    print("DEBUG: passes_bp importado com sucesso.")
+except ImportError as e:
+    print(f"ERRO DE IMPORTAÇÃO CRÍTICO: Não foi possível importar passes_bp: {e}")
+    logging.exception("ERRO CRÍTICO: Falha ao importar passes_bp") # Adiciona traceback ao log
 
 # Importando ComunidadeService e AccessPassService diretamente para app.py
-from bot.services.comunidades import ComunidadeService 
-from bot.services.access_passes_service import AccessPassService # Você precisará garantir que este arquivo e classe existam
+print("DEBUG: Tentando importar ComunidadeService de bot.services.comunidades...")
+try:
+    from bot.services.comunidades import ComunidadeService 
+    print("DEBUG: ComunidadeService importado com sucesso.")
+except ImportError as e:
+    print(f"ERRO DE IMPORTAÇÃO CRÍTICO: Não foi possível importar ComunidadeService: {e}")
+    logging.exception("ERRO CRÍTICO: Falha ao importar ComunidadeService")
+
+print("DEBUG: Tentando importar AccessPassService de bot.services.access_passes_service...")
+try:
+    from bot.services.access_passes_service import AccessPassService # Você precisará garantir que este arquivo e classe existam
+    print("DEBUG: AccessPassService importado com sucesso.")
+except ImportError as e:
+    print(f"ERRO DE IMPORTAÇÃO CRÍTICO: Não foi possível importar AccessPassService: {e}")
+    logging.exception("ERRO CRÍTICO: Falha ao importar AccessPassService")
+
 
 # ────────────────────────────────────────────────────────────────────
 # 1. CONFIGURAÇÃO INICIAL (Variáveis de Ambiente)
@@ -77,14 +89,14 @@ FLASK_SECRET_KEY = os.getenv(
 MERCADOPAGO_ACCESS_TOKEN = os.getenv('MERCADOPAGO_ACCESS_TOKEN')
 
 
-print(f"DEBUG: API_TOKEN lido: {'***' if API_TOKEN else 'NULO'}")
-print(f"DEBUG: BASE_URL lida: {BASE_URL}")
-print(f"DEBUG: DATABASE_URL lida: {'***' if DATABASE_URL else 'NULO (usando SQLite)'}")
-print(f"DEBUG: MERCADOPAGO_ACCESS_TOKEN lido: {'***' if MERCADOPAGO_ACCESS_TOKEN else 'NULO'}")
+logging.debug(f"API_TOKEN lido: {'***' if API_TOKEN else 'NULO'}")
+logging.debug(f"BASE_URL lida: {BASE_URL}")
+logging.debug(f"DATABASE_URL lida: {'***' if DATABASE_URL else 'NULO (usando SQLite)'}")
+logging.debug(f"MERCADOPAGO_ACCESS_TOKEN lido: {'***' if MERCADOPAGO_ACCESS_TOKEN else 'NULO'}")
 
 
 if not API_TOKEN:
-    print(f"ERRO: A variável de ambiente 'API_TOKEN' não está definida. O bot não pode funcionar.")
+    logging.error(f"A variável de ambiente 'API_TOKEN' não está definida. O bot não pode funcionar.")
     raise RuntimeError("API_TOKEN não configurado. O bot não pode funcionar.")
 
 
@@ -108,7 +120,7 @@ def get_or_register_user(user: types.User):
     try:
         conn = get_db_connection()
         if conn is None:
-            print(f"ERRO DB: get_or_register_user - Não foi possível obter conexão com a base de dados.")
+            logging.error(f"ERRO DB: get_or_register_user - Não foi possível obter conexão com a base de dados.")
             return
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
@@ -121,15 +133,14 @@ def get_or_register_user(user: types.User):
             if db_user is None:
                 cur.execute("INSERT INTO users (id, username, first_name, last_name, is_active) VALUES (%s, %s, %s, %s, %s)" if not is_sqlite else "INSERT INTO users (id, username, first_name, last_name, is_active) VALUES (?, ?, ?, ?, ?)",
                             (user.id, user.username, user.first_name, user.last_name, True))
-                print(f"DEBUG DB: Novo utilizador registado: {user.username or user.first_name} (ID: {user.id})")
+                logging.debug(f"DEBUG DB: Novo utilizador registado: {user.username or user.first_name} (ID: {user.id})")
             else:
                 if not db_user['is_active']:
                     cur.execute("UPDATE users SET is_active = %s WHERE id = %s" if not is_sqlite else "UPDATE users SET is_active = ? WHERE id = ?", (True, user.id))
-                    print(f"DEBUG DB: Utilizador reativado: {user.username or user.first_name} (ID: {user.id})")
+                    logging.debug(f"DEBUG DB: Utilizador reativado: {user.username or user.first_name} (ID: {user.id})")
 
     except Exception as e:
-        print(f"ERRO DB: get_or_register_user falhou: {e}")
-        traceback.print_exc() 
+        logging.exception(f"ERRO DB: get_or_register_user falhou: {e}")
     finally:
         if conn:
             conn.close()
@@ -141,18 +152,17 @@ def enviar_produto_telegram(user_id, nome_produto, link_produto):
     try:
         response = requests.post(url, json=payload)
         response.raise_for_status()
-        print(f"DEBUG: Mensagem de entrega para {user_id} enviada com sucesso.")
+        logging.debug(f"Mensagem de entrega para {user_id} enviada com sucesso.")
     except requests.exceptions.RequestException as e:
-        print(f"ERRO: Falha ao enviar mensagem de entrega para {user_id}: {e}")
-        traceback.print_exc()
-        
-def mostrar_produtos_bot_REMOVIDA(chat_id): 
-    pass 
+        logging.exception(f"ERRO: Falha ao enviar mensagem de entrega para {user_id}: {e}")
+
+def mostrar_produtos_bot_REMOVIDA(chat_id):
+    pass
 
 def generar_cobranca(call: types.CallbackQuery, produto_id: int):
     user_id, chat_id = call.from_user.id, call.message.chat.id
     conn = None
-    venda_id = None 
+    venda_id = None
 
     try:
         conn = get_db_connection()
@@ -163,15 +173,15 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
             cur = conn.cursor()
-            
-            if is_sqlite and not hasattr(cur, 'keys'): 
+
+            if is_sqlite and not hasattr(cur, 'keys'):
                  conn.row_factory = sqlite3.Row
                  cur = conn.cursor()
 
             if is_sqlite:
-                cur.execute('SELECT id, nome, preco, link FROM produtos WHERE id = ?', (produto_id,)) 
+                cur.execute('SELECT id, nome, preco, link FROM produtos WHERE id = ?', (produto_id,))
             else:
-                cur.execute('SELECT id, nome, preco, link FROM produtos WHERE id = %s', (produto_id,)) 
+                cur.execute('SELECT id, nome, preco, link FROM produtos WHERE id = %s', (produto_id,))
             produto = cur.fetchone()
 
             if not produto:
@@ -186,34 +196,34 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
                 cur.execute("SELECT last_insert_rowid()")
                 result_id = cur.fetchone()
                 if result_id:
-                    venda_id = result_id[0] 
+                    venda_id = result_id[0]
             else:
                 cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (%s, %s, %s, %s, %s) RETURNING id",
                             (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
                 result_id = cur.fetchone()
                 if result_id:
-                    venda_id = result_id['id'] 
+                    venda_id = result_id['id']
 
-            if venda_id is None: 
+            if venda_id is None:
                 bot.send_message(chat_id, "Erro ao registrar a venda. Tente novamente.")
-                print(f"ERRO GENERAR COBRANCA: Venda não foi registrada, ID nulo.")
+                logging.error(f"ERRO GENERAR COBRANCA: Venda não foi registrada, ID nulo.")
                 return
 
-            produto_link = produto.get('link') 
+            produto_link = produto.get('link')
             if not produto_link:
                 bot.send_message(chat_id, "Erro: Link do produto não configurado.")
-                print(f"ERRO GENERAR COBRANCA: Link do produto {produto['nome']} (ID: {produto['id']}) é nulo.")
+                logging.error(f"ERRO GENERAR COBRANCA: Link do produto {produto['nome']} (ID: {produto['id']}) é nulo.")
                 return
 
             pagamento = pagamentos.criar_pagamento_pix(produto=produto, user=call.from_user, venda_id=venda_id)
 
             if pagamento and 'point_of_interaction' in pagamento:
-                qr_code_base64 = payment_info['point_of_interaction']['transaction_data']['qr_code_base64']
-                qr_code_data = payment_info['point_of_interaction']['transaction_data']['qr_code']
+                qr_code_base64 = pagamento['point_of_interaction']['transaction_data']['qr_code_base64']
+                qr_code_data = pagamento['point_of_interaction']['transaction_data']['qr_code']
                 qr_code_image = base64.b64decode(qr_code_base64)
 
                 qr_code_data_clean = qr_code_data.replace('\n', '').strip()
-                
+
                 caption_text = (
                     f"✅ PIX gerado para *{produto['nome']}*!\n\n"
                     "Escaneie o QR Code acima ou copie o código completo na próxima mensagem."
@@ -225,15 +235,14 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
                 markup_copy.add(btn_copy)
 
                 bot.send_message(chat_id, f"<pre>{qr_code_data_clean}</pre>", parse_mode='HTML', reply_markup=markup_copy)
-                
+
                 bot.send_message(chat_id, "Você receberá o produto aqui assim que o pagamento for confirmado.")
-                print(f"DEBUG: PIX gerado e enviado para {chat_id} para venda {venda_id}.")
+                logging.debug(f"PIX gerado e enviado para {chat_id} para venda {venda_id}.")
             else:
                 bot.send_message(chat_id, "Ocorreu um erro ao gerar o PIX. Tente novamente.")
-                print(f"ERRO GENERAR COBRANCA: Falha ao gerar PIX. Resposta do MP: {pagamento}")
+                logging.error(f"ERRO GENERAR COBRANCA: Falha ao gerar PIX. Resposta do MP: {pagamento}")
     except Exception as e:
-        print(f"ERRO GENERAR COBRANCA: Falha ao gerar cobrança/PIX: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO GENERAR COBRANCA: Falha ao gerar cobrança/PIX: {e}")
         bot.send_message(chat_id, "Ocorreu um erro interno ao gerar sua cobrança. Tente novamente.")
     finally:
         if conn: conn.close()
@@ -244,7 +253,7 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
 # ────────────────────────────────────────────────────────────────────
 @bot.callback_query_handler(func=lambda call: call.data == "copy_pix")
 def handle_copy_pix_callback(call: types.CallbackQuery):
-    bot.answer_callback_query(call.id, "Código PIX copiado para a área de transferência!") 
+    bot.answer_callback_query(call.id, "Código PIX copiado para a área de transferência!")
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -290,12 +299,12 @@ def require_login():
     
     # As rotas de blueprint são referenciadas como 'blueprint_name.endpoint_function_name'
     if request.endpoint and request.endpoint.startswith('comunidades.') and not session.get('logged_in'):
-        print(f"DEBUG AUTH: Unauthorized access to '{request.path}' (Comunidades Blueprint). Redirecting to login.")
+        logging.debug(f"DEBUG AUTH: Unauthorized access to '{request.path}' (Comunidades Blueprint). Redirecting to login.")
         flash('Por favor, faça login para acessar esta página.', 'warning')
-        return redirect(url_for('login')) 
+        return redirect(url_for('login'))
 
     if request.endpoint not in ['login', 'static', 'telegram_webhook', 'health_check', 'webhook_mercado_pago', 'reset_admin_password_route', None, 'get_sales_data'] and not session.get('logged_in'):
-        print(f"DEBUG AUTH: Unauthorized access to '{request.path}'. Redirecting to login.")
+        logging.debug(f"DEBUG AUTH: Unauthorized access to '{request.path}'. Redirecting to login.")
         flash('Por favor, faça login para acessar esta página.', 'warning')
         return redirect(url_for('login'))
 
@@ -306,7 +315,7 @@ def require_login():
 
 @app.route('/health')
 def health_check():
-    print(f"DEBUG HEALTH: Requisição para /health. Method: {request.method}")
+    logging.debug(f"Requisição para /health. Method: {request.method}")
     return "OK", 200
 
 @app.route(f"/{API_TOKEN}", methods=['POST'])
@@ -318,11 +327,11 @@ def telegram_webhook():
     if request.headers.get('content-type') == 'application/json':
         json_str = request.get_data().decode('utf-8')
         update = types.Update.de_json(json_str)
-        print(f"DEBUG WEBHOOK: Recebido update: {update}") 
-        if update.message: 
-            print(f"DEBUG WEBHOOK MESSAGE: Texto da mensagem: '{update.message.text}'")
-        if update.callback_query: 
-            print(f"DEBUG WEBHOOK CALLBACK: Callback data: '{update.callback_query.data}'")
+        logging.debug(f"WEBHOOK: Recebido update: {update}")
+        if update.message:
+            logging.debug(f"WEBHOOK MESSAGE: Texto da mensagem: '{update.message.text}'")
+        if update.callback_query:
+            logging.debug(f"WEBHOOK CALLBACK: Callback data: '{update.callback_query.data}'")
         
         bot.process_new_updates([update])
         return '!', 200
@@ -335,7 +344,7 @@ def webhook_mercado_pago():
         return jsonify({'status': 'ok_test_webhook'}), 200
 
     notification = request.json
-    print(f"DEBUG WEBHOOK MP: Notificação recebida: {notification}")
+    logging.debug(f"WEBHOOK MP: Notificação recebida: {notification}")
 
     if not notification or 'data' not in notification or 'id' not in notification['data']:
         return jsonify({'status': 'invalid_notification'}), 400
@@ -345,11 +354,11 @@ def webhook_mercado_pago():
 
     if not payment_info or payment_info.get('status') != 'approved':
         status = payment_info.get('status', 'não encontrado')
-        print(f"DEBUG WEBHOOK MP: Pagamento {payment_id} não aprovado. Status: {status}")
+        logging.debug(f"WEBHOOK MP: Pagamento {payment_id} não aprovado. Status: {status}")
         return jsonify({'status': f"payment_not_approved_{status}"}), 200
 
     external_reference = payment_info.get('external_reference')
-    print(f"DEBUG WEBHOOK MP: Pagamento aprovado. External Reference: {external_reference}")
+    logging.debug(f"WEBHOOK MP: Pagamento aprovado. External Reference: {external_reference}")
 
     conn = None
     try:
@@ -363,7 +372,7 @@ def webhook_mercado_pago():
 
                 # Busca os detalhes do passe E o link da comunidade associada
                 cur.execute("""
-                    SELECT ap.*, c.invite_link 
+                    SELECT ap.*, c.invite_link
                     FROM access_passes ap
                     LEFT JOIN comunidades c ON ap.community_id = c.id
                     WHERE ap.id = %s
@@ -373,7 +382,7 @@ def webhook_mercado_pago():
 
 
                 if not pass_item:
-                    print(f"ERRO: Passe de acesso com ID {pass_id} não encontrado no banco.")
+                    logging.error(f"ERRO: Passe de acesso com ID {pass_id} não encontrado no banco.")
                     return jsonify({'status': 'pass_not_found'}), 404
 
                 duration = timedelta(days=pass_item['duration_days'])
@@ -382,14 +391,14 @@ def webhook_mercado_pago():
 
                 cur.execute(
                     """
-                    INSERT INTO user_access 
+                    INSERT INTO user_access
                     (user_id, pass_id, status, start_date, expiration_date, payment_id)
                     VALUES (%s, %s, 'active', %s, %s, %s)
                     """,
                     (user_id, pass_id, start_date, expiration_date, payment_id)
                 )
                 conn.commit()
-                print(f"SUCESSO: Acesso para user {user_id} ao passe {pass_id} registrado. Expira em: {expiration_date}")
+                logging.info(f"SUCESSO: Acesso para user {user_id} ao passe {pass_id} registrado. Expira em: {expiration_date}")
 
                 # --- LÓGICA DE GERAÇÃO E ENVIO DE LINK ÚNICO ---
                 community_id = pass_item.get('community_id')
@@ -410,7 +419,7 @@ def webhook_mercado_pago():
                         )
                         bot.send_message(user_id, success_message, parse_mode='Markdown')
                     except Exception as e:
-                        print(f"ERRO ao criar link de convite para a comunidade {community_id}: {e}")
+                        logging.exception(f"ERRO ao criar link de convite para a comunidade {community_id}: {e}")
                         bot.send_message(user_id, f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo, mas houve um erro ao gerar seu link. Por favor, entre em contato com o suporte.")
                 else:
                     bot.send_message(user_id, f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo.")
@@ -429,24 +438,22 @@ def webhook_mercado_pago():
                     enviar_produto_telegram(venda['user_id'], produto['nome'], produto['link'])
                 
                 conn.commit()
-                print(f"SUCESSO: Venda de produto {venda_id} processada.")
+                logging.info(f"SUCESSO: Venda de produto {venda_id} processada.")
 
     except Exception as e:
-        print(f"ERRO CRÍTICO no processamento do webhook: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO CRÍTICO no processamento do webhook: {e}")
         return jsonify({'status': 'internal_server_error'}), 500
     finally:
         if conn:
             conn.close()
 
+    logging.debug(f"WEBHOOK MP: Notificação ignorada (não é tipo 'payment' ou JSON inválvido).")
     return jsonify({'status': 'notification_processed_successfully'}), 200
 
-    print(f"DEBUG WEBHOOK MP: Notificação ignorada (não é tipo 'payment' ou JSON inválvido).")
-    return jsonify({'status': 'ignored_general'}), 200
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    print(f"DEBUG LOGIN: Requisição para /login. Method: {request.method}")
+    logging.debug(f"Requisição para /login. Method: {request.method}")
 
     if request.method == 'POST':
         username = request.form.get('username')
@@ -470,21 +477,20 @@ def login():
                 if admin_user and check_password_hash(admin_user['password_hash'], password):
                     session['logged_in'] = True
                     session['username'] = admin_user['username']
-                    print(f"DEBUG LOGIN: Login realizado com sucesso para {session['username']}.")
+                    logging.debug(f"Login realizado com sucesso para {session['username']}.")
                     flash("Login realizado com sucesso!", "success")
-                    return redirect(url_for('index')) 
+                    return redirect(url_for('index'))
                 else:
-                    print(f"DEBUG LOGIN: Usuário ou senha incorretos.")
+                    logging.debug(f"Usuário ou senha incorretos.")
                     flash('Usuário ou senha inválidos.', 'danger')
 
         except Exception as e:
-            print(f"ERRO LOGIN: Falha no processo de login: {e}")
-            traceback.print_exc()
+            logging.exception(f"ERRO LOGIN: Falha no processo de login: {e}")
             flash('Erro no servidor ao tentar login.', 'error')
         finally:
             if conn: conn.close()
 
-    print(f"DEBUG LOGIN: Renderizando login.html.")
+    logging.debug(f"Renderizando login.html.")
     return render_template('login.html')
 
 
@@ -494,12 +500,12 @@ def login():
 # ==============================================================================
 @app.route('/reset-admin-password-now/muito-secreto-12345')
 def reset_admin_password_route():
-    print(f"DEBUG RESET: Requisição para /reset-admin-password-now/muito-secreto-12345. Method: {request.method}")
+    logging.debug(f"Requisição para /reset-admin-password-now/muito-secreto-12345. Method: {request.method}")
 
     USERNAME_TO_RESET = 'admin'
-    NEW_PASSWORD = 'admin123' 
+    NEW_PASSWORD = 'admin123'
 
-    print(f"DEBUG RESET: Password reset route accessed for user '{USERNAME_TO_RESET}'.")
+    logging.debug(f"Password reset route accessed for user '{USERNAME_TO_RESET}'.")
 
     hashed_password = generate_password_hash(NEW_PASSWORD)
     conn = None
@@ -518,23 +524,22 @@ def reset_admin_password_route():
                 cur.execute("UPDATE admin SET password_hash = %s WHERE username = %s", (hashed_password, USERNAME_TO_RESET))
 
             if cur.rowcount == 0:
-                print(f"DEBUG RESET: User '{USERNAME_TO_RESET}' not found for update. Attempting to create...")
+                logging.debug(f"User '{USERNAME_TO_RESET}' not found for update. Attempting to create...")
                 if is_sqlite:
                     cur.execute("INSERT INTO admin (username, password_hash) VALUES (?, ?)", (USERNAME_TO_RESET, hashed_password))
                 else:
                     cur.execute("INSERT INTO admin (username, password_hash) VALUES (%s, %s)", (USERNAME_TO_RESET, hashed_password))
                 message = f"User '{USERNAME_TO_RESET}' not found. A new user was created with the default password. PLEASE, REMOVE THIS ROUTE NOW!"
-                print(f"[SUCCESS RESET] {message}")
+                logging.info(f"[SUCCESS RESET] {message}")
                 return f"<h1>Success</h1><p>{message}</p>", 200
 
             message = f"Password for user '{USERNAME_TO_RESET}' has been reset successfully. PLEASE, REMOVE THIS ROUTE FROM 'app.py' IMMEDIATELY!"
-            print(f"[SUCCESS RESET] {message}")
+            logging.info(f"[SUCCESS RESET] {message}")
             return f"<h1>Success</h1><p>{message}</p>", 200
 
     except Exception as e:
         error_message = f"An error occurred while resetting the password: {e}"
-        print(f"ERRO RESET: {error_message}")
-        traceback.print_exc()
+        logging.exception(f"ERRO RESET: {error_message}")
         return f"<h1>Error</h1><p>{error_message}</p>", 500
     finally:
         if conn:
@@ -542,23 +547,23 @@ def reset_admin_password_route():
 
 @app.route('/logout')
 def logout():
-    print(f"DEBUG LOGOUT: Requisição para /logout. Method: {request.method}")
+    logging.debug(f"Requisição para /logout. Method: {request.method}")
 
     session.clear()
     flash('You have been logged out.', 'info')
-    return redirect(url_for('login')) 
+    return redirect(url_for('login'))
 
 
 @app.route('/')
 def index():
-    print(f"DEBUG INDEX: Requisição para /. session.get('logged_in'): {session.get('logged_in')}")
+    logging.debug(f"Requisição para /. session.get('logged_in'): {session.get('logged_in')}")
 
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('login')) 
+            return redirect(url_for('login'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
@@ -567,21 +572,21 @@ def index():
             # Inicializa as variáveis com valores padrão
             total_usuarios = 0
             total_produtos = 0
-            receita_total = 0.0 
+            receita_total = 0.0
             vendas_recentes = []
             chart_labels = []
-            chart_data_receita = [] 
+            chart_data_receita = []
             chart_data_quantidade = []
 
             # --- Métricas de Período Atual e Período Anterior ---
-            today = datetime.now().date() 
+            today = datetime.now().date()
             
             start_of_current_month = datetime(today.year, today.month, 1)
             last_day_of_month = (datetime(today.year, today.month + 1, 1) - timedelta(days=1)).replace(hour=23, minute=59, second=59, microsecond=999999) if today.month < 12 else datetime(today.year, 12, 31, 23, 59, 59, 999999)
             end_of_current_month = last_day_of_month
 
-            start_of_previous_month = (start_of_current_month - timedelta(days=1)).replace(day=1) 
-            end_of_previous_month = (start_of_current_month - timedelta(microseconds=1)).replace(hour=23, minute=59, second=59, microsecond=999999) 
+            start_of_previous_month = (start_of_current_month - timedelta(days=1)).replace(day=1)
+            end_of_previous_month = (start_of_current_month - timedelta(microseconds=1)).replace(hour=23, minute=59, second=59, microsecond=999999)
             
             def get_sales_data_for_period_internal(start_dt, end_dt, cursor, is_sqlite_db):
                 if is_sqlite_db:
@@ -589,7 +594,7 @@ def index():
                         "SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = 'aprovado' AND data_venda BETWEEN ? AND ?",
                         (start_dt.isoformat(), end_dt.isoformat())
                     )
-                else: 
+                else:
                     cursor.execute(
                         "SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s",
                         ('aprovado', start_dt, end_dt)
@@ -639,7 +644,7 @@ def index():
                     FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id
                     ORDER BY v.id DESC LIMIT 5
                 """)
-            else: 
+            else:
                 cur.execute("""
                     SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, p.id AS produto_id,
                     CASE WHEN v.status = 'aprovado' THEN 'aprovado'
@@ -652,7 +657,7 @@ def index():
             vendas_recentes = cur.fetchall()
 
             today_date_chart = datetime.now().date()
-            for i in range(6, -1, -1): 
+            for i in range(6, -1, -1):
                 day = today_date_chart - timedelta(days=i)
                 start_of_day = datetime.combine(day, time.min)
                 end_of_day = datetime.combine(day, time.max)
@@ -663,7 +668,7 @@ def index():
                         "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = ? AND data_venda BETWEEN ? AND ?",
                         ('aprovado', start_of_day.isoformat(), end_of_day.isoformat())
                     )
-                else: 
+                else:
                     cur.execute(
                         "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s",
                         ('aprovado', start_of_day, end_of_day)
@@ -681,7 +686,7 @@ def index():
                 # ENTRE ESTE ARQUIVO E O DEPLOY NO RENDER.
 
 
-            print(f"DEBUG INDEX: Rendering index.html with dashboard data.")
+            logging.debug(f"Rendering index.html with dashboard data.")
             return render_template(
                 'index.html',
                 total_usuarios=total_usuarios,
@@ -689,31 +694,30 @@ def index():
                 receita_total=receita_total,
                 periodo_atual_vendas_quantidade=periodo_atual_vendas_quantidade,
                 periodo_atual_vendas_valor=periodo_atual_vendas_valor,
-                variacao_vendas_quantidade=f"{variacao_vendas_quantidade:.1f}", 
+                variacao_vendas_quantidade=f"{variacao_vendas_quantidade:.1f}",
                 variacao_vendas_valor=f"{variacao_vendas_valor:.1f}",
                 periodo_anterior_vendas_quantidade=periodo_anterior_vendas_quantidade,
                 periodo_anterior_vendas_valor=periodo_anterior_vendas_valor,
                 
                 vendas_recentes=vendas_recentes,
                 chart_labels=json.dumps(chart_labels),
-                chart_data_receita=json.dumps(chart_data_receita), 
-                chart_data_quantidade=json.dumps(chart_data_quantidade), 
+                chart_data_receita=json.dumps(chart_data_receita),
+                chart_data_quantidade=json.dumps(chart_data_quantidade),
                 current_year=datetime.now().year,
                 data_inicio_periodo_atual=start_of_current_month.strftime('%d/%m/%Y'),
-                data_fim_periodo_atual=today.strftime('%d/%m/%Y') 
+                data_fim_periodo_atual=today.strftime('%d/%m/%Y')
             )
     except Exception as e:
-        print(f"ERRO INDEX: Falha ao renderizar o dashboard: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO INDEX: Falha ao renderizar o dashboard: {e}")
         flash('Erro ao carregar o dashboard.', 'danger')
-        return redirect(url_for('login')) 
+        return redirect(url_for('login'))
     finally:
         if conn:
             conn.close()
 
 @app.route('/api/sales_data', methods=['GET'])
 def get_sales_data():
-    print(f"DEBUG API SALES DATA: Requisição para /api/sales_data. Method: {request.method}")
+    logging.debug(f"Requisição para /api/sales_data. Method: {request.method}")
 
     conn = None
     try:
@@ -740,22 +744,14 @@ def get_sales_data():
         chart_data_receita = []
         chart_data_quantidade = []
 
-        print(f"DEBUG API SALES DATA: start_date={start_date}, end_date={end_date}")
+        logging.debug(f"API SALES DATA: start_date={start_date}, end_date={end_date}")
 
-<<<<<<< HEAD
-<<<<<<< HEAD
         current_day = start_date # <<<<< 'current_day' É INICIALIZADO AQUI
-=======
-        current_day = start_date 
->>>>>>> parent of 5471413 (Ajuste de Rotas)
-=======
-        current_day = start_date 
->>>>>>> parent of 5471413 (Ajuste de Rotas)
         
-        with conn: 
+        with conn:
             cur = conn.cursor()
-            while current_day <= end_date: 
-                chart_labels.append(current_day.strftime('%d/%m')) 
+            while current_day <= end_date:
+                chart_labels.append(current_day.strftime('%d/%m'))
                 start_of_day_dt = datetime.combine(current_day, time.min)
                 end_of_day_dt = datetime.combine(current_day, time.max)
 
@@ -764,7 +760,7 @@ def get_sales_data():
                         "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = 'aprovado' AND data_venda BETWEEN ? AND ?",
                         ('aprovado', start_of_day_dt.isoformat(), end_of_day_dt.isoformat())
                     )
-                else: 
+                else:
                     cur.execute(
                         "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s",
                         ('aprovado', start_of_day_dt, end_of_day_dt)
@@ -777,15 +773,7 @@ def get_sales_data():
                 chart_data_receita.append(daily_revenue)
                 chart_data_quantidade.append(daily_quantity)
                 
-<<<<<<< HEAD
-<<<<<<< HEAD
                 current_day += timedelta(days=1) # <<<<< E INCREMENTADO AQUI
-=======
-                current_day += timedelta(days=1) 
->>>>>>> parent of 5471413 (Ajuste de Rotas)
-=======
-                current_day += timedelta(days=1) 
->>>>>>> parent of 5471413 (Ajuste de Rotas)
                 
         return jsonify({
             'labels': chart_labels,
@@ -793,8 +781,7 @@ def get_sales_data():
             'data_quantidade': chart_data_quantidade
         }), 200
     except Exception as e:
-        print(f"ERRO API SALES DATA: Falha ao obter dados de vendas: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO API SALES DATA: Falha ao obter dados de vendas: {e}")
         return jsonify({'error': 'Erro interno do servidor'}), 500
     finally:
         if conn: conn.close()
@@ -802,14 +789,14 @@ def get_sales_data():
 
 @app.route('/produtos', methods=['GET', 'POST'])
 def produtos():
-    print(f"DEBUG PRODUTOS: Requisição para /produtos. Method: {request.method}")
+    logging.debug(f"Requisição para /produtos. Method: {request.method}")
 
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados.', 'error')
-            return redirect(url_for('index')) 
+            return redirect(url_for('index'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
@@ -844,28 +831,27 @@ def produtos():
             else:
                 cur.execute('SELECT * FROM produtos ORDER BY id DESC')
             produtos_lista = cur.fetchall()
-            print(f"DEBUG PRODUTOS: {len(produtos_lista)} produtos encontrados.")
+            logging.debug(f"{len(produtos_lista)} produtos encontrados.")
             return render_template('produtos.html', produtos=produtos_lista)
 
     except Exception as e:
-        print(f"ERRO PRODUTOS: Falha ao gerenciar produtos: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO PRODUTOS: Falha ao gerenciar produtos: {e}")
         flash('Erro ao carregar ou adicionar produtos.', 'danger')
-        return redirect(url_for('index')) 
+        return redirect(url_for('index'))
     finally:
         if conn:
             conn.close()
 
 @app.route('/editar_produto/<int:produto_id>', methods=['GET', 'POST'])
 def editar_produto(produto_id):
-    print(f"DEBUG EDITAR_PRODUTO: Requisição para /editar_produto/{produto_id}. Method: {request.method}")
+    logging.debug(f"Requisição para /editar_produto/{produto_id}. Method: {request.method}")
 
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados para editar produto.', 'danger')
-            return redirect(url_for('produtos')) 
+            return redirect(url_for('produtos'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
@@ -892,9 +878,9 @@ def editar_produto(produto_id):
                     cur.execute("UPDATE produtos SET nome = ?, preco = ?, link = ? WHERE id = ?", (nome, preco, link, produto_id))
                 else:
                     cur.execute("UPDATE produtos SET nome = %s, preco = %s, link = %s WHERE id = %s", (nome, preco, link, produto_id))
-                print(f"DEBUG EDITAR_PRODUTO: Produto ID {produto_id} atualizado com sucesso.")
+                logging.debug(f"Produto ID {produto_id} atualizado com sucesso.")
                 flash('Produto atualizado com sucesso!', 'success')
-                return redirect(url_for('produtos')) 
+                return redirect(url_for('produtos'))
             else: # GET request to show edit form
                 if is_sqlite:
                     cur.execute('SELECT * FROM produtos WHERE id = ?', (produto_id,))
@@ -904,7 +890,7 @@ def editar_produto(produto_id):
 
                 if not produto:
                     flash('Produto não encontrado.', 'danger')
-                    return redirect(url_for('produtos')) 
+                    return redirect(url_for('produtos'))
 
                 return render_template('edit_product.html',
                                        produto=produto,
@@ -913,8 +899,7 @@ def editar_produto(produto_id):
                                        link_val=produto['link'])
 
     except Exception as e:
-        print(f"ERRO EDIT PRODUTO: Falha ao editar produto: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO EDIT PRODUTO: Falha ao editar produto: {e}")
         flash('Erro ao editar produto.', 'danger')
         return redirect(url_for('produtos', edit_id=produto_id,
                                  nome_val=request.form.get('nome', ''),
@@ -925,14 +910,14 @@ def editar_produto(produto_id):
 
 @app.route('/deletar_produto/<int:produto_id>', methods=['POST'])
 def deletar_produto(produto_id):
-    print(f"DEBUG DELETAR_PRODUTO: Requisição para /deletar_produto/{produto_id}. Method: {request.method}")
+    logging.debug(f"Requisição para /deletar_produto/{produto_id}. Method: {request.method}")
 
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados.', 'error')
-            return redirect(url_for('produtos')) 
+            return redirect(url_for('produtos'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
@@ -943,33 +928,33 @@ def deletar_produto(produto_id):
                 cur.execute('SELECT id FROM produtos WHERE id = %s', (produto_id,))
             if not cur.fetchone():
                 flash('Produto não encontrado.', 'danger')
-                return redirect(url_for('produtos')) 
+                return redirect(url_for('produtos'))
 
             if is_sqlite:
                 cur.execute('DELETE FROM produtos WHERE id = ?', (produto_id,))
             else:
                 cur.execute('DELETE FROM produtos WHERE id = %s', (produto_id,))
-            print(f"DEBUG DELETAR_PRODUTO: Produto ID {produto_id} deletado com sucesso.")
+            logging.debug(f"Produto ID {produto_id} deletado com sucesso.")
             flash('Produto deletado com sucesso!', 'success')
-            return redirect(url_for('produtos')) 
+            return redirect(url_for('produtos'))
     except Exception as e:
-        print(f"ERRO REMOVER PRODUTO: Falha ao remover produto: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO REMOVER PRODUTO: Falha ao remover produto: {e}")
         flash('Erro ao remover produto.', 'error')
-        return redirect(url_for('produtos')) 
+        return redirect(url_for('produtos'))
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
 
 @app.route('/vendas')
 def vendas():
-    print(f"DEBUG VENDAS: Requisição para /vendas. Method: {request.method}")
+    logging.debug(f"Requisição para /vendas. Method: {request.method}")
 
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados.', 'error')
-            return redirect(url_for('index')) 
+            return redirect(url_for('index'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
@@ -1044,17 +1029,16 @@ def vendas():
             vendas_lista = cur.fetchall()
             return render_template('vendas.html', vendas=vendas_lista, produtos_disponiveis=produtos_disponiveis)
     except Exception as e:
-        print(f"ERRO VENDAS: Falha ao carregar vendas para o dashboard: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO VENDAS: Falha ao carregar vendas para o dashboard: {e}")
         flash('Erro ao carregar as vendas.', 'danger')
-        return redirect(url_for('index')) 
+        return redirect(url_for('index'))
     finally:
         if conn:
             conn.close()
 
 @app.route('/venda_detalhes/<int:id>')
 def venda_detalhes(id):
-    print(f"DEBUG VENDA DETALHES: Requisição para /venda_detalhes. Method: {request.method}")
+    logging.debug(f"Requisição para /venda_detalhes. Method: {request.method}")
 
     conn = None
     try:
@@ -1078,8 +1062,7 @@ def venda_detalhes(id):
                 return jsonify(venda_dict)
             return jsonify({'error': 'Venda não encontrada'}), 404
     except Exception as e:
-        print(f"ERRO VENDA DETALHES: Falha ao obter detalhes da venda: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO VENDA DETALHES: Falha ao obter detalhes da venda: {e}")
         return jsonify({'error': 'Erro interno do servidor'}), 500
     finally:
         if conn:
@@ -1087,14 +1070,14 @@ def venda_detalhes(id):
 
 @app.route('/usuarios')
 def usuarios():
-    print(f"DEBUG USUARIOS: Requisição para /usuarios. Method: {request.method}")
+    logging.debug(f"Requisição para /usuarios. Method: {request.method}")
 
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados.', 'error')
-            return redirect(url_for('index')) 
+            return redirect(url_for('index'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
@@ -1104,29 +1087,28 @@ def usuarios():
             else:
                 cur.execute('SELECT * FROM users ORDER BY data_registro DESC')
             usuarios_lista = cur.fetchall()
-            print(f"DEBUG USUARIOS: {len(usuarios_lista)} usuários encontrados.")
+            logging.debug(f"{len(usuarios_lista)} usuários encontrados.")
 
         return render_template('usuarios.html', usuarios=usuarios_lista)
 
     except Exception as e:
-        print(f"ERRO UTILIZADORES: Falha ao carregar utilizadores: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO UTILIZADORES: Falha ao carregar utilizadores: {e}")
         flash('Erro ao carregar utilizadores.', 'error')
-        return redirect(url_for('index')) 
+        return redirect(url_for('index'))
     finally:
         if conn:
             conn.close()
 
 @app.route('/toggle_user_status/<int:user_id>', methods=['POST'])
 def toggle_user_status(user_id):
-    print(f"DEBUG TOGGLE_USER_STATUS: Requisição para /toggle_user_status/{user_id}. Method: {request.method}")
+    logging.debug(f"Requisição para /toggle_user_status/{user_id}. Method: {request.method}")
 
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados.', 'error')
-            return redirect(url_for('usuarios')) 
+            return redirect(url_for('usuarios'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
@@ -1139,7 +1121,7 @@ def toggle_user_status(user_id):
 
             if not user:
                 flash('Usuário não encontrado.', 'danger')
-                return redirect(url_for('usuarios')) 
+                return redirect(url_for('usuarios'))
 
             new_status = not user['is_active']
             if is_sqlite:
@@ -1148,27 +1130,27 @@ def toggle_user_status(user_id):
                 cur.execute('UPDATE users SET is_active = %s WHERE id = %s', (new_status, user_id))
 
             status_text = "ativado" if new_status else "desativado"
-            print(f"DEBUG TOGGLE_USER_STATUS: Usuário {user_id} {status_text} com sucesso.")
+            logging.debug(f"Usuário {user_id} {status_text} com sucesso.")
             flash(f'Usuário {user_id} {status_text} com sucesso!', 'success')
-            return redirect(url_for('usuarios')) 
+            return redirect(url_for('usuarios'))
     except Exception as e:
-        print(f"ERRO REMOVER UTILIZADOR: Falha ao remover utilizador: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO REMOVER UTILIZADOR: Falha ao remover utilizador: {e}")
         flash('Erro ao remover utilizador.', 'error')
-        return redirect(url_for('usuarios')) 
+        return redirect(url_for('usuarios'))
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
 
 @app.route('/scheduled_messages')
 def scheduled_messages():
-    print(f"DEBUG SCHEDULED_MESSAGES: Requisição para /scheduled_messages. Method: {request.method}")
+    logging.debug(f"Requisição para /scheduled_messages. Method: {request.method}")
 
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados.', 'error')
-            return redirect(url_for('login')) 
+            return redirect(url_for('login'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
@@ -1206,20 +1188,19 @@ def scheduled_messages():
                     ORDER BY sm.schedule_time DESC
                 """)
             messages_list = cur.fetchall()
-            print(f"DEBUG SCHEDULED_MESSAGES: {len(messages_list)} mensagens agendadas encontradas.")
+            logging.debug(f"{len(messages_list)} mensagens agendadas encontradas.")
 
         return render_template('scheduled_messages.html', messages=messages_list)
     except Exception as e:
-        print(f"ERRO SCHEDULED MESSAGES: Falha ao carregar mensagens agendadas: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO SCHEDULED MESSAGES: Falha ao carregar mensagens agendadas: {e}")
         flash('Erro ao carregar ou atualizar mensagens.', 'error')
-        return redirect(url_for('index')) 
+        return redirect(url_for('index'))
     finally:
         if conn: conn.close()
 
 @app.route('/add_scheduled_message', methods=['GET', 'POST'])
 def add_scheduled_message():
-    print(f"DEBUG ADD SCHEDULED MESSAGE: Requisição para /add_scheduled_message. Method: {request.method}")
+    logging.debug(f"Requisição para /add_scheduled_message. Method: {request.method}")
 
     if request.method == 'POST':
         try:
@@ -1227,7 +1208,7 @@ def add_scheduled_message():
             target_chat_id = request.form.get('target_chat_id')
             image_url = request.form.get('image_url')
             schedule_time_str = request.form.get('schedule_time')
-            recurrence_rule = request.form.get('recurrence_rule', 'none') 
+            recurrence_rule = request.form.get('recurrence_rule', 'none')
 
             if not message_text or not schedule_time_str:
                 flash('Texto da mensagem e data/hora são obrigatórios!', 'danger')
@@ -1245,8 +1226,8 @@ def add_scheduled_message():
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO scheduled_messages 
-                    (message_text, target_chat_id, image_url, schedule_time, status, recurrence_rule) 
+                    INSERT INTO scheduled_messages
+                    (message_text, target_chat_id, image_url, schedule_time, status, recurrence_rule)
                     VALUES (%s, %s, %s, %s, %s, %s)
                     """,
                     (message_text, target_chat_id_db, image_url or None, schedule_time, 'pending', recurrence_rule)
@@ -1255,13 +1236,12 @@ def add_scheduled_message():
             conn.close()
 
             flash('Mensagem agendada com sucesso!', 'success')
-            return redirect(url_for('scheduled_messages')) 
+            return redirect(url_for('scheduled_messages'))
 
         except ValueError:
             flash('Formato de dados inválido.', 'danger')
         except Exception as e:
-            print(f"ERRO ADD SCHEDULED MESSAGE: {e}")
-            traceback.print_exc()
+            logging.exception(f"ERRO ADD SCHEDULED MESSAGE: {e}")
             flash('Ocorreu um erro inesperado ao agendar a mensagem.', 'danger')
         
         return redirect(url_for('add_scheduled_message'))
@@ -1276,14 +1256,14 @@ def add_scheduled_message():
 
 @app.route('/edit_scheduled_message/<int:message_id>', methods=['GET', 'POST'])
 def edit_scheduled_message(message_id):
-    print(f"DEBUG EDIT SCHEDULED MESSAGE: Requisição para /edit_scheduled_message/{message_id}. Method: {request.method}")
+    logging.debug(f"Requisição para /edit_scheduled_message/{message_id}. Method: {request.method}")
 
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('scheduled_messages')) 
+            return redirect(url_for('scheduled_messages'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         
@@ -1297,7 +1277,7 @@ def edit_scheduled_message(message_id):
 
         if not message:
             flash('Mensagem agendada não encontrada.', 'danger')
-            return redirect(url_for('scheduled_messages')) 
+            return redirect(url_for('scheduled_messages'))
 
         # Se a requisição for POST, tenta salvar as alterações
         if request.method == 'POST':
@@ -1334,31 +1314,30 @@ def edit_scheduled_message(message_id):
                     )
             conn.commit()
             flash('Mensagem agendada atualizada com sucesso!', 'success')
-            return redirect(url_for('scheduled_messages')) 
+            return redirect(url_for('scheduled_messages'))
 
         # Se a requisição for GET, apenas exibe o formulário
         message['schedule_time_formatted'] = message['schedule_time'].strftime('%Y-%m-%dT%H:%M') if message['schedule_time'] else ''
         return render_template('edit_scheduled_message.html', message=message)
 
     except Exception as e:
-        print(f"ERRO EDIT SCHEDULED MESSAGE: Falha ao editar mensagem agendada: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO EDIT SCHEDULED MESSAGE: Falha ao editar mensagem agendada: {e}")
         flash('Erro ao editar mensagem agendada.', 'danger')
-        return redirect(url_for('scheduled_messages')) 
+        return redirect(url_for('scheduled_messages'))
     finally:
         if conn:
             conn.close()
 
 @app.route('/resend_scheduled_message/<int:message_id>', methods=['POST'])
 def resend_scheduled_message(message_id):
-    print(f"DEBUG CLONE SCHEDULED MESSAGE: Requisição para clonar a mensagem ID {message_id}.")
+    logging.debug(f"Requisição para clonar a mensagem ID {message_id}.")
 
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('scheduled_messages')) 
+            return redirect(url_for('scheduled_messages'))
 
         with conn.cursor() as cur:
             if isinstance(conn, sqlite3.Connection):
@@ -1369,7 +1348,7 @@ def resend_scheduled_message(message_id):
 
             if not original_message:
                 flash('Mensagem original não encontrada para clonar.', 'warning')
-                return redirect(url_for('scheduled_messages')) 
+                return redirect(url_for('scheduled_messages'))
 
             insert_query = """
                 INSERT INTO scheduled_messages (message_text, target_chat_id, image_url, status, schedule_time)
@@ -1403,13 +1382,12 @@ def resend_scheduled_message(message_id):
 
             flash('Mensagem clonada com sucesso! Por favor, defina um novo horário de agendamento.', 'success')
             
-            return redirect(url_for('edit_scheduled_message', message_id=new_message_id, from_clone=True)) 
+            return redirect(url_for('edit_scheduled_message', message_id=new_message_id, from_clone=True))
 
     except Exception as e:
-        print(f"ERRO CLONE MESSAGE: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO CLONE MESSAGE: {e}")
         flash('Ocorreu um erro ao tentar clonar a mensagem.', 'danger')
-        return redirect(url_for('scheduled_messages')) 
+        return redirect(url_for('scheduled_messages'))
     finally:
         if conn:
             conn.close()
@@ -1417,14 +1395,14 @@ def resend_scheduled_message(message_id):
 
 @app.route('/delete_scheduled_message/<int:message_id>', methods=['POST'])
 def delete_scheduled_message(message_id):
-    print(f"DEBUG DELETE SCHEDULED MESSAGE: Requisição para deletar a mensagem ID {message_id}.")
+    logging.debug(f"Requisição para deletar a mensagem ID {message_id}.")
 
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('scheduled_messages')) 
+            return redirect(url_for('scheduled_messages'))
 
         with conn.cursor() as cur:
             if isinstance(conn, sqlite3.Connection):
@@ -1443,54 +1421,52 @@ def delete_scheduled_message(message_id):
                 flash('Mensagem agendada deletada com sucesso!', 'success')
                 
     except Exception as e:
-        print(f"ERRO DELETE MESSAGE: {e}")
-        traceback.print_exc() 
+        logging.exception(f"ERRO DELETE MESSAGE: {e}")
         flash('Ocorreu um erro ao tentar deletar a mensagem.', 'danger')
     finally:
         if conn:
             conn.close()
             
-    return redirect(url_for('scheduled_messages')) 
+    return redirect(url_for('scheduled_messages'))
 
 @app.route('/cancel_cloned_message/<int:message_id>', methods=['GET'])
 def cancel_cloned_message(message_id):
-    print(f"DEBUG CANCEL CLONE: Requisição para cancelar e deletar o clone ID {message_id}.")
-
-    conn = None
-    try:
-        conn = get_db_connection()
-        if conn is None: 
-            flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('scheduled_messages')) 
-
-        is_sqlite = isinstance(conn, sqlite3.Connection)
-        with conn.cursor() as cur:
-            if is_sqlite:
-                cur.execute("DELETE FROM scheduled_messages WHERE id = ?", (message_id,))
-            else:
-                cur.execute("DELETE FROM scheduled_messages WHERE id = %s", (message_id,))
-        conn.commit()
-        flash('Reenvio cancelado e cópia da mensagem descartada.', 'info')
-    except Exception as e:
-        print(f"ERRO CANCEL CLONE: {e}")
-        traceback.print_exc() 
-        flash('Ocorreu um erro ao descartar a cópia da mensagem.', 'danger')
-    finally:
-        if conn:
-            conn.close()
-            
-    return redirect(url_for('scheduled_messages')) 
-
-@app.route('/send_broadcast', methods=['GET', 'POST'])
-def send_broadcast():
-    print(f"DEBUG SEND BROADCAST: Requisição para /send_broadcast. Method: {request.method}")
+    logging.debug(f"Requisição para cancelar e deletar o clone ID {message_id}.")
 
     conn = None
     try:
         conn = get_db_connection()
         if conn is None:
             flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('index', error='broadcast_db_connection_error')) 
+            return redirect(url_for('scheduled_messages'))
+
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        with conn.cursor() as cur:
+            if is_sqlite:
+                cur.execute("DELETE FROM scheduled_messages WHERE id = ?,", (message_id,))
+            else:
+                cur.execute("DELETE FROM scheduled_messages WHERE id = %s", (message_id,))
+        conn.commit()
+        flash('Reenvio cancelado e cópia da mensagem descartada.', 'info')
+    except Exception as e:
+        logging.exception(f"ERRO CANCEL CLONE: {e}")
+        flash('Ocorreu um erro ao descartar a cópia da mensagem.', 'danger')
+    finally:
+        if conn:
+            conn.close()
+            
+    return redirect(url_for('scheduled_messages'))
+
+@app.route('/send_broadcast', methods=['GET', 'POST'])
+def send_broadcast():
+    logging.debug(f"Requisição para /send_broadcast. Method: {request.method}")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Erro de conexão com o banco de dados.', 'danger')
+            return redirect(url_for('index', error='broadcast_db_connection_error'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
@@ -1524,7 +1500,7 @@ def send_broadcast():
                         cur_send.execute("SELECT id FROM users WHERE is_active = 1")
                     else:
                         cur_send.execute("SELECT id FROM users WHERE is_active = TRUE")
-                    users_to_send = cur.fetchall() # Corrected: Use cur_send here.
+                    users_to_send = cur_send.fetchall() # Corrected: Use cur_send here.
 
                     for user_data in users_to_send:
                         user_id = user_data['id']
@@ -1535,9 +1511,9 @@ def send_broadcast():
                                 bot.send_message(user_id, message_text, parse_mode="Markdown")
                             sent_count += 1
                         except telebot.apihelper.ApiTelegramException as e:
-                            print(f"ERRO BROADCAST para {user_id}: {e}")
+                            logging.error(f"ERRO BROADCAST para {user_id}: {e}")
                             if "blocked" in str(e).lower() or "not found" in str(e).lower() or "deactivated" in str(e).lower():
-                                print(f"AVISO: Usuário {user_id} blocked/not found during broadcast. Deactivating...")
+                                logging.warning(f"AVISO: Usuário {user_id} blocked/not found during broadcast. Deactivating...")
                                 temp_conn_update = get_db_connection()
                                 if temp_conn_update:
                                     temp_is_sqlite = isinstance(temp_conn_update, sqlite3.Connection)
@@ -1549,20 +1525,17 @@ def send_broadcast():
                                             else:
                                                 cur_u.execute("UPDATE users SET is_active=FALSE WHERE id=%s", (user_id,))
                                     except Exception as db_e:
-                                        print(f"ERRO inactivating user {user_id} during broadcast: {db_e}")
-                                        traceback.print_exc()
+                                        logging.exception(f"ERRO inactivating user {user_id} during broadcast: {db_e}")
                                     finally:
                                         if temp_conn_update: temp_conn_update.close()
                         except Exception as e:
-                            print(f"ERRO UNEXPECTED BROADCAST to {user_id}: {e}")
-                            traceback.print_exc()
-                            failed_count += 1 
+                            logging.exception(f"ERRO UNEXPECTED BROADCAST to {user_id}: {e}")
+                            failed_count += 1
 
                 flash(f'Broadcast enviado com sucesso para {sent_count} usuários. Falha em {failed_count} usuários.', 'success')
-                return redirect(url_for('index')) 
+                return redirect(url_for('index'))
             except Exception as e:
-                print(f"ERRO SEND BROADCAST (send logic): {e}")
-                traceback.print_exc()
+                logging.exception(f"ERRO SEND BROADCAST (send logic): {e}")
                 flash('Ocorreu um erro ao tentar enviar o broadcast.', 'danger')
                 return render_template('send_broadcast.html', active_users=active_users, message_text_val=message_text, image_url_val=image_url)
             finally:
@@ -1571,16 +1544,15 @@ def send_broadcast():
         return render_template('send_broadcast.html', active_users=active_users)
 
     except Exception as e:
-        print(f"ERRO SEND BROADCAST (GET): Falha ao carregar usuários para o formulário: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO SEND BROADCAST (GET): Falha ao carregar usuários para o formulário: {e}")
         flash('Erro ao carregar a página de broadcast.', 'danger')
-        return redirect(url_for('index')) 
+        return redirect(url_for('index'))
     finally:
         if conn: conn.close()
 
 @app.route('/config_messages', methods=['GET', 'POST'])
 def config_messages():
-    print(f"DEBUG CONFIG_MESSAGES: Requisição para /config_messages. Method: {request.method}")
+    logging.debug(f"Requisição para /config_messages. Method: {request.method}")
 
     conn = None
     welcome_message_bot = 'Olá, {first_name}! Bem-vindo(a) ao bot!'
@@ -1629,7 +1601,7 @@ def config_messages():
                         )
                 
                 flash('Configurações de mensagens atualizadas com sucesso!', 'success')
-                return redirect(url_for('config_messages')) 
+                return redirect(url_for('config_messages'))
 
             # Lógica para GET request (ou após POST e redirecionamento)
             if is_sqlite:
@@ -1649,8 +1621,7 @@ def config_messages():
             )
 
     except Exception as e:
-        print(f"ERRO CONFIG_MESSAGES: Falha ao carregar/salvar configurações de mensagens: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO CONFIG_MESSAGES: Falha ao carregar/salvar configurações de mensagens: {e}")
         flash('Erro ao carregar/salvar configurações de mensagens.', 'danger')
         return render_template(
             'config_messages.html',
@@ -1664,13 +1635,13 @@ def config_messages():
 # 7. WORKER de mensagens agendadas
 # ────────────────────────────────────────────────────────────────────
 def scheduled_message_worker():
-    print(f"DEBUG WORKER: Iniciado e aguardando para verificar mensagens...")
+    logging.debug(f"Iniciado e aguardando para verificar mensagens...")
     while True:
         conn = None
         try:
             conn = get_db_connection()
             if conn is None:
-                print(f"ERRO WORKER: Não foi possível obter conexão. Tentando novamente em 60s...")
+                logging.error(f"ERRO WORKER: Não foi possível obter conexão. Tentando novamente em 60s...")
                 time_module.sleep(60)
                 continue
 
@@ -1686,10 +1657,10 @@ def scheduled_message_worker():
                 rows = cur.fetchall()
 
                 if rows:
-                    print(f"DEBUG WORKER: Encontradas {len(rows)} mensagens para enviar.")
+                    logging.debug(f"Encontradas {len(rows)} mensagens para enviar.")
 
                 for row in rows:
-                    print(f"DEBUG WORKER: Processando mensagem ID {row['id']} para o alvo: {row['target_chat_id'] or 'Todos'}")
+                    logging.debug(f"Processando mensagem ID {row['id']} para o alvo: {row['target_chat_id'] or 'Todos'}")
                     
                     targets = []
                     if row["target_chat_id"]:
@@ -1702,19 +1673,18 @@ def scheduled_message_worker():
                         all_users = cur.fetchall()
                         targets = [u["id"] for u in all_users]
 
-                    print(f"DEBUG WORKER: A mensagem {row['id']} será enviada para {len(targets)} usuários.")
+                    logging.debug(f"A mensagem {row['id']} será enviada para {len(targets)} usuários.")
                     
-                    sent_successfully = False 
+                    sent_successfully = False
                     for chat_id in targets:
                         try:
                             if row["image_url"]:
                                 bot.send_photo(chat_id, row["image_url"], caption=row["message_text"], parse_mode="Markdown")
                             else:
                                 bot.send_message(chat_id, row["message_text"], parse_mode="Markdown")
-                            sent_successfully = True 
+                            sent_successfully = True
                         except Exception as e:
-                            print(f"ERRO WORKER: Falha ao enviar msg {row['id']} para o chat {chat_id}: {e}")
-                            traceback.print_exc()
+                            logging.exception(f"ERRO WORKER: Falha ao enviar msg {row['id']} para o chat {chat_id}: {e}")
                     
                     final_status = 'sent' if sent_successfully else 'failed'
                     if isinstance(conn, sqlite3.Connection):
@@ -1727,13 +1697,12 @@ def scheduled_message_worker():
                             "UPDATE scheduled_messages SET status=%s, sent_at=NOW() WHERE id=%s",
                             (final_status, row["id"]),
                         )
-                    print(f"DEBUG WORKER: Mensagem ID {row['id']} atualizada para status '{final_status}'.")
+                    logging.debug(f"Mensagem ID {row['id']} atualizada para status '{final_status}'.")
             
             conn.commit()
 
         except Exception as e:
-            print(f"ERRO CRÍTICO no Loop do Worker: {e}")
-            traceback.print_exc()
+            logging.exception(f"ERRO CRÍTICO no Loop do Worker: {e}")
         finally:
             if conn:
                 conn.close()
@@ -1748,7 +1717,7 @@ def manage_community_access(user_id, community_id, should_have_access):
     Adiciona ou remove um usuário de uma comunidade no Telegram.
     """
     if not community_id:
-        print(f"AVISO: Tentativa de gerenciar acesso para user {user_id} sem um community_id.")
+        logging.warning(f"AVISO: Tentativa de gerenciar acesso para user {user_id} sem um community_id.")
         return
 
     try:
@@ -1756,26 +1725,26 @@ def manage_community_access(user_id, community_id, should_have_access):
             # Esta ação permite que um usuário que foi removido possa voltar a entrar.
             # O ideal é enviar um novo link de convite para o usuário.
             bot.unban_chat_member(community_id, user_id, only_if_banned=True)
-            print(f"ACESSO LIBERADO: Acesso para user {user_id} na comunidade {community_id} foi permitido.")
+            logging.info(f"ACESSO LIBERADO: Acesso para user {user_id} na comunidade {community_id} foi permitido.")
         else:
             # Remove (expulsa) o usuário do grupo/canal.
             bot.kick_chat_member(community_id, user_id)
-            print(f"ACESSO REMOVIDO: User {user_id} foi removido da comunidade {community_id}.")
+            logging.info(f"ACESSO REMOVIDO: User {user_id} foi removido da comunidade {community_id}.")
             bot.send_message(user_id, "Seu passe de acesso expirou e você foi removido da comunidade. Para voltar, compre um novo passe usando o comando /passes.")
     except Exception as e:
-        print(f"ERRO ao gerenciar acesso do user {user_id} na comunidade {community_id}: {e}")
+        logging.exception(f"ERRO ao gerenciar acesso do user {user_id} na comunidade {community_id}: {e}")
 
 def access_expiration_worker():
     """
     Worker que roda em segundo plano para verificar e expirar passes de acesso.
     """
-    print("WORKER DE EXPIRAÇÃO: Iniciado. Verificando passes a cada hora.")
+    logging.info("WORKER DE EXPIRAÇÃO: Iniciado. Verificando passes a cada hora.")
     while True:
         conn = None
         try:
             conn = get_db_connection()
             if conn is None:
-                print(f"ERRO WORKER: Não foi possível obter conexão. Tentando novamente em 60s...")
+                logging.error(f"ERRO WORKER: Não foi possível obter conexão. Tentando novamente em 60s...")
                 time_module.sleep(60)
                 continue
 
@@ -1790,13 +1759,13 @@ def access_expiration_worker():
                 expired_passes = cur.fetchall()
 
                 if expired_passes:
-                    print(f"WORKER DE EXPIRAÇÃO: Encontrados {len(expired_passes)} passes expirados.")
+                    logging.info(f"WORKER DE EXPIRAÇÃO: Encontrados {len(expired_passes)} passes expirados.")
                     for expired_pass in expired_passes:
                         user_id_to_remove = expired_pass['user_id']
                         community_id_to_remove_from = expired_pass['community_id']
                         access_id_to_update = expired_pass['id']
 
-                        print(f"WORKER: Expirando acesso ID {access_id_to_update} para o usuário {user_id_to_remove}.")
+                        logging.debug(f"WORKER: Expirando acesso ID {access_id_to_update} para o usuário {user_id_to_remove}.")
 
                         # 1. Remove o acesso do usuário no Telegram
                         manage_community_access(user_id_to_remove, community_id_to_remove_from, should_have_access=False)
@@ -1806,11 +1775,10 @@ def access_expiration_worker():
                     
                     conn.commit()
                 else:
-                    print("WORKER DE EXPIRAÇÃO: Nenhum passe expirado encontrado nesta verificação.")
+                    logging.debug("WORKER DE EXPIRAÇÃO: Nenhum passe expirado encontrado nesta verificação.")
 
         except Exception as e:
-            print(f"ERRO CRÍTICO no Worker de Expiração: {e}")
-            traceback.print_exc()
+            logging.exception(f"ERRO CRÍTICO no Worker de Expiração: {e}")
         finally:
             if conn:
                 conn.close()
@@ -1833,8 +1801,7 @@ def manage_comunidades(): # <--- Função movida de web/routes/comunidades.py
             flash('Ocorreu um erro ao buscar as comunidades.', 'danger')
             
     except Exception as e:
-        print(f"ERRO CRÍTICO ao carregar comunidades: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO CRÍTICO ao carregar comunidades: {e}")
         flash('Um erro inesperado ocorreu. Verifique os logs.', 'danger')
         comunidades_list = []
 
@@ -1861,8 +1828,7 @@ def adicionar_comunidade(): # <--- Função movida de web/routes/comunidades.py
     except ValueError:
         flash('ID do Chat/Grupo inválido. Deve ser um número.', 'danger')
     except Exception as e:
-        print(f"ERRO ao adicionar comunidade: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO ao adicionar comunidade: {e}")
         flash('Ocorreu um erro ao adicionar a comunidade.', 'danger')
         
     return redirect(url_for('manage_comunidades')) # <--- ATUALIZADO AQUI (sem blueprint prefix)
@@ -1895,8 +1861,7 @@ def editar_comunidade(id): # <--- Função movida de web/routes/comunidades.py
         except ValueError:
             flash('ID do Chat/Grupo inválido. Deve ser um número.', 'danger')
         except Exception as e:
-            print(f"ERRO ao editar comunidade: {e}")
-            traceback.print_exc()
+            logging.exception(f"ERRO ao editar comunidade: {e}")
             flash('Ocorreu um erro ao editar a comunidade.', 'danger')
     
     # Para a requisição GET, apenas exibe o formulário
@@ -1910,8 +1875,7 @@ def deletar_comunidade(id): # <--- Função movida de web/routes/comunidades.py
         service.deletar(id)
         flash('Comunidade deletada com sucesso!', 'success')
     except Exception as e:
-        print(f"ERRO ao deletar comunidade: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO ao deletar comunidade: {e}")
         flash('Ocorreu um erro ao deletar a comunidade.', 'danger')
 
     return redirect(url_for('manage_comunidades')) # <--- ATUALIZADO AQUI (sem blueprint prefix)
@@ -1919,16 +1883,16 @@ def deletar_comunidade(id): # <--- Função movida de web/routes/comunidades.py
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    print(f"DEBUG SEND WELCOME: Requisição para /start. Message: {message.text}")
+    logging.debug(f"Requisição para /start. Message: {message.text}")
 
     get_or_register_user(message.from_user)
 
     conn = None
-    welcome_message_text = "Olá, {first_name}! Bem-vindo(a) ao bot!" 
+    welcome_message_text = "Olá, {first_name}! Bem-vindo(a) ao bot!"
     try:
         conn = get_db_connection()
         if conn is None:
-            print(f"ERRO: Não foi possível obter conexão com o DB para carregar mensagem de boas-vindas do bot.")
+            logging.error(f"Não foi possível obter conexão com o DB para carregar mensagem de boas-vindas do bot.")
             pass
         else:
             is_sqlite = isinstance(conn, sqlite3.Connection)
@@ -1939,11 +1903,10 @@ def send_welcome(message):
                 else:
                     cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_bot',))
                 row = cur.fetchone()
-                if row and row['value']: 
+                if row and row['value']:
                     welcome_message_text = row['value']
     except Exception as e:
-        print(f"ERRO ao carregar mensagem de boas-vindas do bot: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO ao carregar mensagem de boas-vindas do bot: {e}")
     finally:
         if conn: conn.close()
 
@@ -1961,26 +1924,24 @@ def send_welcome(message):
 
 
 if __name__ != '__main__':
-    print(f"DEBUG: Executando em modo de produção (gunicorn/Render).")
+    logging.debug(f"Executando em modo de produção (gunicorn/Render).")
     try:
         init_db()
         pagamentos.init_mercadopago_sdk()
         if API_TOKEN and BASE_URL:
             webhook_url = f"{BASE_URL}/{API_TOKEN}"
             bot.set_webhook(url=webhook_url)
-            print(f"DEBUG: Webhook do Telegram configurado para: {webhook_url}")
+            logging.debug(f"Webhook do Telegram configurado para: {webhook_url}")
         
         worker_thread = Thread(target=scheduled_message_worker)
         worker_thread.daemon = True
         worker_thread.start()
-        print(f"DEBUG: Worker de mensagens agendadas iniciado em background para o modo de produção.")
+        logging.debug(f"Worker de mensagens agendadas iniciado em background para o modo de produção.")
 
-        # REGISTRAR HANDLERS 
+        # REGISTRAR HANDLERS
         register_chamadas_handlers(bot, get_db_connection)
         register_comunidades_handlers(bot, get_db_connection) # Este ainda registra os handlers do bot (comandos)
         register_conteudos_handlers(bot, get_db_connection)
-<<<<<<< HEAD
-<<<<<<< HEAD
         
         # from bot.handlers.access_passes import register_access_pass_handlers # COMENTADO/REMOVIDO: Para mover a lógica para cá
         # register_access_pass_handlers(bot) # REMOVIDO: A lógica será colada aqui.
@@ -1994,13 +1955,13 @@ if __name__ != '__main__':
         @bot.message_handler(commands=['passes'])
         def handle_show_passes(message):
             chat_id = message.chat.id
-            print(f"DEBUG: Comando /passes recebido do chat {chat_id}")
+            logging.debug(f"Comando /passes recebido do chat {chat_id}")
             conn = None
             try:
                 conn = get_db_connection()
                 if conn is None:
                     bot.send_message(chat_id, "Erro interno: banco de dados indisponível.")
-                    print(f"ERRO DB: Conexão com o banco de dados é None em handle_show_passes.")
+                    logging.error(f"ERRO DB: Conexão com o banco de dados é None em handle_show_passes.")
                     return
 
                 is_sqlite_conn = isinstance(conn, sqlite3.Connection)
@@ -2032,8 +1993,7 @@ if __name__ != '__main__':
                     bot.send_message(chat_id, pass_description, reply_markup=markup, parse_mode='Markdown')
 
             except Exception as e:
-                print(f"ERRO ao mostrar passes: {e}")
-                traceback.print_exc()
+                logging.exception(f"ERRO ao mostrar passes: {e}")
                 bot.send_message(chat_id, "Ocorreu um erro ao buscar os passes. Tente novamente mais tarde.")
             finally:
                 if conn:
@@ -2047,12 +2007,12 @@ if __name__ != '__main__':
             try:
                 pass_id = int(call.data.split('_')[2]) # Corrigido: índice 2 para pegar o ID após 'buy_pass_'
             except (IndexError, ValueError) as e:
-                print(f"ERRO: Callback data inválido para compra de passe: {call.data}. Erro: {e}")
+                logging.error(f"ERRO: Callback data inválido para compra de passe: {call.data}. Erro: {e}")
                 bot.answer_callback_query(call.id, "Erro no botão. Tente novamente.")
                 return
 
             bot.answer_callback_query(call.id, "Gerando seu pagamento PIX...")
-            print(f"DEBUG: Usuário {user.id} tentando comprar o passe {pass_id}")
+            logging.debug(f"Usuário {user.id} tentando comprar o passe {pass_id}")
 
             conn = None
             try:
@@ -2095,11 +2055,10 @@ if __name__ != '__main__':
                     bot.send_message(chat_id, "Seu acesso será liberado assim que o pagamento for confirmado.")
                 else:
                     bot.send_message(chat_id, "😕 Desculpe, não foi possível gerar o seu pagamento PIX no momento.")
-                    print(f"ERRO: Falha ao obter PIX para passe. Resposta: {payment_info}")
+                    logging.error(f"ERRO: Falha ao obter PIX para passe. Resposta: {payment_info}")
 
             except Exception as e:
-                print(f"ERRO no callback de compra de passe: {e}")
-                traceback.print_exc()
+                logging.exception(f"ERRO no callback de compra de passe: {e}")
                 bot.send_message(chat_id, "Ocorreu um erro inesperado. Nossa equipe já foi notificada.")
             finally:
                 if conn:
@@ -2113,22 +2072,12 @@ if __name__ != '__main__':
         # app.register_blueprint(comunidades_bp, url_prefix='/') # REMOVIDO
 
         # AQUI É ONDE VOCÊ PRECISA ADICIONAR/DESCOMENTAR A LINHA:
-        app.register_blueprint(passes_bp) # <<< Linha adicionada/descomentada para registrar o blueprint 'passes_bp'
-=======
-=======
->>>>>>> parent of 5471413 (Ajuste de Rotas)
-        register_access_pass_handlers(bot) 
-        
-        # Passando 'generar_cobranca' como argumento.
-        # A função `mostrar_produtos_bot` NÃO é mais retornada,
-        # pois ela será chamada pelo handler do botão inline em `bot/handlers/produtos.py`.
-        register_produtos_handlers(bot, get_db_connection, generar_cobranca) 
-        
-        # REGISTRAR BLUEPRINT DE COMUNIDADES (EXISTENTE)
-        app.register_blueprint(comunidades_bp, url_prefix='/') 
-        app.register_blueprint(passes_bp)
->>>>>>> parent of 5471413 (Ajuste de Rotas)
+        # Verifique se 'passes_bp' foi importado com sucesso antes de registrá-lo.
+        if 'passes_bp' in locals(): # Verifica se a variável passes_bp existe
+            app.register_blueprint(passes_bp) # <<< Linha adicionada/descomentada para registrar o blueprint 'passes_bp'
+        else:
+            logging.error("ERRO: passes_bp não pôde ser registrado porque não foi importado com sucesso.")
+
 
     except Exception as e:
-        print(f"ERRO NA INICIALIZAÇÃO DO SERVIDOR: {e}")
-        traceback.print_exc()
+        logging.exception(f"ERRO NA INICIALIZAÇÃO DO SERVIDOR: {e}")
