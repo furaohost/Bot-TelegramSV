@@ -1031,31 +1031,31 @@
                 SvBOT
             </div>
             <ul class="nav-menu">
-                <li>
+                <li class="nav-item">
                     <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">
                         <span class="material-icons">dashboard</span>
                         Dashboard
                     </a>
                 </li>
-                <li>
+                <li class="nav-item">
                     <a href="{{ url_for('produtos') }}" class="nav-link {% if request.endpoint == 'produtos' or request.endpoint == 'editar_produto' or request.endpoint == 'adicionar_produto' %}active{% endif %}">
                         <span class="material-icons">inventory</span>
                         Produtos
                     </a>
                 </li>
-                <li>
+                <li class="nav-item">
                     <a href="{{ url_for('vendas') }}" class="nav-link {% if request.endpoint == 'vendas' %}active{% endif %}">
                         <span class="material-icons">shopping_cart</span>
                         Vendas
                     </a>
                 </li>
-                <li>
+                <li class="nav-item">
                     <a href="{{ url_for('usuarios') }}" class="nav-link {% if request.endpoint == 'usuarios' %}active{% endif %}">
                         <span class="material-icons">people</span>
                         Usuários
                     </a>
                 </li>
-                <li>
+                <li class="nav-item">
                     <a href="{{ url_for('comunidades.manage_comunidades') }}" class="nav-link {% if request.endpoint.startswith('comunidades') %}active{% endif %}">
                         <span class="material-icons">groups</span>
                         Comunidades
@@ -1145,35 +1145,110 @@
         </main>
     </div>
     <script>
-        $(function() {
-            // Inicialização do Datepicker
-            $('.datepicker').datepicker({
-                dateFormat: 'yy-mm-dd', // Formato para compatibilidade com HTML5 date input
-                showButtonPanel: true,
-                changeMonth: true,
-                changeYear: true
-            });
+        // Função para aplicar o tema
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            const iconSpan = document.querySelector('#themeToggle .theme-icon');
+            if (iconSpan) {
+                iconSpan.textContent = theme === 'dark' ? 'dark_mode' : 'light_mode';
+            }
+            // Atualiza cores dos gráficos se existirem
+            if (window.dailyRevenueChart) {
+                dailyRevenueChart.options.scales.y.title.color = getAxisTitleColor();
+                dailyRevenueChart.options.scales.x.title.color = getAxisTitleColor();
+                dailyRevenueChart.options.scales.y.ticks.color = 'var(--text-light)';
+                dailyRevenueChart.options.scales.x.ticks.color = 'var(--text-light)';
+                dailyRevenueChart.options.plugins.legend.labels.color = 'var(--text)';
+                dailyRevenueChart.options.plugins.tooltip.backgroundColor = 'var(--card-bg)';
+                dailyRevenueChart.options.plugins.tooltip.titleColor = 'var(--text)';
+                dailyRevenueChart.options.plugins.tooltip.bodyColor = 'var(--text-light)';
+                dailyRevenueChart.options.plugins.tooltip.borderColor = 'var(--border)';
+                dailyRevenueChart.options.scales.y.grid.color = getGridColor();
 
-            // Inicialização do DateTimepicker
-            $('.datetimepicker').datetimepicker({
-                dateFormat: 'yy-mm-dd',
-                timeFormat: 'HH:mm',
-                hourGrid: 4,
-                minuteGrid: 10
-            });
+                // Atualiza cores do gradiente da Receita
+                const ctxRevenue = document.getElementById('dailyRevenueChart').getContext('2d');
+                const gradientRevenue = ctxRevenue.createLinearGradient(0, 0, 0, 400);
+                gradientRevenue.addColorStop(0, getComputedStyle(document.documentElement).getPropertyValue('--primary') + 'D0');
+                gradientRevenue.addColorStop(1, getComputedStyle(document.documentElement).getPropertyValue('--primary') + '00');
+                dailyRevenueChart.data.datasets[0].backgroundColor = gradientRevenue;
+                dailyRevenueChart.data.datasets[0].pointBorderColor = getComputedStyle(document.documentElement).getPropertyValue('--card-bg');
+                dailyRevenueChart.data.datasets[0].pointHoverBackgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--card-bg');
+            }
 
-            // Fechar mensagens flash automaticamente após 5 segundos
-            setTimeout(function() {
-                $('.alert').fadeOut('slow', function() {
-                    $(this).remove();
-                });
-            }, 5000); // 5000 milissegundos = 5 segundos
-        });
+            if (window.dailyQuantityChart) {
+                dailyQuantityChart.options.scales.y.title.color = getAxisTitleColor();
+                dailyQuantityChart.options.scales.x.title.color = getAxisTitleColor();
+                dailyQuantityChart.options.scales.y.ticks.color = 'var(--text-light)';
+                dailyQuantityChart.options.scales.x.ticks.color = 'var(--text-light)';
+                dailyQuantityChart.options.plugins.legend.labels.color = 'var(--text)';
+                dailyQuantityChart.options.plugins.tooltip.backgroundColor = 'var(--card-bg)';
+                dailyQuantityChart.options.plugins.tooltip.titleColor = 'var(--text)';
+                dailyQuantityChart.options.plugins.tooltip.bodyColor = 'var(--text-light)';
+                dailyQuantityChart.options.plugins.tooltip.borderColor = 'var(--border)';
+                dailyQuantityChart.options.scales.y.grid.color = getGridColor();
+            }
 
-        // Função para formatar moeda (exemplo básico, pode ser melhorado)
-        function formatCurrency(value) {
-            return parseFloat(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            // Força a atualização de ambos os gráficos
+            if (window.dailyRevenueChart) dailyRevenueChart.update();
+            if (window.dailyQuantityChart) dailyQuantityChart.update();
         }
+
+        // Define uma cor para os títulos dos eixos dos gráficos que se adapta ao tema
+        function getAxisTitleColor() {
+            return document.documentElement.getAttribute('data-theme') === 'dark' ? 'var(--text-light)' : '#4a4a4a';
+        }
+
+        // Define a cor da grade dos gráficos
+        function getGridColor() {
+            return document.documentElement.getAttribute('data-theme') === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(200, 200, 200, 0.2)';
+        }
+
+        // Ao carregar a página:
+        // 1. Tenta carregar o tema do localStorage
+        // 2. Se não houver, verifica a preferência do sistema
+        // 3. Caso contrário, assume 'dark' como padrão (para corresponder à imagem)
+        document.addEventListener('DOMContentLoaded', () => {
+            const storedTheme = localStorage.getItem('theme');
+            if (storedTheme) {
+                applyTheme(storedTheme);
+            } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                applyTheme('dark'); // Padrão do sistema
+            } else {
+                applyTheme('dark'); // SEU PADRÃO DEFAULT AGORA É DARK PARA IGUALAR A IMAGEM
+            }
+
+            // Modo Escuro/Claro Toggle
+            const themeToggle = document.getElementById('themeToggle');
+            if (themeToggle) {
+                themeToggle.addEventListener('click', () => {
+                    const currentTheme = document.documentElement.getAttribute('data-theme');
+                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                    applyTheme(newTheme);
+                    localStorage.setItem('theme', newTheme); // Salva a preferência
+                });
+            }
+
+            // Menu Mobile Toggle
+            const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+            const sidebar = document.getElementById('sidebar');
+
+            if (mobileMenuBtn && sidebar) {
+                mobileMenuBtn.addEventListener('click', () => {
+                    sidebar.classList.toggle('active');
+                });
+            }
+
+            // Fechar menu ao clicar em um link (mobile)
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.addEventListener('click', () => {
+                    setTimeout(() => {
+                        if (window.innerWidth <= 768) {
+                            sidebar.classList.remove('active');
+                        }
+                    }, 150);
+                });
+            });
+        });
     </script>
 </body>
 </html>
