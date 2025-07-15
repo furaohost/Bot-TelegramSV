@@ -81,7 +81,7 @@ def get_or_register_user(user: types.User):
     conn = None
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             print(f"ERRO DB: get_or_register_user - Não foi possível obter conexão com a base de dados.")
             return
 
@@ -92,14 +92,14 @@ def get_or_register_user(user: types.User):
             cur.execute("SELECT id, is_active FROM users WHERE id = %s" if not is_sqlite else "SELECT id, is_active FROM users WHERE id = ?", (user.id,))
             db_user = cur.fetchone()
 
-            if db_user is None: # Corrigido de ===
+            if db_user is None:
                 cur.execute("INSERT INTO users (id, username, first_name, last_name, is_active) VALUES (%s, %s, %s, %s, %s)" if not is_sqlite else "INSERT INTO users (id, username, first_name, last_name, is_active) VALUES (?, ?, ?, ?, ?)",
                             (user.id, user.username, user.first_name, user.last_name, True))
-                print(f"DEBUG DB: Novo utilizador registado: {user.username or user.first_name} (ID: {user.id})") # Corrigido de ||
+                print(f"DEBUG DB: Novo utilizador registado: {user.username or user.first_name} (ID: {user.id})")
             else:
-                if not db_user['is_active']: # Corrigido de !
+                if not db_user['is_active']:
                     cur.execute("UPDATE users SET is_active = %s WHERE id = %s" if not is_sqlite else "UPDATE users SET is_active = ? WHERE id = ?", (True, user.id))
-                    print(f"DEBUG DB: Utilizador reativado: {user.username or user.first_name} (ID: {user.id})") # Corrigido de ||
+                    print(f"DEBUG DB: Utilizador reativado: {user.username or user.first_name} (ID: {user.id})")
 
     except Exception as e:
         print(f"ERRO DB: get_or_register_user falhou: {e}")
@@ -109,7 +109,7 @@ def get_or_register_user(user: types.User):
             conn.close()
 
 def enviar_produto_telegram(user_id, nome_produto, link_produto):
-    url = f"https://api.telegram.org/bot{API_TOKEN}/sendMessage" # Corrigido de ` `
+    url = f"https://api.telegram.org/bot{API_TOKEN}/sendMessage"
     texto = (f"🎉 Pagamento Aprovado!\n\nObrigado por comprar *{nome_produto}*.\n\nAqui está o seu link de acesso:\n{link_produto}")
     payload = { 'chat_id': user_id, 'text': texto, 'parse_mode': 'Markdown' }
     try:
@@ -130,7 +130,7 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
 
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             bot.send_message(chat_id, "Ocorreu um erro interno ao conectar ao banco de dados para gerar cobrança.")
             return
 
@@ -138,7 +138,7 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
         with conn:
             cur = conn.cursor()
 
-            if is_sqlite and not hasattr(cur, 'keys'): # Corrigido de !
+            if is_sqlite and not hasattr(cur, 'keys'):
                  conn.row_factory = sqlite3.Row
                  cur = conn.cursor()
 
@@ -148,7 +148,7 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
                 cur.execute('SELECT id, nome, preco, link FROM produtos WHERE id = %s', (produto_id,))
             produto = cur.fetchone()
 
-            if not produto: # Corrigido de !
+            if not produto:
                 bot.send_message(chat_id, "Produto não encontrado.")
                 return
 
@@ -168,13 +168,13 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
                 if result_id:
                     venda_id = result_id['id']
 
-            if venda_id is None: # Corrigido de ===
+            if venda_id is None:
                 bot.send_message(chat_id, "Erro ao registrar a venda. Tente novamente.")
                 print(f"ERRO GENERAR COBRANCA: Venda não foi registrada, ID nulo.")
                 return
 
             produto_link = produto.get('link')
-            if not produto_link: # Corrigido de !
+            if not produto_link:
                 bot.send_message(chat_id, "Erro: Link do produto não configurado.")
                 print(f"ERRO GENERAR COBRANCA: Link do produto {produto['nome']} (ID: {produto['id']}) é nulo.")
                 return
@@ -182,8 +182,8 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
             pagamento = pagamentos.criar_pagamento_pix(produto=produto, user=call.from_user, venda_id=venda_id)
 
             if pagamento and 'point_of_interaction' in pagamento:
-                qr_code_base64 = pagamento['point_of_interaction']['transaction_data']['qr_code_base64']
-                qr_code_data = pagamento['point_of_interaction']['transaction_data']['qr_code']
+                qr_code_base64 = payment_info['point_of_interaction']['transaction_data']['qr_code_base64']
+                qr_code_data = payment_info['point_of_interaction']['transaction_data']['qr_code']
                 qr_code_image = base64.b64decode(qr_code_base64)
 
                 qr_code_data_clean = qr_code_data.replace('\n', '').strip()
@@ -216,7 +216,7 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
 # ────────────────────────────────────────────────────────────────────
 # ADICIONAR UM HANDLER PARA O BOTÃO 'COPIAR PIX'
 # ────────────────────────────────────────────────────────────────────
-@bot.callback_query_handler(func=lambda call: call.data == "copy_pix") # Corrigido de ===
+@bot.callback_query_handler(func=lambda call: call.data == "copy_pix")
 def handle_copy_pix_callback(call: types.CallbackQuery):
     bot.answer_callback_query(call.id, "Código PIX copiado para a área de transferência!")
 
@@ -232,7 +232,7 @@ def format_datetime(value, format="%d/%m/%Y %H:%M:%S"):
     """
     if isinstance(value, str):
         try:
-            if 'T' in value and ('+' in value or value.count(':') == 3): # Corrigido de ===
+            if 'T' in value and ('+' in value or value.count(':') == 3):
                 dt_obj = datetime.fromisoformat(value.replace('Z', '+00:00') if value.endswith('Z') else value)
             elif ' ' in value and '.' in value:
                 dt_obj = datetime.strptime(value.split('.')[0], "%Y-%m-%d %H:%M:%S")
@@ -263,12 +263,12 @@ def require_login():
         return
     
     # As rotas de blueprint são referenciadas como 'blueprint_name.endpoint_function_name'
-    if request.endpoint and request.endpoint.startswith('comunidades.') and not session.get('logged_in'): # Corrigido de !
+    if request.endpoint and request.endpoint.startswith('comunidades.') and not session.get('logged_in'):
         print(f"DEBUG AUTH: Unauthorized access to '{request.path}' (Comunidades Blueprint). Redirecting to login.")
         flash('Por favor, faça login para acessar esta página.', 'warning')
         return redirect(url_for('login'))
 
-    if request.endpoint not in ['login', 'static', 'telegram_webhook', 'health_check', 'webhook_mercado_pago', 'reset_admin_password_route', None, 'get_sales_data'] and not session.get('logged_in'): # Corrigido de !
+    if request.endpoint not in ['login', 'static', 'telegram_webhook', 'health_check', 'webhook_mercado_pago', 'reset_admin_password_route', None, 'get_sales_data'] and not session.get('logged_in'):
         print(f"DEBUG AUTH: Unauthorized access to '{request.path}'. Redirecting to login.")
         flash('Por favor, faça login para acessar esta página.', 'warning')
         return redirect(url_for('login'))
@@ -289,7 +289,7 @@ def telegram_webhook():
     Endpoint para o webhook do Telegram. Recebe as atualizações do bot.
     O caminho da rota é o API_TOKEN para maior segurança.
     """
-    if request.headers.get('content-type') == 'application/json': # Corrigido de ===
+    if request.headers.get('content-type') == 'application/json':
         json_str = request.get_data().decode('utf-8')
         update = types.Update.de_json(json_str)
         print(f"DEBUG WEBHOOK: Recebido update: {update}")
@@ -305,22 +305,22 @@ def telegram_webhook():
 
 @app.route('/webhook/mercado-pago', methods=['GET', 'POST'])
 def webhook_mercado_pago():
-    if request.method == 'GET': # Corrigido de ===
+    if request.method == 'GET':
         return jsonify({'status': 'ok_test_webhook'}), 200
 
     notification = request.json
     print(f"DEBUG WEBHOOK MP: Notificação recebida: {notification}")
 
-    if not notification or 'data' not in notification or 'id' not in notification['data']: # Corrigido de !
+    if not notification or 'data' not in notification or 'id' not in notification['data']:
         return jsonify({'status': 'invalid_notification'}), 400
 
     payment_id = notification['data']['id']
     payment_info = pagamentos.verificar_status_pagamento(payment_id)
 
-    if not payment_info or payment_info.get('status') != 'approved': # Corrigido de ! e !==
+    if not payment_info or payment_info.get('status') != 'approved':
         status = payment_info.get('status', 'não encontrado')
         print(f"DEBUG WEBHOOK MP: Pagamento {payment_id} não aprovado. Status: {status}")
-        return jsonify({'status': f"payment_not_approved_{status}"}), 200 # Corrigido de ` `
+        return jsonify({'status': f"payment_not_approved_{status}"}), 200
 
     external_reference = payment_info.get('external_reference')
     print(f"DEBUG WEBHOOK MP: Pagamento aprovado. External Reference: {external_reference}")
@@ -346,7 +346,7 @@ def webhook_mercado_pago():
 
 
 
-                if not pass_item: # Corrigido de !
+                if not pass_item:
                     print(f"ERRO: Passe de acesso com ID {pass_id} não encontrado no banco.")
                     return jsonify({'status': 'pass_not_found'}), 404
 
@@ -422,13 +422,13 @@ def webhook_mercado_pago():
 def login():
     print(f"DEBUG LOGIN: Requisição para /login. Method: {request.method}")
 
-    if request.method == 'POST': # Corrigido de ===
+    if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
         conn = None
         try:
             conn = get_db_connection()
-            if conn is None: # Corrigido de ===
+            if conn is None:
                 flash('Erro de conexão com a base de dados.', 'error')
                 return render_template('login.html')
 
@@ -479,7 +479,7 @@ def reset_admin_password_route():
     conn = None
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             return f"<h1>Error</h1><p>Database connection error.</p>", 500
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
@@ -490,7 +490,7 @@ def reset_admin_password_route():
             else:
                 cur.execute("UPDATE admin SET password_hash = %s WHERE username = %s", (hashed_password, USERNAME_TO_RESET))
 
-            if cur.rowcount == 0: # Corrigido de ===
+            if cur.rowcount == 0:
                 print(f"DEBUG RESET: User '{USERNAME_TO_RESET}' not found for update. Attempting to create...")
                 if is_sqlite:
                     cur.execute("INSERT INTO admin (username, password_hash) VALUES (?, ?)", (USERNAME_TO_RESET, hashed_password))
@@ -529,7 +529,7 @@ def index():
     conn = None
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             flash('Erro de conexão com o banco de dados.', 'danger')
             return redirect(url_for('login'))
 
@@ -568,8 +568,8 @@ def index():
                         ('aprovado', start_dt, end_dt)
                     )
                 row = cursor.fetchone()
-                count = row['count'] if row and 'count' in row and row['count'] is not None else 0 # Corrigido de ===
-                total_sum = float(row['sum']) if row and 'sum' in row and row['sum'] is not None else 0.0 # Corrigido de ===
+                count = row['count'] if row and 'count' in row and row['count'] is not None else 0
+                total_sum = float(row['sum']) if row and 'sum' in row and row['sum'] is not None else 0.0
                 return count, total_sum
 
             periodo_atual_vendas_quantidade, periodo_atual_vendas_valor = get_sales_data_for_period_internal(start_of_current_month, end_of_current_month, cur, is_sqlite)
@@ -587,19 +587,19 @@ def index():
                 variacao_vendas_valor = 100.0 if periodo_atual_vendas_valor > 0 else 0.0
 
 
-            cur.execute('SELECT COUNT(id) AS count FROM users WHERE is_active = TRUE' if not is_sqlite else 'SELECT COUNT(id) AS count FROM users WHERE is_active = 1') # Corrigido de ===
+            cur.execute('SELECT COUNT(id) AS count FROM users WHERE is_active = TRUE' if not is_sqlite else 'SELECT COUNT(id) AS count FROM users WHERE is_active = 1')
             total_usuarios_row = cur.fetchone()
-            if total_usuarios_row and 'count' in total_usuarios_row and total_usuarios_row['count'] is not None: # Corrigido de ===
+            if total_usuarios_row and 'count' in total_usuarios_row and total_usuarios_row['count'] is not None:
                 total_usuarios = total_usuarios_row['count']
 
             cur.execute('SELECT COUNT(id) AS count FROM produtos')
             total_produtos_row = cur.fetchone()
-            if total_produtos_row and 'count' in total_produtos_row and total_produtos_row['count'] is not None: # Corrigido de ===
+            if total_produtos_row and 'count' in total_produtos_row and total_produtos_row['count'] is not None:
                 total_produtos = total_produtos_row['count']
 
-            cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s" if not is_sqlite else "SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = ?", ('aprovado',)) # Corrigido de ===
+            cur.execute("SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = %s" if not is_sqlite else "SELECT COUNT(id) AS count, SUM(preco) AS sum FROM vendas WHERE status = ?", ('aprovado',))
             vendas_data_row_geral = cur.fetchone()
-            if vendas_data_row_geral and 'sum' in vendas_data_row_geral and vendas_data_row_geral['sum'] is not None: # Corrigido de ===
+            if vendas_data_row_geral and 'sum' in vendas_data_row_geral and vendas_data_row_geral['sum'] is not None:
                 receita_total = float(vendas_data_row_geral['sum'])
             
             if is_sqlite:
@@ -611,7 +611,7 @@ def index():
                     END AS status
                     FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id
                     ORDER BY v.id DESC LIMIT 5
-                """) # Corrigido de ===
+                """)
             else:
                 cur.execute("""
                     SELECT v.id, u.username, u.first_name, p.nome, v.preco, v.data_venda, p.id AS produto_id,
@@ -621,7 +621,7 @@ def index():
                     END AS status
                     FROM vendas v JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id
                     ORDER BY v.id DESC LIMIT 5
-                """) # Corrigido de ===
+                """)
             vendas_recentes = cur.fetchall()
 
             today_date_chart = datetime.now().date()
@@ -635,16 +635,16 @@ def index():
                     cur.execute(
                         "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = ? AND data_venda BETWEEN ? AND ?",
                         ('aprovado', start_of_day.isoformat(), end_of_day.isoformat())
-                    ) # Corrigido de ===
+                    )
                 else:
                     cur.execute(
                         "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s",
                         ('aprovado', start_of_day, end_of_day)
-                    ) # Corrigido de ===
+                    )
 
                 daily_data_row = cur.fetchone()
-                daily_revenue = float(daily_data_row['sum']) if daily_data_row and 'sum' in daily_data_row and daily_data_row['sum'] is not None else 0 # Corrigido de ===
-                daily_quantity = int(daily_data_row['count']) if daily_data_row and 'count' in daily_data_row and daily_data_row['count'] is not None else 0 # Corrigido de ===
+                daily_revenue = float(daily_data_row['sum']) if daily_data_row and 'sum' in daily_data_row and daily_data_row['sum'] is not None else 0
+                daily_quantity = int(daily_data_row['count']) if daily_data_row and 'count' in daily_data_row and daily_data_row['count'] is not None else 0
 
                 chart_data_receita.append(daily_revenue)
                 chart_data_quantidade.append(daily_quantity)
@@ -686,7 +686,7 @@ def get_sales_data():
     conn = None
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             return jsonify({'error': 'Erro de conexão com o banco de dados'}), 500
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
@@ -694,7 +694,7 @@ def get_sales_data():
         start_date_str = request.args.get('start_date')
         end_date_str = request.args.get('end_date')
 
-        if not start_date_str or not end_date_str: # Corrigido de !
+        if not start_date_str or not end_date_str:
             end_date = datetime.now().date()
             start_date = end_date - timedelta(days=6)
         else:
@@ -723,16 +723,16 @@ def get_sales_data():
                     cur.execute(
                         "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = 'aprovado' AND data_venda BETWEEN ? AND ?",
                         ('aprovado', start_of_day_dt.isoformat(), end_of_day_dt.isoformat())
-                    ) # Corrigido de ===
+                    )
                 else:
                     cur.execute(
                         "SELECT SUM(preco) AS sum, COUNT(id) AS count FROM vendas WHERE status = %s AND data_venda BETWEEN %s AND %s",
                         ('aprovado', start_of_day_dt, end_of_day_dt)
-                    ) # Corrigido de ===
+                    )
 
                 daily_data_row = cur.fetchone()
-                daily_revenue = float(daily_data_row['sum']) if daily_data_row and 'sum' in daily_data_row and daily_data_row['sum'] is not None else 0 # Corrigido de ===
-                daily_quantity = int(daily_data_row['count']) if daily_data_row and 'count' in daily_data_row and daily_data_row['count'] is not None else 0 # Corrigido de ===
+                daily_revenue = float(daily_data_row['sum']) if daily_data_row and 'sum' in daily_data_row and daily_data_row['sum'] is not None else 0
+                daily_quantity = int(daily_data_row['count']) if daily_data_row and 'count' in daily_data_row and daily_data_row['count'] is not None else 0
 
                 chart_data_receita.append(daily_revenue)
                 chart_data_quantidade.append(daily_quantity)
@@ -759,19 +759,19 @@ def produtos():
     conn = None
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             flash('Erro de conexão com o banco de dados.', 'error')
             return redirect(url_for('index'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
             cur = conn.cursor()
-            if request.method == 'POST': # Corrigido de ===
+            if request.method == 'POST':
                 nome = request.form.get('nome').strip()
                 preco_str = request.form.get('preco')
                 link = request.form.get('link').strip()
 
-                if not nome or not preco_str or not link: # Corrigido de !
+                if not nome or not preco_str or not link:
                     flash('Todos os campos (Nome, Preço, Link) são obrigatórios.', 'danger')
                     return redirect(url_for('produtos', nome_val=nome, preco_val=preco_str, link_val=link))
                 try:
@@ -815,19 +815,19 @@ def editar_produto(produto_id):
     conn = None
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             flash('Erro de conexão com o banco de dados para editar produto.', 'danger')
             return redirect(url_for('produtos'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
             cur = conn.cursor()
-            if request.method == 'POST': # Corrigido de ===
+            if request.method == 'POST':
                 nome = request.form.get('nome').strip()
                 preco_str = request.form.get('preco')
                 link = request.form.get('link').strip()
 
-                if not nome or not preco_str or not link: # Corrigido de !
+                if not nome or not preco_str or not link:
                     flash('Todos os campos são obrigatórios!', 'danger')
                     return redirect(url_for('produtos', edit_id=produto_id, nome_val=nome, preco_val=preco_str, link_val=link))
 
@@ -854,7 +854,7 @@ def editar_produto(produto_id):
                     cur.execute('SELECT * FROM produtos WHERE id = %s', (produto_id,))
                 produto = cur.fetchone()
 
-                if not produto: # Corrigido de !
+                if not produto:
                     flash('Produto não encontrado.', 'danger')
                     return redirect(url_for('produtos'))
 
@@ -882,7 +882,7 @@ def deletar_produto(produto_id):
     conn = None
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             flash('Erro de conexão com o banco de dados.', 'error')
             return redirect(url_for('produtos'))
 
@@ -893,7 +893,7 @@ def deletar_produto(produto_id):
                 cur.execute('SELECT id FROM produtos WHERE id = ?', (produto_id,))
             else:
                 cur.execute('SELECT id FROM produtos WHERE id = %s', (produto_id,))
-            if not cur.fetchone(): # Corrigido de !
+            if not cur.fetchone():
                 flash('Produto não encontrado.', 'danger')
                 return redirect(url_for('produtos'))
 
@@ -920,7 +920,7 @@ def vendas():
     conn = None
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             flash('Erro de conexão com o banco de dados.', 'error')
             return redirect(url_for('index'))
 
@@ -945,7 +945,7 @@ def vendas():
                     v.payer_email,
                     CASE
                         WHEN v.status = 'aprovado' THEN 'aprovado'
-                        WHEN v.status = 'pendente' """ # Corrigido de ===
+                        WHEN v.status = 'pendente' """
 
             if is_sqlite:
                 query_base += " AND (strftime('%s', 'now') - strftime('%s', v.data_venda)) > 3600 THEN 'expirado'"
@@ -956,7 +956,7 @@ def vendas():
                     END AS status
                 FROM vendas v
                 JOIN users u ON v.user_id = u.id JOIN produtos p ON v.produto_id = p.id
-            """ # Corrigido de ===
+            """
             conditions = []
             params = []
 
@@ -976,16 +976,16 @@ def vendas():
                 conditions.append("(u.username {} %s OR p.nome {} %s OR u.first_name {} %s)".format("ILIKE" if not is_sqlite else "LIKE", "ILIKE" if not is_sqlite else "LIKE", "ILIKE" if not is_sqlite else "LIKE"))
                 params.extend([f'%{pesquisa_str}%'] * 3)
             if produto_id_str:
-                conditions.append("p.id = %s" if not is_sqlite else "p.id = ?") # Corrigido de ===
+                conditions.append("p.id = %s" if not is_sqlite else "p.id = ?")
                 params.append(int(produto_id_str))
             if status_str:
-                if status_str == 'expirado': # Corrigido de ===
+                if status_str == 'expirado':
                     if is_sqlite:
-                        conditions.append("(v.status = 'pendente' AND (strftime('%s', 'now') - strftime('%s', v.data_venda)) > 3600)") # Corrigido de ===
+                        conditions.append("(v.status = 'pendente' AND (strftime('%s', 'now') - strftime('%s', v.data_venda)) > 3600)")
                     else:
-                        conditions.append("(v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - v.data_venda)) > 3600)") # Corrigido de ===
+                        conditions.append("(v.status = 'pendente' AND EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - v.data_venda)) > 3600)")
                 else:
-                    conditions.append("v.status = %s" if not is_sqlite else "v.status = ?") # Corrigido de ===
+                    conditions.append("v.status = %s" if not is_sqlite else "v.status = ?")
                     params.append(status_str)
 
             if conditions:
@@ -1012,16 +1012,16 @@ def venda_detalhes(id):
     conn = None
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             return jsonify({'error': 'Erro de conexão com o banco de dados'}), 500
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn:
             cur = conn.cursor()
             if is_sqlite:
-                cur.execute('SELECT * FROM vendas WHERE id = ?', (id,)) # Corrigido de ===
+                cur.execute('SELECT * FROM vendas WHERE id = ?', (id,))
             else:
-                cur.execute('SELECT * FROM vendas WHERE id = %s', (id,)) # Corrigido de ===
+                cur.execute('SELECT * FROM vendas WHERE id = %s', (id,))
 
             venda = cur.fetchone()
             if venda:
@@ -1045,7 +1045,7 @@ def usuarios():
     conn = None
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             flash('Erro de conexão com o banco de dados.', 'error')
             return redirect(url_for('index'))
 
@@ -1077,7 +1077,7 @@ def toggle_user_status(user_id):
     conn = None
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             flash('Erro de conexão com o banco de dados.', 'error')
             return redirect(url_for('usuarios'))
 
@@ -1085,20 +1085,20 @@ def toggle_user_status(user_id):
         with conn:
             cur = conn.cursor()
             if is_sqlite:
-                cur.execute('SELECT is_active FROM users WHERE id = ?', (user_id,)) # Corrigido de ===
+                cur.execute('SELECT is_active FROM users WHERE id = ?', (user_id,))
             else:
-                cur.execute('SELECT is_active FROM users WHERE id = %s', (user_id,)) # Corrigido de ===
+                cur.execute('SELECT is_active FROM users WHERE id = %s', (user_id,))
             user = cur.fetchone()
 
-            if not user: # Corrigido de !
+            if not user:
                 flash('Usuário não encontrado.', 'danger')
                 return redirect(url_for('usuarios'))
 
-            new_status = not user['is_active'] # Corrigido de !
+            new_status = not user['is_active']
             if is_sqlite:
-                cur.execute('UPDATE users SET is_active = ? WHERE id = ?', (new_status, user_id)) # Corrigido de ===
+                cur.execute('UPDATE users SET is_active = ? WHERE id = ?', (new_status, user_id))
             else:
-                cur.execute('UPDATE users SET is_active = %s WHERE id = %s', (new_status, user_id)) # Corrigido de ===
+                cur.execute('UPDATE users SET is_active = %s WHERE id = %s', (new_status, user_id))
 
             status_text = "ativado" if new_status else "desativado"
             print(f"DEBUG TOGGLE_USER_STATUS: Usuário {user_id} {status_text} com sucesso.")
@@ -1120,7 +1120,7 @@ def scheduled_messages():
     conn = None
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             flash('Erro de conexão com o banco de dados.', 'error')
             return redirect(url_for('login'))
 
@@ -1142,7 +1142,7 @@ def scheduled_messages():
                     FROM scheduled_messages sm
                     LEFT JOIN users u ON sm.target_chat_id = u.id
                     ORDER BY sm.schedule_time DESC
-                """) # Corrigido de ===
+                """)
             else:
                 cur.execute("""
                     SELECT
@@ -1158,7 +1158,7 @@ def scheduled_messages():
                     FROM scheduled_messages sm
                     LEFT JOIN users u ON sm.target_chat_id = u.id
                     ORDER BY sm.schedule_time DESC
-                """) # Corrigido de ===
+                """)
             messages_list = cur.fetchall()
             print(f"DEBUG SCHEDULED_MESSAGES: {len(messages_list)} mensagens agendadas encontradas.")
 
@@ -1175,7 +1175,7 @@ def scheduled_messages():
 def add_scheduled_message():
     print(f"DEBUG ADD SCHEDULED MESSAGE: Requisição para /add_scheduled_message. Method: {request.method}")
 
-    if request.method == 'POST': # Corrigido de ===
+    if request.method == 'POST':
         try:
             message_text = request.form.get('message_text')
             target_chat_id = request.form.get('target_chat_id')
@@ -1183,7 +1183,7 @@ def add_scheduled_message():
             schedule_time_str = request.form.get('schedule_time')
             recurrence_rule = request.form.get('recurrence_rule', 'none')
 
-            if not message_text or not schedule_time_str: # Corrigido de !
+            if not message_text or not schedule_time_str:
                 flash('Texto da mensagem e data/hora são obrigatórios!', 'danger')
                 return redirect(url_for('add_scheduled_message'))
 
@@ -1193,7 +1193,7 @@ def add_scheduled_message():
                 flash('A data e hora de agendamento devem ser no futuro.', 'danger')
                 return redirect(url_for('add_scheduled_message'))
 
-            target_chat_id_db = None if target_chat_id == 'all_users' else int(target_chat_id) # Corrigido de ===
+            target_chat_id_db = None if target_chat_id == 'all_users' else int(target_chat_id)
             
             conn = get_db_connection()
             with conn.cursor() as cur:
@@ -1203,7 +1203,7 @@ def add_scheduled_message():
                     (message_text, target_chat_id, image_url, schedule_time, status, recurrence_rule)
                     VALUES (%s, %s, %s, %s, %s, %s)
                     """,
-                    (message_text, target_chat_id_db, image_url or None, schedule_time, 'pending', recurrence_rule) # Corrigido de ||
+                    (message_text, target_chat_id_db, image_url or None, schedule_time, 'pending', recurrence_rule)
                 )
             conn.commit()
             conn.close()
@@ -1223,7 +1223,7 @@ def add_scheduled_message():
     # Lógica para GET (exibir formulário)
     conn = get_db_connection()
     with conn.cursor() as cur:
-        cur.execute('SELECT id, username, first_name FROM users WHERE is_active = TRUE ORDER BY username ASC') # Corrigido de ===
+        cur.execute('SELECT id, username, first_name FROM users WHERE is_active = TRUE ORDER BY username ASC')
         users = cur.fetchall()
     conn.close()
     return render_template('add_scheduled_message.html', users=users)
@@ -1235,7 +1235,7 @@ def edit_scheduled_message(message_id):
     conn = None
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             flash('Erro de conexão com o banco de dados.', 'danger')
             return redirect(url_for('scheduled_messages'))
 
@@ -1244,23 +1244,23 @@ def edit_scheduled_message(message_id):
         # Busca os dados da mensagem para o GET e para o POST
         with conn.cursor() as cur:
             if is_sqlite:
-                cur.execute('SELECT * FROM scheduled_messages WHERE id = ?', (message_id,)) # Corrigido de ===
+                cur.execute('SELECT * FROM scheduled_messages WHERE id = ?', (message_id,))
             else:
-                cur.execute('SELECT * FROM scheduled_messages WHERE id = %s', (message_id,)) # Corrigido de ===
+                cur.execute('SELECT * FROM scheduled_messages WHERE id = %s', (message_id,))
             message = cur.fetchone()
 
-        if not message: # Corrigido de !
+        if not message:
             flash('Mensagem agendada não encontrada.', 'danger')
             return redirect(url_for('scheduled_messages'))
 
         # Se a requisição for POST, tenta salvar as alterações
-        if request.method == 'POST': # Corrigido de ===
+        if request.method == 'POST':
             message_text = request.form.get('message_text')
             target_chat_id_str = request.form.get('target_chat_id', '').strip()
             image_url = request.form.get('image_url')
             schedule_time_str = request.form.get('schedule_time')
 
-            if not message_text or not schedule_time_str: # Corrigido de !
+            if not message_text or not schedule_time_str:
                 flash('Texto da mensagem e tempo de agendamento são obrigatórios!', 'danger')
                 return render_template('edit_scheduled_message.html', message=message)
 
@@ -1278,13 +1278,13 @@ def edit_scheduled_message(message_id):
             with conn.cursor() as cur:
                 if is_sqlite:
                     cur.execute(
-                        "UPDATE scheduled_messages SET message_text = ?, target_chat_id = ?, image_url = ?, schedule_time = ? WHERE id = ?", # Corrigido de ===
-                        (message_text, target_chat_id_db, image_url or None, schedule_time, message_id) # Corrigido de ||
+                        "UPDATE scheduled_messages SET message_text = ?, target_chat_id = ?, image_url = ?, schedule_time = ? WHERE id = ?",
+                        (message_text, target_chat_id_db, image_url or None, schedule_time, message_id)
                     )
                 else:
                     cur.execute(
-                        "UPDATE scheduled_messages SET message_text = %s, target_chat_id = %s, image_url = %s, schedule_time = %s WHERE id = %s", # Corrigido de ===
-                        (message_text, target_chat_id_db, image_url or None, schedule_time, message_id) # Corrigido de ||
+                        "UPDATE scheduled_messages SET message_text = %s, target_chat_id = %s, image_url = %s, schedule_time = %s WHERE id = %s",
+                        (message_text, target_chat_id_db, image_url or None, schedule_time, message_id)
                     )
             conn.commit()
             flash('Mensagem agendada atualizada com sucesso!', 'success')
@@ -1310,18 +1310,18 @@ def resend_scheduled_message(message_id):
     conn = None
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             flash('Erro de conexão com o banco de dados.', 'danger')
             return redirect(url_for('scheduled_messages'))
 
         with conn.cursor() as cur:
             if isinstance(conn, sqlite3.Connection):
-                 cur.execute("SELECT * FROM scheduled_messages WHERE id = ?", (message_id,)) # Corrigido de ===
+                 cur.execute("SELECT * FROM scheduled_messages WHERE id = ?", (message_id,))
             else:
-                 cur.execute("SELECT * FROM scheduled_messages WHERE id = %s", (message_id,)) # Corrigido de ===
+                 cur.execute("SELECT * FROM scheduled_messages WHERE id = %s", (message_id,))
             original_message = cur.fetchone()
 
-            if not original_message: # Corrigido de !
+            if not original_message:
                 flash('Mensagem original não encontrada para clonar.', 'warning')
                 return redirect(url_for('scheduled_messages'))
 
@@ -1376,23 +1376,23 @@ def delete_scheduled_message(message_id):
     conn = None
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             flash('Erro de conexão com o banco de dados.', 'danger')
             return redirect(url_for('scheduled_messages'))
 
         with conn.cursor() as cur:
             if isinstance(conn, sqlite3.Connection):
-                cur.execute("SELECT id FROM scheduled_messages WHERE id = ?", (message_id,)) # Corrigido de ===
+                cur.execute("SELECT id FROM scheduled_messages WHERE id = ?", (message_id,))
             else:
-                cur.execute("SELECT id FROM scheduled_messages WHERE id = %s", (message_id,)) # Corrigido de ===
+                cur.execute("SELECT id FROM scheduled_messages WHERE id = %s", (message_id,))
             
-            if cur.fetchone() is None: # Corrigido de ===
+            if cur.fetchone() is None:
                 flash('Mensagem não encontrada para deletar.', 'warning')
             else:
                 if isinstance(conn, sqlite3.Connection):
-                    cur.execute("DELETE FROM scheduled_messages WHERE id = ?", (message_id,)) # Corrigido de ===
+                    cur.execute("DELETE FROM scheduled_messages WHERE id = ?", (message_id,))
                 else:
-                    cur.execute("DELETE FROM scheduled_messages WHERE id = %s", (message_id,)) # Corrigido de ===
+                    cur.execute("DELETE FROM scheduled_messages WHERE id = %s", (message_id,))
                 conn.commit()
                 flash('Mensagem agendada deletada com sucesso!', 'success')
                 
@@ -1413,16 +1413,16 @@ def cancel_cloned_message(message_id):
     conn = None
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             flash('Erro de conexão com o banco de dados.', 'danger')
             return redirect(url_for('scheduled_messages'))
 
         is_sqlite = isinstance(conn, sqlite3.Connection)
         with conn.cursor() as cur:
             if is_sqlite:
-                cur.execute("DELETE FROM scheduled_messages WHERE id = ?", (message_id,)) # Corrigido de ===
+                cur.execute("DELETE FROM scheduled_messages WHERE id = ?", (message_id,))
             else:
-                cur.execute("DELETE FROM scheduled_messages WHERE id = %s", (message_id,)) # Corrigido de ===
+                cur.execute("DELETE FROM scheduled_messages WHERE id = %s", (message_id,))
         conn.commit()
         flash('Reenvio cancelado e cópia da mensagem descartada.', 'info')
     except Exception as e:
@@ -1442,7 +1442,7 @@ def send_broadcast():
     conn = None
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             flash('Erro de conexão com o banco de dados.', 'danger')
             return redirect(url_for('index', error='broadcast_db_connection_error'))
 
@@ -1455,11 +1455,11 @@ def send_broadcast():
                 cur.execute('SELECT id, username, first_name FROM users ORDER BY username ASC')
             active_users = cur.fetchall()
 
-        if request.method == 'POST': # Corrigido de ===
+        if request.method == 'POST':
             message_text = request.form.get('message_text')
             image_url = request.form.get('image_url')
 
-            if not message_text: # Corrigido de !
+            if not message_text:
                 flash('O texto da mensagem é obrigatório para o broadcast!', 'danger')
                 return render_template('send_broadcast.html', active_users=active_users, message_text_val=message_text, image_url_val=image_url)
 
@@ -1467,7 +1467,7 @@ def send_broadcast():
             failed_count = 0
 
             cur_conn_send = get_db_connection()
-            if cur_conn_send is None: # Corrigido de ===
+            if cur_conn_send is None:
                 flash('Erro de conexão com o banco de dados.', 'danger')
                 return render_template('send_broadcast.html', active_users=active_users, message_text_val=message_text, image_url_val=image_url)
 
@@ -1475,9 +1475,9 @@ def send_broadcast():
                 with cur_conn_send:
                     cur_send = cur_conn_send.cursor()
                     if is_sqlite:
-                        cur_send.execute("SELECT id FROM users WHERE is_active = 1") # Corrigido de ===
+                        cur_send.execute("SELECT id FROM users WHERE is_active = 1")
                     else:
-                        cur_send.execute("SELECT id FROM users WHERE is_active = TRUE") # Corrigido de ===
+                        cur_send.execute("SELECT id FROM users WHERE is_active = TRUE")
                     users_to_send = cur_send.fetchall()
 
                     for user_data in users_to_send:
@@ -1490,7 +1490,7 @@ def send_broadcast():
                             sent_count += 1
                         except telebot.apihelper.ApiTelegramException as e:
                             print(f"ERRO BROADCAST para {user_id}: {e}")
-                            if "blocked" in str(e).lower() or "not found" in str(e).lower() or "deactivated" in str(e).lower(): # Corrigido de ||
+                            if "blocked" in str(e).lower() or "not found" in str(e).lower() or "deactivated" in str(e).lower():
                                 print(f"AVISO: Usuário {user_id} blocked/not found during broadcast. Deactivating...")
                                 temp_conn_update = get_db_connection()
                                 if temp_conn_update:
@@ -1499,9 +1499,9 @@ def send_broadcast():
                                         with temp_conn_update:
                                             cur_u = temp_conn_update.cursor()
                                             if temp_is_sqlite:
-                                                cur_u.execute("UPDATE users SET is_active=0 WHERE id=?", (user_id,)) # Corrigido de ===
+                                                cur_u.execute("UPDATE users SET is_active=0 WHERE id=?", (user_id,))
                                             else:
-                                                cur_u.execute("UPDATE users SET is_active=FALSE WHERE id=%s", (user_id,)) # Corrigido de ===
+                                                cur_u.execute("UPDATE users SET is_active=FALSE WHERE id=%s", (user_id,))
                                     except Exception as db_e:
                                         print(f"ERRO inactivating user {user_id} during broadcast: {db_e}")
                                         traceback.print_exc()
@@ -1542,7 +1542,7 @@ def config_messages():
 
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             flash('Erro de conexão com o banco de dados. Não foi possível carregar/salvar configurações.', 'danger')
             return render_template(
                 'config_messages.html',
@@ -1554,31 +1554,31 @@ def config_messages():
         with conn:
             cur = conn.cursor()
             
-            if request.method == 'POST': # Corrigido de ===
+            if request.method == 'POST':
                 welcome_bot_message_form = request.form.get('welcome_message_bot')
                 welcome_community_message_form = request.form.get('welcome_message_community')
 
-                if welcome_bot_message_form is not None: # Corrigido de !==
+                if welcome_bot_message_form is not None:
                     if is_sqlite:
                         cur.execute(
-                            "INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value;", # Corrigido de ===
+                            "INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value;",
                             ('welcome_message_bot', welcome_bot_message_form)
                         )
                     else:
                         cur.execute(
-                            "INSERT INTO config (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;", # Corrigido de ===
+                            "INSERT INTO config (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;",
                             ('welcome_message_bot', welcome_bot_message_form)
                         )
                 
-                if welcome_community_message_form is not None: # Corrigido de !==
+                if welcome_community_message_form is not None:
                     if is_sqlite:
                         cur.execute(
-                            "INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value;", # Corrigido de ===
+                            "INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value;",
                             ('welcome_message_community', welcome_community_message_form)
                         )
                     else:
                         cur.execute(
-                            "INSERT INTO config (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;", # Corrigido de ===
+                            "INSERT INTO config (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;",
                             ('welcome_message_community', welcome_community_message_form)
                         )
                 
@@ -1623,7 +1623,7 @@ def scheduled_message_worker():
         conn = None
         try:
             conn = get_db_connection()
-            if conn is None: # Corrigido de ===
+            if conn is None:
                 print(f"ERRO WORKER: Não foi possível obter conexão. Tentando novamente em 60s...")
                 time_module.sleep(60)
                 continue
@@ -1631,11 +1631,11 @@ def scheduled_message_worker():
             with conn.cursor() as cur:
                 if isinstance(conn, sqlite3.Connection):
                     cur.execute(
-                        "SELECT * FROM scheduled_messages WHERE status='pending' AND schedule_time <= DATETIME('now') ORDER BY schedule_time" # Corrigido de ===
+                        "SELECT * FROM scheduled_messages WHERE status='pending' AND schedule_time <= DATETIME('now') ORDER BY schedule_time"
                     )
                 else:
                     cur.execute(
-                        "SELECT * FROM scheduled_messages WHERE status='pending' AND schedule_time <= NOW() ORDER BY schedule_time" # Corrigido de ===
+                        "SELECT * FROM scheduled_messages WHERE status='pending' AND schedule_time <= NOW() ORDER BY schedule_time"
                     )
                 rows = cur.fetchall()
 
@@ -1643,16 +1643,16 @@ def scheduled_message_worker():
                     print(f"DEBUG WORKER: Encontradas {len(rows)} mensagens para enviar.")
 
                 for row in rows:
-                    print(f"DEBUG WORKER: Processando mensagem ID {row['id']} para o alvo: {row['target_chat_id'] or 'Todos'}") # Corrigido de ||
+                    print(f"DEBUG WORKER: Processando mensagem ID {row['id']} para o alvo: {row['target_chat_id'] or 'Todos'}")
                     
                     targets = []
                     if row["target_chat_id"]:
                         targets.append(row["target_chat_id"])
                     else: # Se for para todos (broadcast)
                         if isinstance(conn, sqlite3.Connection):
-                            cur.execute("SELECT id FROM users WHERE is_active = 1") # Corrigido de ===
+                            cur.execute("SELECT id FROM users WHERE is_active = 1")
                         else:
-                            cur.execute("SELECT id FROM users WHERE is_active = TRUE") # Corrigido de ===
+                            cur.execute("SELECT id FROM users WHERE is_active = TRUE")
                         all_users = cur.fetchall()
                         targets = [u["id"] for u in all_users]
 
@@ -1673,12 +1673,12 @@ def scheduled_message_worker():
                     final_status = 'sent' if sent_successfully else 'failed'
                     if isinstance(conn, sqlite3.Connection):
                         cur.execute(
-                            "UPDATE scheduled_messages SET status=?, sent_at=DATETIME('now') WHERE id=?", # Corrigido de ===
+                            "UPDATE scheduled_messages SET status=?, sent_at=DATETIME('now') WHERE id=?",
                             (final_status, row["id"]),
                         )
                     else:
                         cur.execute(
-                            "UPDATE scheduled_messages SET status=%s, sent_at=NOW() WHERE id=%s", # Corrigido de ===
+                            "UPDATE scheduled_messages SET status=%s, sent_at=NOW() WHERE id=%s",
                             (final_status, row["id"]),
                         )
                     print(f"DEBUG WORKER: Mensagem ID {row['id']} atualizada para status '{final_status}'.")
@@ -1701,7 +1701,7 @@ def manage_community_access(user_id, community_id, should_have_access):
     """
     Adiciona ou remove um usuário de uma comunidade no Telegram.
     """
-    if not community_id: # Corrigido de !
+    if not community_id:
         print(f"AVISO: Tentativa de gerenciar acesso para user {user_id} sem um community_id.")
         return
 
@@ -1729,7 +1729,7 @@ def access_expiration_worker():
         conn = None
         try:
             conn = get_db_connection()
-            if conn is None: # Corrigido de ===
+            if conn is None:
                 print(f"ERRO WORKER: Não foi possível obter conexão. Tentando novamente em 60s...")
                 time_module.sleep(60)
                 continue
@@ -1741,7 +1741,7 @@ def access_expiration_worker():
                     FROM user_access ua
                     JOIN access_passes ap ON ua.pass_id = ap.id
                     WHERE ua.status = 'active' AND ua.expiration_date <= NOW();
-                """) # Corrigido de ===
+                """)
                 expired_passes = cur.fetchall()
 
                 if expired_passes:
@@ -1757,7 +1757,7 @@ def access_expiration_worker():
                         manage_community_access(user_id_to_remove, community_id_to_remove_from, should_have_access=False)
                         
                         # 2. Atualiza o status do acesso no banco de dados para 'expired'
-                        cur.execute("UPDATE user_access SET status = 'expired' WHERE id = %s", (access_id_to_update,)) # Corrigido de ===
+                        cur.execute("UPDATE user_access SET status = 'expired' WHERE id = %s", (access_id_to_update,))
                     
                     conn.commit()
                 else:
@@ -1787,7 +1787,7 @@ def send_welcome(message):
     welcome_message_text = "Olá, {first_name}! Bem-vindo(a) ao bot!"
     try:
         conn = get_db_connection()
-        if conn is None: # Corrigido de ===
+        if conn is None:
             print(f"ERRO: Não foi possível obter conexão com o DB para carregar mensagem de boas-vindas do bot.")
             pass
         else:
@@ -1795,9 +1795,9 @@ def send_welcome(message):
             with conn:
                 cur = conn.cursor()
                 if is_sqlite:
-                    cur.execute("SELECT value FROM config WHERE key = ?", ('welcome_message_bot',)) # Corrigido de ===
+                    cur.execute("SELECT value FROM config WHERE key = ?", ('welcome_message_bot',))
                 else:
-                    cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_bot',)) # Corrigido de ===
+                    cur.execute("SELECT value FROM config WHERE key = %s", ('welcome_message_bot',))
                 row = cur.fetchone()
                 if row and row['value']:
                     welcome_message_text = row['value']
@@ -1809,8 +1809,8 @@ def send_welcome(message):
 
     formatted_message = welcome_message_text.format(
         first_name=message.from_user.first_name,
-        last_name=message.from_user.last_name or '', # Corrigido de ||
-        username=message.from_user.username or 'usuário' # Corrigido de ||
+        last_name=message.from_user.last_name or '',
+        username=message.from_user.username or 'usuário'
     )
     
     # MUDANÇA AQUI: Mensagem de boas-vindas com botão INLINE "Melhores Vips e Novinhas"
@@ -1820,7 +1820,7 @@ def send_welcome(message):
     # pois o clique no botão inline "Melhores Vips e Novinhas" acionará a listagem.
 
 
-if __name__ != '__main__': # Corrigido de !==
+if __name__ != '__main__':
     print(f"DEBUG: Executando em modo de produção (gunicorn/Render).")
     try:
         init_db()
