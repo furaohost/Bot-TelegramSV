@@ -38,7 +38,7 @@ from bot.handlers.comunidades import register_comunidades_handlers
 from bot.handlers.conteudos import register_conteudos_handlers
 from bot.handlers.produtos import register_produtos_handlers
 # from web.routes.comunidades import comunidades_bp # Continua REMOVIDO: Rotas web de comunidades estão em app.py
-from web.routes.access_passes import passes_bp # <<<<<< Certifique-se de que esta linha esteja aqui
+# from web.routes.access_passes import passes_bp # REMOVIDO: Rotas web de access_passes agora estarão em app.py
 
 # Importando ComunidadeService e AccessPassService diretamente para app.py
 from bot.services.comunidades import ComunidadeService 
@@ -655,8 +655,6 @@ def index():
 
                 chart_data_receita.append(daily_revenue)
                 chart_data_quantidade.append(daily_quantity)
-                
-                current_day += timedelta(days=1)
                 
             print(f"DEBUG INDEX: Rendering index.html with dashboard data.")
             return render_template(
@@ -2074,8 +2072,7 @@ if __name__ != '__main__':
         # app.register_blueprint(comunidades_bp, url_prefix='/') # REMOVIDO
 
         # O REGISTRO DO BLUEPRINT 'passes_bp' TAMBÉM FOI REMOVIDO DAQUI
-        # AQUI É ONDE VOCÊ PRECISA ADICIONAR/DESCOMENTAR A LINHA:
-        app.register_blueprint(passes_bp) # <<< Linha adicionada/descomentada para registrar o blueprint 'passes_bp'
+        # app.register_blueprint(passes_bp) # REMOVIDO
 
     except Exception as e:
         print(f"ERRO NA INICIALIZAÇÃO DO SERVIDOR: {e}")
