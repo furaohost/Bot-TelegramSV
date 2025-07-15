@@ -1,5 +1,3 @@
-# app.py (CONTEÚDO COMPLETO - Copiar e colar tudo)
-
 import os
 import requests
 import telebot
@@ -11,7 +9,6 @@ import sqlite3
 import base64
 import json
 from threading import Thread
-import logging # Adicionar import de logging aqui para _send_comunidades_list
 
 # Importações Flask e Werkzeug
 from flask import (
@@ -34,14 +31,11 @@ import pagamentos
 # Importa os módulos de handlers e blueprints
 from bot.utils.keyboards import confirm_18_keyboard, menu_principal, inline_ver_produtos_keyboard
 from bot.handlers.chamadas import register_chamadas_handlers
-# from bot.handlers.comunidades import register_comunidades_handlers # REMOVIDO: Comunidades será movido para app.py
+from bot.handlers.comunidades import register_comunidades_handlers
 from bot.handlers.conteudos import register_conteudos_handlers
 from bot.handlers.produtos import register_produtos_handlers
-# from web.routes.comunidades import comunidades_bp # REMOVIDO: Blueprint será descontinuado para comunidades
+from web.routes.comunidades import comunidades_bp
 from web.routes.access_passes import passes_bp
-
-# Importando ComunidadeService diretamente para app.py
-from bot.services.comunidades import ComunidadeService 
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -1724,6 +1718,7 @@ def manage_community_access(user_id, community_id, should_have_access):
             print(f"ACESSO REMOVIDO: User {user_id} foi removido da comunidade {community_id}.")
             bot.send_message(user_id, "Seu passe de acesso expirou e você foi removido da comunidade. Para voltar, compre um novo passe usando o comando /passes.")
     except Exception as e:
+        # Erros comuns: bot não é admin, usuário não está no grupo, etc.
         print(f"ERRO ao gerenciar acesso do user {user_id} na comunidade {community_id}: {e}")
 
 def access_expiration_worker():
@@ -1782,107 +1777,6 @@ def access_expiration_worker():
 # ────────────────────────────────────────────────────────────────────
 # 9. FINAL INITIALIZATION AND EXECUTION
 # ────────────────────────────────────────────────────────────────────
-
-@app.route('/comunidades') # <--- Nova rota de comunidades diretamente no app.py
-def manage_comunidades(): # <--- Função movida de web/routes/comunidades.py
-    """ Rota para listar todas as comunidades. """
-    # Nota: A linha de debug "DEBUG: Módulo comunidades.py está sendo carregado!"
-    # agora faria mais sentido no topo do app.py, se quisermos depurar a importação.
-    # Mas como a função está aqui, ela será executada quando a rota for acessada.
-    try:
-        # A importação do ComunidadeService deve ser feita fora desta função ou no topo
-        # caso contrário, cada chamada de rota irá importá-lo.
-        # Ele já está importado no topo do app.py agora, então está ok.
-        service = ComunidadeService(get_db_connection)
-        comunidades_list = service.listar()
-        if comunidades_list is None:
-            comunidades_list = []
-            flash('Ocorreu um erro ao buscar as comunidades.', 'danger')
-            
-    except Exception as e:
-        print(f"ERRO CRÍTICO ao carregar comunidades: {e}")
-        traceback.print_exc()
-        flash('Um erro inesperado ocorreu. Verifique os logs.', 'danger')
-        comunidades_list = []
-
-    return render_template('comunidades.html', comunidades=comunidades_list)
-
-
-@app.route('/comunidades/adicionar', methods=['POST']) # <--- Nova rota de comunidades diretamente no app.py
-def adicionar_comunidade(): # <--- Função movida de web/routes/comunidades.py
-    """ Rota para adicionar uma nova comunidade via formulário. """
-    try:
-        nome = request.form.get('nome', '').strip()
-        if not nome:
-            flash('O nome da comunidade é obrigatório.', 'danger')
-            return redirect(url_for('manage_comunidades')) # <--- ATUALIZADO AQUI (sem blueprint prefix)
-
-        descricao = request.form.get('descricao', '').strip()
-        chat_id_str = request.form.get('chat_id', '').strip()
-        chat_id = int(chat_id_str) if chat_id_str else None
-
-        service = ComunidadeService(get_db_connection)
-        service.criar(nome=nome, descricao=descricao, chat_id=chat_id)
-        flash('Comunidade adicionada com sucesso!', 'success')
-
-    except ValueError:
-        flash('ID do Chat/Grupo inválido. Deve ser um número.', 'danger')
-    except Exception as e:
-        print(f"ERRO ao adicionar comunidade: {e}")
-        traceback.print_exc()
-        flash('Ocorreu um erro ao adicionar a comunidade.', 'danger')
-        
-    return redirect(url_for('manage_comunidades')) # <--- ATUALIZADO AQUI (sem blueprint prefix)
-
-@app.route('/comunidades/editar/<int:id>', methods=['GET', 'POST']) # <--- Nova rota de comunidades diretamente no app.py
-def editar_comunidade(id): # <--- Função movida de web/routes/comunidades.py
-    """ Rota para exibir o formulário de edição (GET) e processar a atualização (POST). """
-    service = ComunidadeService(get_db_connection)
-    comunidade = service.obter(id)
-
-    if not comunidade:
-        flash('Comunidade não encontrada.', 'danger')
-        return redirect(url_for('manage_comunidades')) # <--- ATUALIZADO AQUI (sem blueprint prefix)
-
-    if request.method == 'POST':
-        try:
-            nome = request.form.get('nome', '').strip()
-            if not nome:
-                flash('O nome da comunidade é obrigatório.', 'danger')
-                return render_template('editar_comunidade.html', comunidade=comunidade)
-
-            descricao = request.form.get('descricao', '').strip()
-            chat_id_str = request.form.get('chat_id', '').strip()
-            chat_id = int(chat_id_str) if chat_id_str else None
-            
-            service.editar(id, nome, descricao, chat_id)
-            flash('Comunidade atualizada com sucesso!', 'success')
-            return redirect(url_for('manage_comunidades')) # <--- ATUALIZADO AQUI (sem blueprint prefix)
-
-        except ValueError:
-            flash('ID do Chat/Grupo inválido. Deve ser um número.', 'danger')
-        except Exception as e:
-            print(f"ERRO ao editar comunidade: {e}")
-            traceback.print_exc()
-            flash('Ocorreu um erro ao editar a comunidade.', 'danger')
-    
-    # Para a requisição GET, apenas exibe a página de edição
-    return render_template('editar_comunidade.html', comunidade=comunidade)
-
-@app.route('/comunidades/deletar/<int:id>', methods=['POST']) # <--- Nova rota de comunidades diretamente no app.py
-def deletar_comunidade(id): # <--- Função movida de web/routes/comunidades.py
-    """ Rota para deletar uma comunidade. """
-    try:
-        service = ComunidadeService(get_db_connection)
-        service.deletar(id)
-        flash('Comunidade deletada com sucesso!', 'success')
-    except Exception as e:
-        print(f"ERRO ao deletar comunidade: {e}")
-        traceback.print_exc()
-        flash('Ocorreu um erro ao deletar a comunidade.', 'danger')
-
-    return redirect(url_for('manage_comunidades')) # <--- ATUALIZADO AQUI (sem blueprint prefix)
-
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -1944,7 +1838,7 @@ if __name__ != '__main__':
 
         # REGISTRAR HANDLERS
         register_chamadas_handlers(bot, get_db_connection)
-        register_comunidades_handlers(bot, get_db_connection) # Este ainda registra os handlers do bot (comandos)
+        register_comunidades_handlers(bot, get_db_connection)
         register_conteudos_handlers(bot, get_db_connection)
         
         from bot.handlers.access_passes import register_access_pass_handlers
@@ -1952,10 +1846,10 @@ if __name__ != '__main__':
         
         register_produtos_handlers(bot, get_db_connection, generar_cobranca)
         
-        # O REGISTRO DO BLUEPRINT 'comunidades_bp' FOI REMOVIDO DAQUI
-        # app.register_blueprint(comunidades_bp, url_prefix='/') # REMOVIDO
-
-        app.register_blueprint(passes_bp) # Este continua, pois é um blueprint diferente
+        # REGISTRAR BLUEPRINT DE COMUNIDADES (EXISTENTE)
+        print(f"DEBUG FLASK: Tipo de comunidades_bp antes do registro: {type(comunidades_bp)}")
+        app.register_blueprint(comunidades_bp, url_prefix='/')
+        app.register_blueprint(passes_bp)
 
     except Exception as e:
         print(f"ERRO NA INICIALIZAÇÃO DO SERVIDOR: {e}")
