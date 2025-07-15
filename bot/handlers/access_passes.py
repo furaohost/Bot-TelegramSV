@@ -1,130 +1,115 @@
-# web/routes/access_passes.py
+# bot/handlers/access_passes.py
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from telebot import types
 from database import get_db_connection
+import pagamentos
 import traceback
-import sqlite3 # Adicione esta importação para o toggle_pass_status
+import base64
 
-passes_bp = Blueprint('passes', __name__, template_folder='../templates')
+def register_access_pass_handlers(bot):
+    """Registra todos os handlers relacionados aos Passes de Acesso."""
 
-@passes_bp.route('/access-passes', methods=['GET', 'POST'])
-def manage_passes():
-    """
-    Rota para listar os passes de acesso existentes e adicionar novos.
-    AGORA SEM O CAMPO DE LINK DE CONVITE.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        
-        # Garante que o cursor retorne dicionários para consistência
-        if isinstance(conn, sqlite3.Connection):
-            conn.row_factory = sqlite3.Row
-        
-        if request.method == 'POST':
-            # Pega os dados do formulário (sem o campo de link)
-            name = request.form.get('name')
-            description = request.form.get('description')
-            price = request.form.get('price')
-            duration_days = request.form.get('duration_days')
-            community_id = request.form.get('community_id')
-
-            # Validação atualizada, não verifica mais o invite_link
-            if not all([name, price, duration_days, community_id]):
-                flash('Todos os campos são obrigatórios.', 'danger')
-                return redirect(url_for('passes.manage_passes'))
-
+    @bot.message_handler(commands=['passes'])
+    def handle_show_passes(message):
+        """
+        Busca e exibe os passes de acesso ativos para o usuário.
+        """
+        chat_id = message.chat.id
+        print(f"DEBUG: Comando /passes recebido do chat {chat_id}")
+        conn = None
+        try:
+            conn = get_db_connection()
             with conn.cursor() as cur:
-                # A query SQL foi atualizada para não incluir 'invite_link'
-                cur.execute(
-                    """
-                    INSERT INTO access_passes 
-                    (name, description, price, duration_days, community_id)
-                    VALUES (%s, %s, %s, %s, %s)
-                    """,
-                    (name, description, float(price), int(duration_days), int(community_id))
+                cur.execute("SELECT * FROM access_passes WHERE is_active = TRUE ORDER BY price ASC")
+                passes = cur.fetchall()
+
+            if not passes:
+                bot.send_message(chat_id, "😕 Nenhum passe de acesso disponível no momento.")
+                return
+
+            bot.send_message(chat_id, "✨ Nossos Passes de Acesso:")
+            
+            for pass_item in passes:
+                pass_description = (
+                    f"*{pass_item['name']}*\n"
+                    f"_{pass_item['description'] or 'Acesso exclusivo.'}_\n\n"
+                    f"⏳ *Duração:* {pass_item['duration_days']} dias\n"
+                    f"💰 *Preço:* R$ {pass_item['price']:.2f}"
                 )
-            conn.commit()
-            flash('Passe de Acesso criado com sucesso!', 'success')
-            return redirect(url_for('passes.manage_passes'))
+                
+                markup = types.InlineKeyboardMarkup()
+                buy_button = types.InlineKeyboardButton("Comprar Passe", callback_data=f"buy_pass_{pass_item['id']}")
+                markup.add(buy_button)
+                
+                bot.send_message(chat_id, pass_description, reply_markup=markup, parse_mode='Markdown')
 
-        # Lógica para GET (exibir a página)
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT ap.*, c.nome as community_name 
-                FROM access_passes ap
-                LEFT JOIN comunidades c ON ap.community_id = c.id
-                ORDER BY ap.created_at DESC
-            """)
-            passes = cur.fetchall()
-            
-            cur.execute("SELECT id, nome FROM comunidades ORDER BY nome ASC")
-            communities = cur.fetchall()
+        except Exception as e:
+            print(f"ERRO ao mostrar passes: {e}")
+            traceback.print_exc()
+            bot.send_message(chat_id, "Ocorreu um erro ao buscar os passes. Tente novamente mais tarde.")
+        finally:
+            if conn:
+                conn.close()
 
-        return render_template('access_passes.html', passes=passes, communities=communities)
-
-    except Exception as e:
-        print("ERRO EM PASSES DE ACESSO:", e)
-        traceback.print_exc()
-        flash('Ocorreu um erro ao gerenciar os passes de acesso.', 'danger')
-        return redirect(url_for('index'))
-    finally:
-        if conn:
-            conn.close()
-
-# NOVA ROTA: Adicionar esta rota para alternar o status de ativação do passe
-@passes_bp.route('/toggle_pass_status/<int:pass_id>', methods=['POST'])
-def toggle_pass_status(pass_id):
-    conn = None
-    try:
-        conn = get_db_connection()
-        if conn is None:
-            flash('Erro de conexão com o banco de dados.', 'danger')
-            return redirect(url_for('passes.manage_passes'))
-
-        is_sqlite = isinstance(conn, sqlite3.Connection)
+    @bot.callback_query_handler(func=lambda call: call.data.startswith('buy_pass_'))
+    def handle_buy_pass_callback(call):
+        """
+        Processa o clique no botão 'Comprar Passe' e gera um pagamento PIX.
+        """
+        chat_id = call.message.chat.id
+        user = call.from_user
         
-        # Garante que o cursor retorne dicionários para consistência
-        if isinstance(conn, sqlite3.Connection):
-            conn.row_factory = sqlite3.Row
-        
-        with conn.cursor() as cur:
-            # 1. Obter o status atual do passe
-            if is_sqlite:
-                cur.execute("SELECT is_active FROM access_passes WHERE id = ?", (pass_id,))
-            else:
-                cur.execute("SELECT is_active FROM access_passes WHERE id = %s", (pass_id,))
-            
-            pass_item = cur.fetchone()
+        # --- CORREÇÃO AQUI ---
+        # Pegamos o terceiro elemento (índice 2) depois de dividir a string
+        try:
+            pass_id = int(call.data.split('_')[2])
+        except (IndexError, ValueError) as e:
+            print(f"ERRO: Callback data inválido para compra de passe: {call.data}. Erro: {e}")
+            bot.answer_callback_query(call.id, "Erro no botão. Tente novamente.")
+            return
+
+        bot.answer_callback_query(call.id, "Gerando seu pagamento PIX...")
+        print(f"DEBUG: Usuário {user.id} tentando comprar o passe {pass_id}")
+
+        conn = None
+        try:
+            conn = get_db_connection()
+            with conn.cursor() as cur:
+                cur.execute("SELECT * FROM access_passes WHERE id = %s AND is_active = TRUE", (pass_id,))
+                pass_item = cur.fetchone()
 
             if not pass_item:
-                flash('Passe de acesso não encontrado.', 'danger')
-                return redirect(url_for('passes.manage_passes'))
+                bot.send_message(chat_id, "Este passe de acesso não está mais disponível.")
+                return
 
-            current_status = pass_item['is_active']
-            # O psycopg2 (PostgreSQL) pode retornar True/False diretamente
-            # O sqlite3 com row_factory pode retornar 1/0
-            if isinstance(current_status, int): # Para SQLite, converter 1/0 para True/False
-                current_status = bool(current_status)
+            external_reference = f"pass_purchase:user_id={user.id}:pass_id={pass_id}"
 
-            new_status = not current_status # Inverte o status
-            
-            # 2. Atualizar o status no banco de dados
-            if is_sqlite:
-                cur.execute("UPDATE access_passes SET is_active = ? WHERE id = ?", (new_status, pass_id))
+            payment_info = pagamentos.criar_pagamento_pix(
+                produto=pass_item, 
+                user=user, 
+                venda_id=external_reference
+            )
+
+            if payment_info and 'point_of_interaction' in payment_info:
+                qr_code_base64 = payment_info['point_of_interaction']['transaction_data']['qr_code_base64']
+                qr_code_data = payment_info['point_of_interaction']['transaction_data']['qr_code']
+                qr_code_image = base64.b64decode(qr_code_base64)
+
+                caption_text = (
+                    f"✅ PIX gerado para *{pass_item['name']}*!\n\n"
+                    "Escaneie o QR Code acima ou copie o código completo na próxima mensagem."
+                )
+                bot.send_photo(chat_id, qr_code_image, caption=caption_text, parse_mode='Markdown')
+                bot.send_message(chat_id, f"`{qr_code_data}`", parse_mode='Markdown')
+                bot.send_message(chat_id, "Seu acesso será liberado assim que o pagamento for confirmado.")
             else:
-                cur.execute("UPDATE access_passes SET is_active = %s WHERE id = %s", (new_status, pass_id))
-            conn.commit()
+                bot.send_message(chat_id, "😕 Desculpe, não foi possível gerar o seu pagamento PIX no momento.")
+                print(f"ERRO: Falha ao obter PIX para passe. Resposta: {payment_info}")
 
-            status_text = "ativado" if new_status else "desativado"
-            flash(f'Passe de acesso {pass_id} {status_text} com sucesso!', 'success')
-
-    except Exception as e:
-        print(f"ERRO ao alternar status do passe: {e}")
-        traceback.print_exc()
-        flash('Ocorreu um erro ao alternar o status do passe.', 'danger')
-    finally:
-        if conn:
-            conn.close()
-            
-    return redirect(url_for('passes.manage_passes'))
+        except Exception as e:
+            print(f"ERRO no callback de compra de passe: {e}")
+            traceback.print_exc()
+            bot.send_message(chat_id, "Ocorreu um erro inesperado. Nossa equipe já foi notificada.")
+        finally:
+            if conn:
+                conn.close()

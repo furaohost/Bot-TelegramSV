@@ -4,9 +4,11 @@
 {% block page_title %}Gerenciar Passes de Acesso{% endblock %}
 
 {% block content %}
+<!-- Formulário para Adicionar Novo Passe -->
 <div class="card">
     <h2 class="section-subtitle">Criar Novo Passe de Acesso</h2>
     <form method="POST" action="{{ url_for('passes.manage_passes') }}" class="form-grid gap-form">
+        <!-- Linha 1: Nome e Preço -->
         <div class="form-group">
             <label for="name" class="form-label">Nome do Passe</label>
             <input type="text" id="name" name="name" required class="form-input" placeholder="Ex: Acesso VIP 30 Dias">
@@ -16,6 +18,7 @@
             <input type="number" id="price" name="price" step="0.01" min="0.50" required class="form-input" placeholder="Ex: 49.90">
         </div>
 
+        <!-- Linha 2: Duração e Comunidade -->
         <div class="form-group">
             <label for="duration_days" class="form-label">Duração do Acesso (dias)</label>
             <input type="number" id="duration_days" name="duration_days" min="1" required class="form-input" placeholder="Ex: 30, 90, 365">
@@ -30,11 +33,13 @@
             </select>
         </div>
 
+        <!-- Linha 3: Descrição -->
         <div class="form-group" style="grid-column: 1 / -1;">
             <label for="description" class="form-label">Descrição (Opcional)</label>
             <textarea id="description" name="description" rows="3" class="form-textarea" placeholder="Descreva os benefícios deste passe..."></textarea>
         </div>
 
+        <!-- Botão de Envio -->
         <div class="form-actions" style="grid-column: 1 / -1; justify-content: flex-end;">
             <button type="submit" class="btn btn-primary">
                 <span class="material-icons">add_circle_outline</span>
@@ -44,6 +49,7 @@
     </form>
 </div>
 
+<!-- Tabela de Passes Existentes -->
 <div class="card table-listing-card">
     <h2 class="section-subtitle">Passes Existentes</h2>
     <div class="table-container">
@@ -75,12 +81,7 @@
                         </td>
                         <td class="actions-cell" style="text-align: right;">
                             <a href="#" class="btn-action edit" title="Editar"><i class="fas fa-edit"></i></a>
-                            <form action="{{ url_for('passes.toggle_pass_status', pass_id=p.id) }}" method="POST" style="display:inline;">
-                                <button type="submit" class="btn btn-sm {% if p.is_active %}btn-danger{% else %}btn-success{% endif %}" title="{{ 'Desativar' if p.is_active else 'Ativar' }}">
-                                    <i class="fas {% if p.is_active %}fa-toggle-off{% else %}fa-toggle-on{% endif %}"></i>
-                                    {{ 'Desativar' if p.is_active else 'Ativar' }}
-                                </button>
-                            </form>
+                            <a href="#" class="btn-action delete" title="Desativar"><i class="fas fa-toggle-on"></i></a>
                         </td>
                     </tr>
                     {% endfor %}
