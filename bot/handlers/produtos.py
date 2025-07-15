@@ -4,15 +4,15 @@ from telebot.types import Message
 import traceback
 import base64
 import psycopg2
-from psycopg2.extras import RealDictCursor 
-import sqlite3 
+from psycopg2.extras import RealDictCursor
+import sqlite3
 import logging
 
 # IMPORTANTE: A função `generar_cobranca` será passada como argumento para register_produtos_handlers.
 # Portanto, a importação direta de 'app' NÃO é necessária aqui para evitar importação circular.
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG) 
+logger.setLevel(logging.DEBUG)
 
 def register_produtos_handlers(bot_instance: telebot.TeleBot, get_db_connection_func, generar_cobranca_func):
     """
@@ -30,7 +30,7 @@ def register_produtos_handlers(bot_instance: telebot.TeleBot, get_db_connection_
         logger.debug(f"Chamado mostrar_produtos_bot para chat_id: {chat_id}")
         conn = None
         try:
-            conn = get_db_connection_func() 
+            conn = get_db_connection_func()
             if conn is None:
                 bot_instance.send_message(chat_id, "Erro interno: banco de dados indisponível.")
                 logger.error("Erro: Conexão com o banco de dados é None em mostrar_produtos_bot.")
@@ -40,17 +40,23 @@ def register_produtos_handlers(bot_instance: telebot.TeleBot, get_db_connection_
             if is_postgres:
                 cur = conn.cursor(cursor_factory=RealDictCursor)
             else:
-                cur = conn.cursor() 
+                cur = conn.cursor()
 
-            with conn: 
+            with conn:
                 # CORREÇÃO AQUI: Incluído 'link' e 'descricao' na query SELECT
-                cur.execute('SELECT id, nome, preco, link, descricao FROM produtos ORDER BY nome') 
+                cur.execute('SELECT id, nome, preco, link, descricao FROM produtos ORDER BY nome')
                 produtos = cur.fetchall()
 
                 if not produtos:
-                    bot_instance.send_message(chat_id, "Nenhum produto disponível no momento.")
+                    # Envia uma mensagem e remove o teclado de resposta, se houver
+                    bot_instance.send_message(chat_id, "Nenhum produto disponível no momento.", reply_markup=types.ReplyKeyboardRemove())
                     logger.info("Nenhum produto encontrado na tabela 'produtos'.")
                     return
+
+                # Remove o teclado de resposta antes de enviar os produtos com botões inline
+                # Isso garante que o teclado persistente seja removido.
+                bot_instance.send_message(chat_id, "Estes são os produtos disponíveis:", reply_markup=types.ReplyKeyboardRemove())
+
 
                 for produto in produtos:
                     markup = types.InlineKeyboardMarkup()
@@ -59,10 +65,10 @@ def register_produtos_handlers(bot_instance: telebot.TeleBot, get_db_connection_
                     markup.add(btn_comprar)
 
                     nome = produto.get("nome", "Sem nome")
-                    descricao = produto.get("descricao", "") 
-                    
+                    descricao = produto.get("descricao", "")
+
                     texto = f"🛍 *{nome}*\n\nPreço: {preco_formatado}"
-                    if descricao: 
+                    if descricao:
                         texto += f"\n\n_{descricao}_"
 
                     bot_instance.send_message(chat_id, texto, parse_mode='Markdown', reply_markup=markup)
@@ -101,7 +107,7 @@ def register_produtos_handlers(bot_instance: telebot.TeleBot, get_db_connection_
         logger.debug(f"Callback de compra acionado: {call.data}")
         try:
             produto_id = int(call.data.split('_')[1])
-            generar_cobranca_func(call, produto_id) 
+            generar_cobranca_func(call, produto_id)
         except Exception as e:
             bot_instance.answer_callback_query(call.id, "Erro ao processar a compra.")
             logger.error(f"Erro em handle_buy_callback: {e}", exc_info=True)
