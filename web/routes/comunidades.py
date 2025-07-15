@@ -1,16 +1,18 @@
 # web/routes/comunidades.py
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from database import get_db_connection
-from bot.services.comunidades import ComunidadeService
+from bot.services.comunidades import ComunidadeService 
 import traceback # Importar traceback para tratamento de erros
+
+# Linha de depuração para verificar se o módulo está sendo carregado
+print("DEBUG: Módulo comunidades.py está sendo carregado!") # <--- ESTA É A NOVA LINHA DE DEBUG
 
 # Cria o Blueprint para organizar as rotas de comunidades
 comunidades_bp = Blueprint('comunidades', __name__, template_folder='../templates')
 
 @comunidades_bp.route('/comunidades')
-def manage_comunidades(): # <--- FUNÇÃO RENOMEADA AQUI
+def manage_comunidades(): # FUNÇÃO RENOMEADA
     """ Rota para listar todas as comunidades. """
-    print("DEBUG: Módulo comunidades.py está sendo carregado! (Dentro de manage_comunidades)") # Mantenha ou remova esta linha se não precisar mais
     try:
         service = ComunidadeService(get_db_connection)
         comunidades_list = service.listar()
@@ -25,7 +27,7 @@ def manage_comunidades(): # <--- FUNÇÃO RENOMEADA AQUI
         flash('Um erro inesperado ocorreu. Verifique os logs.', 'danger')
         comunidades_list = []
 
-    return render_template('comunidades.html', comunidades=comunidades_list) # Assumindo que o template é comunidades.html
+    return render_template('comunidades.html', comunidades=comunidades_list)
 
 @comunidades_bp.route('/comunidades/adicionar', methods=['POST'])
 def adicionar_comunidade():
@@ -34,7 +36,7 @@ def adicionar_comunidade():
         nome = request.form.get('nome', '').strip()
         if not nome:
             flash('O nome da comunidade é obrigatório.', 'danger')
-            return redirect(url_for('comunidades.manage_comunidades')) # <--- ATUALIZADO AQUI
+            return redirect(url_for('comunidades.manage_comunidades'))
 
         descricao = request.form.get('descricao', '').strip()
         chat_id_str = request.form.get('chat_id', '').strip()
@@ -51,7 +53,7 @@ def adicionar_comunidade():
         traceback.print_exc() # Adicionado traceback
         flash('Ocorreu um erro ao adicionar a comunidade.', 'danger')
         
-    return redirect(url_for('comunidades.manage_comunidades')) # <--- ATUALIZADO AQUI
+    return redirect(url_for('comunidades.manage_comunidades'))
 
 @comunidades_bp.route('/comunidades/editar/<int:id>', methods=['GET', 'POST'])
 def editar_comunidade(id):
@@ -61,7 +63,7 @@ def editar_comunidade(id):
 
     if not comunidade:
         flash('Comunidade não encontrada.', 'danger')
-        return redirect(url_for('comunidades.manage_comunidades')) # <--- ATUALIZADO AQUI
+        return redirect(url_for('comunidades.manage_comunidades'))
 
     if request.method == 'POST':
         try:
@@ -76,7 +78,7 @@ def editar_comunidade(id):
             
             service.editar(id, nome, descricao, chat_id)
             flash('Comunidade atualizada com sucesso!', 'success')
-            return redirect(url_for('comunidades.manage_comunidades')) # <--- ATUALIZADO AQUI
+            return redirect(url_for('comunidades.manage_comunidades'))
 
         except ValueError:
             flash('ID do Chat/Grupo inválido. Deve ser um número.', 'danger')
@@ -100,4 +102,4 @@ def deletar_comunidade(id):
         traceback.print_exc() # Adicionado traceback
         flash('Ocorreu um erro ao deletar a comunidade.', 'danger')
 
-    return redirect(url_for('comunidades.manage_comunidades')) # <--- ATUALIZADO AQUI
+    return redirect(url_for('comunidades.manage_comunidades'))
