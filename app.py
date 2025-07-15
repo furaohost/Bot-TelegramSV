@@ -182,7 +182,6 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
             pagamento = pagamentos.criar_pagamento_pix(produto=produto, user=call.from_user, venda_id=venda_id)
 
             if pagamento and 'point_of_interaction' in pagamento:
-                # Corrigido: Usando 'pagamento' em vez de 'payment_info'
                 qr_code_base64 = pagamento['point_of_interaction']['transaction_data']['qr_code_base64']
                 qr_code_data = pagamento['point_of_interaction']['transaction_data']['qr_code']
                 qr_code_image = base64.b64decode(qr_code_base64)
