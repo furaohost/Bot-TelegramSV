@@ -1,4 +1,4 @@
-# app.py (CONTEÚDO COMPLETO - Copiar e colar tudo com DEBUG)
+# app.py (CONTEÚDO COMPLETO - Copiar e colar tudo com ajuste defensivo)
 
 import os
 import requests
@@ -57,6 +57,7 @@ try:
 except ImportError as e:
     print(f"ERRO DE IMPORTAÇÃO CRÍTICO: Não foi possível importar passes_bp: {e}")
     logging.exception("ERRO CRÍTICO: Falha ao importar passes_bp") # Adiciona traceback ao log
+    passes_bp = None # Define como None em caso de falha
 
 # Importando ComunidadeService e AccessPassService diretamente para app.py
 print("DEBUG: Tentando importar ComunidadeService de bot.services.comunidades...")
@@ -66,6 +67,7 @@ try:
 except ImportError as e:
     print(f"ERRO DE IMPORTAÇÃO CRÍTICO: Não foi possível importar ComunidadeService: {e}")
     logging.exception("ERRO CRÍTICO: Falha ao importar ComunidadeService")
+    ComunidadeService = None # Define como None em caso de falha
 
 print("DEBUG: Tentando importar AccessPassService de bot.services.access_passes_service...")
 try:
@@ -74,6 +76,7 @@ try:
 except ImportError as e:
     print(f"ERRO DE IMPORTAÇÃO CRÍTICO: Não foi possível importar AccessPassService: {e}")
     logging.exception("ERRO CRÍTICO: Falha ao importar AccessPassService")
+    AccessPassService = None # Define como None em caso de falha
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -193,7 +196,7 @@ def generar_cobranca(call: types.CallbackQuery, produto_id: int):
             if is_sqlite:
                 cur.execute("INSERT INTO vendas (user_id, produto_id, preco, status, data_venda) VALUES (?, ?, ?, ?, ?)",
                             (user_id, produto['id'], produto['preco'], 'pendente', data_venda))
-                cur.execute("SELECT last_insert_rowid()")
+                cur.execute("SELECT last_insert_id()")
                 result_id = cur.fetchone()
                 if result_id:
                     venda_id = result_id[0]
@@ -1414,7 +1417,7 @@ def delete_scheduled_message(message_id):
                 flash('Mensagem não encontrada para deletar.', 'warning')
             else:
                 if isinstance(conn, sqlite3.Connection):
-                    cur.execute("DELETE FROM scheduled_messages WHERE id = ?", (message_id,))
+                    cur.execute("DELETE FROM scheduled_messages WHERE id = ?,", (message_id,))
                 else:
                     cur.execute("DELETE FROM scheduled_messages WHERE id = %s", (message_id,))
                 conn.commit()
@@ -1950,7 +1953,11 @@ if __name__ != '__main__':
         # Conteúdo copiado de bot/handlers/access_passes.py -> register_access_pass_handlers
         # Importante: Ensure AccessPassService is imported globally in app.py
         # from bot.services.access_passes_service import AccessPassService # Já importado no topo do app.py
-        access_pass_svc = AccessPassService(get_db_connection)
+        if AccessPassService: # <<<< Adicionado para verificar se a classe foi importada
+            access_pass_svc = AccessPassService(get_db_connection)
+        else:
+            logging.error("AccessPassService não pôde ser inicializado devido a erro de importação.")
+
 
         @bot.message_handler(commands=['passes'])
         def handle_show_passes(message):
@@ -2073,7 +2080,7 @@ if __name__ != '__main__':
 
         # AQUI É ONDE VOCÊ PRECISA ADICIONAR/DESCOMENTAR A LINHA:
         # Verifique se 'passes_bp' foi importado com sucesso antes de registrá-lo.
-        if 'passes_bp' in locals(): # Verifica se a variável passes_bp existe
+        if passes_bp: # Verifica se a variável passes_bp existe
             app.register_blueprint(passes_bp) # <<< Linha adicionada/descomentada para registrar o blueprint 'passes_bp'
         else:
             logging.error("ERRO: passes_bp não pôde ser registrado porque não foi importado com sucesso.")
