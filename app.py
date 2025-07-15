@@ -488,6 +488,7 @@ def reset_admin_password_route():
             if is_sqlite:
                 cur.execute("UPDATE admin SET password_hash = ? WHERE username = ?", (hashed_password, USERNAME_TO_RESET))
             else:
+                cur.execute("UPDATE admin (username, password_hash) VALUES (?, ?)", (USERNAME_TO_RESET, hashed_password))
                 cur.execute("UPDATE admin SET password_hash = %s WHERE username = %s", (hashed_password, USERNAME_TO_RESET))
 
             if cur.rowcount == 0:
