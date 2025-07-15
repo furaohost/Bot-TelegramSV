@@ -1,3 +1,5 @@
+# app.py (CONTEÚDO COMPLETO - Copiar e colar tudo)
+
 import os
 import requests
 import telebot
@@ -32,13 +34,13 @@ import pagamentos
 # Importa os módulos de handlers e blueprints
 from bot.utils.keyboards import confirm_18_keyboard, menu_principal, inline_ver_produtos_keyboard
 from bot.handlers.chamadas import register_chamadas_handlers
-from bot.handlers.comunidades import register_comunidades_handlers # <--- RE-ADICIONADO: Esta importação é necessária!
+# from bot.handlers.comunidades import register_comunidades_handlers # REMOVIDO: Comunidades será movido para app.py
 from bot.handlers.conteudos import register_conteudos_handlers
 from bot.handlers.produtos import register_produtos_handlers
-# from web.routes.comunidades import comunidades_bp # Continua REMOVIDO: Rotas web de comunidades estão em app.py
+# from web.routes.comunidades import comunidades_bp # REMOVIDO: Blueprint será descontinuado para comunidades
 from web.routes.access_passes import passes_bp
 
-# Importando ComunidadeService diretamente para app.py (para as rotas web)
+# Importando ComunidadeService diretamente para app.py
 from bot.services.comunidades import ComunidadeService 
 
 
