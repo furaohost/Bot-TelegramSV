@@ -33,7 +33,12 @@ import pagamentos
 
 # Importa os módulos de handlers e blueprints
 <<<<<<< HEAD
+<<<<<<< HEAD
 from bot.utils.keyboards import confirm_18_keyboard, menu_principal, inline_ver_produtos_keyboard
+=======
+# IMPORTANTE: AQUI ESTÁ A IMPORTAÇÃO DE 'inline_ver_produtos_keyboard'
+from bot.utils.keyboards import confirm_18_keyboard, menu_principal, inline_ver_produtos_keyboard 
+>>>>>>> parent of 5471413 (Ajuste de Rotas)
 =======
 # IMPORTANTE: AQUI ESTÁ A IMPORTAÇÃO DE 'inline_ver_produtos_keyboard'
 from bot.utils.keyboards import confirm_18_keyboard, menu_principal, inline_ver_produtos_keyboard 
@@ -42,10 +47,13 @@ from bot.handlers.chamadas import register_chamadas_handlers
 from bot.handlers.comunidades import register_comunidades_handlers 
 from bot.handlers.conteudos import register_conteudos_handlers
 <<<<<<< HEAD
+<<<<<<< HEAD
 from bot.handlers.produtos import register_produtos_handlers
 # from web.routes.comunidades import comunidades_bp # Continua REMOVIDO: Rotas web de comunidades estão em app.py
 from web.routes.access_passes import passes_bp # Certifique-se de que esta linha esteja aqui
 =======
+=======
+>>>>>>> parent of 5471413 (Ajuste de Rotas)
 from bot.handlers.produtos import register_produtos_handlers 
 from web.routes.comunidades import comunidades_bp
 from bot.handlers.access_passes import register_access_pass_handlers
@@ -735,7 +743,11 @@ def get_sales_data():
         print(f"DEBUG API SALES DATA: start_date={start_date}, end_date={end_date}")
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         current_day = start_date # <<<<< 'current_day' É INICIALIZADO AQUI
+=======
+        current_day = start_date 
+>>>>>>> parent of 5471413 (Ajuste de Rotas)
 =======
         current_day = start_date 
 >>>>>>> parent of 5471413 (Ajuste de Rotas)
@@ -766,7 +778,11 @@ def get_sales_data():
                 chart_data_quantidade.append(daily_quantity)
                 
 <<<<<<< HEAD
+<<<<<<< HEAD
                 current_day += timedelta(days=1) # <<<<< E INCREMENTADO AQUI
+=======
+                current_day += timedelta(days=1) 
+>>>>>>> parent of 5471413 (Ajuste de Rotas)
 =======
                 current_day += timedelta(days=1) 
 >>>>>>> parent of 5471413 (Ajuste de Rotas)
@@ -1964,6 +1980,7 @@ if __name__ != '__main__':
         register_comunidades_handlers(bot, get_db_connection) # Este ainda registra os handlers do bot (comandos)
         register_conteudos_handlers(bot, get_db_connection)
 <<<<<<< HEAD
+<<<<<<< HEAD
         
         # from bot.handlers.access_passes import register_access_pass_handlers # COMENTADO/REMOVIDO: Para mover a lógica para cá
         # register_access_pass_handlers(bot) # REMOVIDO: A lógica será colada aqui.
@@ -2098,6 +2115,8 @@ if __name__ != '__main__':
         # AQUI É ONDE VOCÊ PRECISA ADICIONAR/DESCOMENTAR A LINHA:
         app.register_blueprint(passes_bp) # <<< Linha adicionada/descomentada para registrar o blueprint 'passes_bp'
 =======
+=======
+>>>>>>> parent of 5471413 (Ajuste de Rotas)
         register_access_pass_handlers(bot) 
         
         # Passando 'generar_cobranca' como argumento.
