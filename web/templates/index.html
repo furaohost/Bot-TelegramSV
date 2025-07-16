@@ -181,13 +181,6 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-        // --- INÍCIO: Adições de console.log para depuração ---
-        console.log("DEBUG HTML: DOMContentLoaded - Iniciando.");
-        console.log("DEBUG HTML: chart_labels do Flask:", JSON.parse(`{{ chart_labels | safe }}`));
-        console.log("DEBUG HTML: chart_data_receita do Flask:", JSON.parse(`{{ chart_data_receita | safe }}`));
-        console.log("DEBUG HTML: chart_data_quantidade do Flask:", JSON.parse(`{{ chart_data_quantidade | safe }}`));
-        // --- FIM: Adições de console.log para depuração ---
-
         // Inicialização dos gráficos com os dados padrão (últimos 7 dias)
         renderCharts(JSON.parse(`{{ chart_labels | safe }}`),
                      JSON.parse(`{{ chart_data_receita | safe }}`),
@@ -205,7 +198,6 @@
         endDateInput.value = today.format('YYYY-MM-DD');
 
         periodSelect.addEventListener('change', function() {
-            console.log("DEBUG HTML: Período selecionado:", this.value); // Debug do seletor
             if (this.value === 'custom') {
                 customDateRange.classList.remove('hidden');
             } else {
@@ -214,10 +206,7 @@
             }
         });
 
-        applyCustomDateBtn.addEventListener('click', function() {
-            console.log("DEBUG HTML: Botão 'Aplicar' para período customizado clicado."); // Debug do botão
-            fetchAndRenderCharts();
-        });
+        applyCustomDateBtn.addEventListener('click', fetchAndRenderCharts);
 
         async function fetchAndRenderCharts() {
             const period = periodSelect.value;
@@ -243,8 +232,6 @@
                 endDate = dayjs(endDateInput.value);
             }
 
-            console.log(`DEBUG HTML: fetchAndRenderCharts - Período: ${period}, Início: ${startDate.format('YYYY-MM-DD')}, Fim: ${endDate.format('YYYY-MM-DD')}`); // Debug das datas
-
             if (period === 'custom' && (startDate.isAfter(endDate) || !startDate.isValid() || !endDate.isValid())) {
                 alert('Por favor, selecione um período personalizado válido (data de início anterior ou igual à data de fim).');
                 return;
@@ -254,10 +241,8 @@
             const end_date_param = endDate.format('YYYY-MM-DD');
 
             try {
-                console.log(`DEBUG HTML: Chamando API /api/sales_data com: start_date=${start_date_param}&end_date=${end_date_param}`); // Debug da chamada API
                 const response = await fetch(`/api/sales_data?start_date=${start_date_param}&end_date=${end_date_param}`);
                 const data = await response.json();
-                console.log("DEBUG HTML: Resposta da API /api/sales_data:", data); // Debug da resposta da API
 
                 if (response.ok) {
                     renderCharts(data.labels, data.data_receita, data.data_quantidade);
@@ -272,9 +257,6 @@
         }
 
         function renderCharts(labels, dataReceita, dataQuantidade) {
-            console.log("DEBUG HTML: renderCharts - Dados para Receita:", dataReceita); // Debug dos dados antes de renderizar
-            console.log("DEBUG HTML: renderCharts - Dados para Quantidade:", dataQuantidade); // Debug dos dados antes de renderizar
-            
             if (dailyRevenueChart) {
                 dailyRevenueChart.destroy();
             }

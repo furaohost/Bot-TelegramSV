@@ -4,21 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Painel{% endblock %} - SvBOT | Gestão de Vendas</title>
-    
-    {# Links para Google Fonts, Material Icons e Font Awesome #}
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    
-    {# ESTAS SÃO AS LINHAS QUE CARREGAM O CSS E JS EXTERNOS #}
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
-    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-ui-timepicker-addon/1.6.3/jquery-ui-timepicker-addon.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-ui-timepicker-addon/1.6.3/jquery-ui-timepicker-addon.min.js"></script>
-
     <style>
         :root {
             --primary: #4F46E5;
@@ -944,7 +932,6 @@
                 dailyRevenueChart.options.plugins.tooltip.titleColor = 'var(--text)';
                 dailyRevenueChart.options.plugins.tooltip.bodyColor = 'var(--text-light)';
                 dailyRevenueChart.options.plugins.tooltip.borderColor = 'var(--border)';
-                dailyRevenueChart.options.plugins.tooltip.borderWidth = 1; // Add this line
                 dailyRevenueChart.options.scales.y.grid.color = getGridColor();
 
                 // Atualiza cores do gradiente da Receita
@@ -967,7 +954,237 @@
                 dailyQuantityChart.options.plugins.tooltip.titleColor = 'var(--text)';
                 dailyQuantityChart.options.plugins.tooltip.bodyColor = 'var(--text-light)';
                 dailyQuantityChart.options.plugins.tooltip.borderColor = 'var(--border)';
-                dailyQuantityChart.options.plugins.tooltip.borderWidth = 1; // Add this line
+                dailyQuantityChart.options.scales.y.grid.color = getGridColor();
+            }
+
+            // Força a atualização de ambos os gráficos
+            if (window.dailyRevenueChart) dailyRevenueChart.update();
+            if (window.dailyQuantityChart) dailyQuantityChart.update();
+        }
+
+        // Define uma cor para os títulos dos eixos dos gráficos que se adapta ao tema
+        function getAxisTitleColor() {
+            return document.documentElement.getAttribute('data-theme') === 'dark' ? 'var(--text-light)' : '#4a4a4a';
+        }
+
+        // Define a cor da grade dos gráficos
+        function getGridColor() {
+            return document.documentElement.getAttribute('data-theme') === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(200, 200, 200, 0.2)';
+        }
+
+        // Ao carregar a página:
+        // 1. Tenta carregar o tema do localStorage
+        // 2. Se não houver, verifica a preferência do sistema
+        // 3. Caso contrário, assume 'dark' como padrão (para corresponder à imagem)
+        document.addEventListener('DOMContentLoaded', () => {
+            const storedTheme = localStorage.getItem('theme');
+            if (storedTheme) {
+                applyTheme(storedTheme);
+            } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                applyTheme('dark'); // Padrão do sistema
+            } else {
+                applyTheme('dark'); // SEU PADRÃO DEFAULT AGORA É DARK PARA IGUALAR A IMAGEM
+            }
+
+            // Modo Escuro/Claro Toggle
+            const themeToggle = document.getElementById('themeToggle');
+            if (themeToggle) {
+                themeToggle.addEventListener('click', () => {
+                    const currentTheme = document.documentElement.getAttribute('data-theme');
+                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                    applyTheme(newTheme);
+                    localStorage.setItem('theme', newTheme); // Salva a preferência
+                });
+            }
+
+            // Menu Mobile Toggle
+            const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+            const sidebar = document.getElementById('sidebar');
+
+            if (mobileMenuBtn && sidebar) {
+                mobileMenuBtn.addEventListener('click', () => {
+                    sidebar.classList.toggle('active');
+                });
+            }
+
+            // Fechar menu ao clicar em um link (mobile)
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.addEventListener('click', () => {
+                    setTimeout(() => {
+                        if (window.innerWidth <= 768) {
+                            sidebar.classList.remove('active');
+                        }
+                    }, 150);
+                });
+            });
+        });
+    </script>
+</head>
+<body>
+    <div class="dashboard">
+        <aside class="sidebar" id="sidebar">
+            <div class="logo">
+                {# Logo SvBOT com SVG animado #}
+                <svg class="animated-logo-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 0a12 12 0 1 0 0 24 12 12 0 0 0 0-24zm5.89 7.33l-1.45 6.8c-.1.48-.37.6-.76.37l-3.08-2.28-1.47 1.4c-.16.16-.3.3-.6.3l.22-3.1 5.7-5.15c.25-.22-.05-.34-.38-.12l-7.05 4.45-3.03-.95c-.48-.15-.49-.48.1-.7l11.7-4.5c.2-.08.38.05.36.25z"/>
+                </svg>
+                SvBOT
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">
+                        <span class="material-icons">dashboard</span>
+                        Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('produtos') }}" class="nav-link {% if request.endpoint == 'produtos' or request.endpoint == 'editar_produto' or request.endpoint == 'adicionar_produto' %}active{% endif %}">
+                        <span class="material-icons">inventory</span>
+                        Produtos
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('vendas') }}" class="nav-link {% if request.endpoint == 'vendas' %}active{% endif %}">
+                        <span class="material-icons">shopping_cart</span>
+                        Vendas
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('usuarios') }}" class="nav-link {% if request.endpoint == 'usuarios' %}active{% endif %}">
+                        <span class="material-icons">people</span>
+                        Usuários
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('comunidades.comunidades') }}" class="nav-link {% if request.endpoint.startswith('comunidades') %}active{% endif %}">
+                        <span class="material-icons">groups</span>
+                        Comunidades
+                    </a>
+                </li>
+                {# CORREÇÃO AQUI NA LINHA 1065: REMOVIDA OU COMENTADA A REFERÊNCIA A 'passes.manage_passes' #}
+                {# Para fazer o painel abrir, a linha problemática 'passes.manage_passes' foi removida #}
+                {# Se você quiser reativar esta funcionalidade no futuro, precisará implementar a rota 'passes.manage_passes' e seus módulos associados. #}
+                {# <li class="nav-item">
+                    <a href="{{ url_for('passes.manage_passes') }}" class="nav-link {% if request.endpoint.startswith('plans') %}active{% endif %}">
+                        <span class="material-icons">star_outline</span>
+                        Planos de Assinatura
+                    </a>
+                </li> #}
+                {# O link para subscriptions.list_subscriptions também precisa ser corrigido se não existir #}
+                <li class="nav-item">
+                    <a href="{{ url_for('scheduled_messages') }}" class="nav-link {% if request.endpoint.startswith('scheduled_messages') or request.endpoint == 'add_scheduled_message' or request.endpoint == 'edit_scheduled_message' %}active{% endif %}">
+                        <span class="material-icons">schedule</span>
+                        Mensagens Agendadas
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('send_broadcast') }}" class="nav-link {% if request.endpoint == 'send_broadcast' %}active{% endif %}">
+                        <span class="material-icons">campaign</span>
+                        Enviar Broadcast
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('config_messages') }}" class="nav-link {% if request.endpoint == 'config_messages' %}active{% endif %}">
+                        <span class="material-icons">settings</span>
+                        Configurações
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('passes.manage_passes') }}" class="nav-link {% if request.endpoint.startswith('passes') %}active{% endif %}">
+                        <span class="material-icons">key</span>
+                        Passes de Acesso
+                    </a>
+                </li>
+                {# Link de Sair (Logout) #}
+                <li class="nav-item">
+                    <a href="{{ url_for('logout') }}" class="nav-link">
+                        <span class="material-icons">logout</span>
+                        Sair
+                    </a>
+                </li>
+            </ul>
+            {# Informações do Usuário - Parte inferior da sidebar #}
+            <div class="user-info">
+                <p>Logado como:</p>
+                <p style="color: var(--warning); font-weight: 600;">{{ session.username if session.username else 'Convidado' }}</p>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="header">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <button class="mobile-menu-btn" id="mobileMenuBtn">
+                        <span class="material-icons">menu</span>
+                    </button>
+                    <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
+                </div>
+                {# Botão de Troca de Tema #}
+                <button class="theme-toggle" id="themeToggle">
+                    <span class="material-icons theme-icon"></span>
+                </button>
+            </div>
+
+            {# Área para mensagens flash (sucesso/erro) #}
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div style="margin-bottom: 1.5rem;">
+                        {% for category, message in messages %}
+                            <div style="padding: 1rem; border-radius: 8px; font-size: 0.875rem; margin-bottom: 0.5rem;
+                                {% if category == 'success' %}background-color: rgba(var(--success-rgb), 0.1); color: var(--success);
+                                {% elif category == 'danger' %}background-color: rgba(var(--danger-rgb), 0.1); color: var(--danger);
+                                {% else %}background-color: rgba(var(--primary-rgb), 0.1); color: var(--primary);{% endif %}">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            {# Este é o bloco onde o conteúdo específico de cada página será injetado #}
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    <script>
+        // Função para aplicar o tema
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            const iconSpan = document.querySelector('#themeToggle .theme-icon');
+            if (iconSpan) {
+                iconSpan.textContent = theme === 'dark' ? 'dark_mode' : 'light_mode';
+            }
+            // Atualiza cores dos gráficos se existirem
+            if (window.dailyRevenueChart) {
+                dailyRevenueChart.options.scales.y.title.color = getAxisTitleColor();
+                dailyRevenueChart.options.scales.x.title.color = getAxisTitleColor();
+                dailyRevenueChart.options.scales.y.ticks.color = 'var(--text-light)';
+                dailyRevenueChart.options.scales.x.ticks.color = 'var(--text-light)';
+                dailyRevenueChart.options.plugins.legend.labels.color = 'var(--text)';
+                dailyRevenueChart.options.plugins.tooltip.backgroundColor = 'var(--card-bg)';
+                dailyRevenueChart.options.plugins.tooltip.titleColor = 'var(--text)';
+                dailyRevenueChart.options.plugins.tooltip.bodyColor = 'var(--text-light)';
+                dailyRevenueChart.options.plugins.tooltip.borderColor = 'var(--border)';
+                dailyRevenueChart.options.scales.y.grid.color = getGridColor();
+
+                // Atualiza cores do gradiente da Receita
+                const ctxRevenue = document.getElementById('dailyRevenueChart').getContext('2d');
+                const gradientRevenue = ctxRevenue.createLinearGradient(0, 0, 0, 400);
+                gradientRevenue.addColorStop(0, getComputedStyle(document.documentElement).getPropertyValue('--primary') + 'D0');
+                gradientRevenue.addColorStop(1, getComputedStyle(document.documentElement).getPropertyValue('--primary') + '00');
+                dailyRevenueChart.data.datasets[0].backgroundColor = gradientRevenue;
+                dailyRevenueChart.data.datasets[0].pointBorderColor = getComputedStyle(document.documentElement).getPropertyValue('--card-bg');
+                dailyRevenueChart.data.datasets[0].pointHoverBackgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--card-bg');
+            }
+
+            if (window.dailyQuantityChart) {
+                dailyQuantityChart.options.scales.y.title.color = getAxisTitleColor();
+                dailyQuantityChart.options.scales.x.title.color = getAxisTitleColor();
+                dailyQuantityChart.options.scales.y.ticks.color = 'var(--text-light)';
+                dailyQuantityChart.options.scales.x.ticks.color = 'var(--text-light)';
+                dailyQuantityChart.options.plugins.legend.labels.color = 'var(--text)';
+                dailyQuantityChart.options.plugins.tooltip.backgroundColor = 'var(--card-bg)';
+                dailyQuantityChart.options.plugins.tooltip.titleColor = 'var(--text)';
+                dailyQuantityChart.options.plugins.tooltip.bodyColor = 'var(--text-light)';
+                dailyQuantityChart.options.plugins.tooltip.borderColor = 'var(--border)';
                 dailyQuantityChart.options.scales.y.grid.color = getGridColor();
             }
 
