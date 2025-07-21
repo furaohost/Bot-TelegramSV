@@ -372,14 +372,38 @@ def webhook_mercado_pago():
 
                 if telegram_chat_id:
                     try:
-                        # Gera um novo link de convite que expira em 1 dia e só pode ser usado 1 vez.
+                        # Gera um novo link de convite
                         link_info = bot.create_chat_invite_link(
-                            chat_id=telegram_chat_id,  # <-- ALTERAÇÃO AQUI: Passa o ID correto para o bot.
-                            expire_date=int(time_module.time()) + 86400, # Expira em 24 horas
-                            member_limit=1 # Apenas 1 pessoa pode usar
+                            chat_id=telegram_chat_id,
+                            expire_date=int(time_module.time()) + 86400,
+                            member_limit=1
                         )
                         invite_link = link_info.invite_link
-                        
+
+                        # --- ALTERAÇÃO AQUI: Salva o link no banco ---
+                        # Primeiro, precisamos do ID do registro de acesso que acabamos de criar.
+                        # Usamos RETURNING id para pegar o ID da linha inserida.
+                        cur.execute(
+                            """
+                            INSERT INTO user_access
+                            (user_id, pass_id, status, start_date, expiration_date, payment_id)
+                            VALUES (%s, %s, 'active', %s, %s, %s) RETURNING id
+                            """,
+                            (user_id, pass_id, start_date, expiration_date, payment_id)
+                        )
+                        access_id = cur.fetchone()['id'] # Pega o ID retornado
+
+                        # Agora, atualiza esse registro com o link de convite
+                        cur.execute(
+                            "UPDATE user_access SET invite_link_used = %s WHERE id = %s",
+                            (invite_link, access_id)
+                        )
+                        conn.commit() # Salva as alterações no banco
+
+                        # O print de sucesso pode vir agora
+                        print(f"SUCESSO: Acesso {access_id} para user {user_id} ao passe {pass_id} registrado. Expira em: {expiration_date}")
+
+                        # Envia a mensagem para o usuário (código existente)
                         success_message = (
                             f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo.\n\n"
                             f"Use o seu link de acesso exclusivo e de uso único abaixo. Ele é válido por 24 horas:\n"
@@ -1694,6 +1718,51 @@ def scheduled_message_worker():
                 conn.close()
 
         time_module.sleep(60)
+
+@bot.chat_member_handler()
+def handle_new_chat_members(message: types.ChatMemberUpdated):
+    """
+    Este handler é acionado sempre que o status de um membro muda em um chat
+    onde o bot está (entra, sai, é promovido, etc.).
+    """
+    # Nos interessa apenas quando um novo membro entra usando um link de convite
+    if message.new_chat_member.status == "member" and message.invite_link:
+        new_member_id = message.new_chat_member.user.id
+        invite_link_used = message.invite_link.invite_link
+        chat_id = message.chat.id
+
+        print(f"VIGIA: Novo membro {new_member_id} entrou no chat {chat_id} usando o link: {invite_link_used}")
+
+        conn = None
+        try:
+            conn = get_db_connection()
+            with conn.cursor() as cur:
+                # Verifica no banco quem deveria ter usado este link
+                cur.execute(
+                    "SELECT user_id FROM user_access WHERE invite_link_used = %s",
+                    (invite_link_used,)
+                )
+                result = cur.fetchone()
+
+                # Se o link não foi encontrado no nosso banco ou se o ID do usuário não bate...
+                if not result or result['user_id'] != new_member_id:
+                    print(f"VIGIA: INTRUSO DETECTADO! Usuário {new_member_id} não autorizado. Expulsando...")
+                    try:
+                        # Expulsa o usuário do grupo
+                        bot.kick_chat_member(chat_id, new_member_id)
+                        # Opcional: Envia uma mensagem para o usuário explicando o motivo
+                        bot.send_message(new_member_id, "Você foi removido de um grupo pois tentou usar um link de convite que não pertencia a você.")
+                    except Exception as e:
+                        print(f"VIGIA: Falha ao expulsar o usuário {new_member_id}. Erro: {e}")
+                else:
+                    print(f"VIGIA: Acesso validado. O usuário {new_member_id} entrou corretamente.")
+
+        except Exception as e:
+            print(f"ERRO CRÍTICO no handler do vigia: {e}")
+            traceback.print_exc()
+        finally:
+            if conn:
+                conn.close()
 
 # ====================================================================
 # NOVA FUNÇÃO PARA GERENCIAR O ACESSO ÀS COMUNIDADES
