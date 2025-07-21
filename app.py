@@ -337,16 +337,15 @@ def webhook_mercado_pago():
                 user_id = int(parts[0].split('=')[1])
                 pass_id = int(parts[1].split('=')[1])
 
-                # Busca os detalhes do passe E o link da comunidade associada
+                # Busca os detalhes do passe E o ID REAL do chat do Telegram da comunidade associada
+                # <-- ALTERAÇÃO AQUI: Trocamos 'c.invite_link' por 'c.chat_id'
                 cur.execute("""
-                    SELECT ap.*, c.invite_link 
+                    SELECT ap.*, c.chat_id
                     FROM access_passes ap
                     LEFT JOIN comunidades c ON ap.community_id = c.id
                     WHERE ap.id = %s
                 """, (pass_id,))
                 pass_item = cur.fetchone()
-
-
 
                 if not pass_item:
                     print(f"ERRO: Passe de acesso com ID {pass_id} não encontrado no banco.")
@@ -358,7 +357,7 @@ def webhook_mercado_pago():
 
                 cur.execute(
                     """
-                    INSERT INTO user_access 
+                    INSERT INTO user_access
                     (user_id, pass_id, status, start_date, expiration_date, payment_id)
                     VALUES (%s, %s, 'active', %s, %s, %s)
                     """,
@@ -368,12 +367,14 @@ def webhook_mercado_pago():
                 print(f"SUCESSO: Acesso para user {user_id} ao passe {pass_id} registrado. Expira em: {expiration_date}")
 
                 # --- LÓGICA DE GERAÇÃO E ENVIO DE LINK ÚNICO ---
-                community_id = pass_item.get('community_id')
-                if community_id:
+                # <-- ALTERAÇÃO AQUI: Usamos o campo 'chat_id' que buscamos do banco.
+                telegram_chat_id = pass_item.get('chat_id')
+
+                if telegram_chat_id:
                     try:
                         # Gera um novo link de convite que expira em 1 dia e só pode ser usado 1 vez.
                         link_info = bot.create_chat_invite_link(
-                            chat_id=community_id,
+                            chat_id=telegram_chat_id,  # <-- ALTERAÇÃO AQUI: Passa o ID correto para o bot.
                             expire_date=int(time_module.time()) + 86400, # Expira em 24 horas
                             member_limit=1 # Apenas 1 pessoa pode usar
                         )
@@ -386,11 +387,13 @@ def webhook_mercado_pago():
                         )
                         bot.send_message(user_id, success_message, parse_mode='Markdown')
                     except Exception as e:
-                        print(f"ERRO ao criar link de convite para a comunidade {community_id}: {e}")
+                        print(f"ERRO ao criar link de convite para a comunidade com chat_id {telegram_chat_id}: {e}")
                         bot.send_message(user_id, f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo, mas houve um erro ao gerar seu link. Por favor, entre em contato com o suporte.")
                 else:
-                    bot.send_message(user_id, f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo.")
-            # LÓGICA PARA VENDA DE PRODUTO NORMAL (o que você já tinha)
+                    print(f"ERRO CRÍTICO: Passe {pass_id} está associado a uma comunidade que não possui um 'chat_id' do Telegram cadastrado.")
+                    bot.send_message(user_id, f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo, mas houve um erro ao gerar seu link. Por favor, entre em contato com o suporte.")
+            
+            # LÓGICA PARA VENDA DE PRODUTO NORMAL (continua a mesma)
             else:
                 venda_id = external_reference
                 cur.execute("UPDATE vendas SET status = 'aprovado', payment_id = %s WHERE id = %s", (payment_id, venda_id))
@@ -416,9 +419,6 @@ def webhook_mercado_pago():
             conn.close()
 
     return jsonify({'status': 'notification_processed_successfully'}), 200
-
-    print(f"DEBUG WEBHOOK MP: Notificação ignorada (não é tipo 'payment' ou JSON inválvido).")
-    return jsonify({'status': 'ignored_general'}), 200
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
