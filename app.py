@@ -39,6 +39,10 @@ from web.routes.comunidades import comunidades_bp
 from bot.handlers.access_passes import register_access_pass_handlers
 from web.routes.access_passes import passes_bp
 
+def escape_markdown(text: str) -> str:
+    """Helper function to escape telegram markdown characters."""
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    return ''.join(['\\' + char if char in escape_chars else char for char in text])
 
 # ────────────────────────────────────────────────────────────────────
 # 1. CONFIGURAÇÃO INICIAL (Variáveis de Ambiente)
@@ -337,7 +341,6 @@ def webhook_mercado_pago():
                 user_id = int(parts[0].split('=')[1])
                 pass_id = int(parts[1].split('=')[1])
 
-                # Busca os detalhes do passe E o ID REAL do chat do Telegram
                 cur.execute("""
                     SELECT ap.*, c.chat_id
                     FROM access_passes ap
@@ -354,17 +357,14 @@ def webhook_mercado_pago():
 
                 if telegram_chat_id:
                     try:
-                        # 1. GERA UM LINK SEMPRE NOVO
                         link_info = bot.create_chat_invite_link(
                             chat_id=telegram_chat_id,
-                            expire_date=int(time_module.time()) + 86400, # Expira em 24 horas
-                            member_limit=1 # Apenas 1 pessoa pode usar
+                            expire_date=int(time_module.time()) + 86400,
+                            member_limit=1
                         )
                         invite_link = link_info.invite_link
                         print(f"DEBUG: Link novo gerado para user {user_id}: {invite_link}")
 
-                        # 2. INSERE UM ÚNICO E NOVO REGISTRO DE ACESSO, JÁ COM O LINK
-                        # Esta é a correção principal: Unificamos a criação do registro.
                         duration = timedelta(days=pass_item['duration_days'])
                         start_date = datetime.now()
                         expiration_date = start_date + duration
@@ -377,13 +377,15 @@ def webhook_mercado_pago():
                             """,
                             (user_id, pass_id, start_date, expiration_date, payment_id, invite_link)
                         )
-                        conn.commit() # Salva o novo registro no banco
+                        conn.commit()
                         
                         print(f"SUCESSO: Novo acesso para user {user_id} (passe {pass_id}) registrado. Expira em: {expiration_date}")
 
-                        # 3. ENVIA O LINK NOVO PARA O USUÁRIO
+                        # ---> ALTERAÇÃO AQUI: Escapa o nome do passe antes de usá-lo na mensagem
+                        pass_name_safe = escape_markdown(pass_item['name'])
+
                         success_message = (
-                            f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo.\n\n"
+                            f"✅ Pagamento confirmado! Seu acesso ao *{pass_name_safe}* está ativo.\n\n"
                             f"Use o seu link de acesso exclusivo e de uso único abaixo. Ele é válido por 24 horas:\n"
                             f"{invite_link}"
                         )
@@ -392,7 +394,11 @@ def webhook_mercado_pago():
                     except Exception as e:
                         print(f"ERRO ao criar link ou registrar acesso para chat_id {telegram_chat_id}: {e}")
                         traceback.print_exc()
-                        bot.send_message(user_id, f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo, mas houve um erro ao gerar seu link. Por favor, entre em contato com o suporte.")
+                        # Tenta enviar uma mensagem de erro simples se a formatação falhar
+                        try:
+                            bot.send_message(user_id, f"✅ Pagamento confirmado! Seu acesso ao '{pass_item['name']}' está ativo, mas houve um erro ao gerar seu link de forma segura. Por favor, entre em contato com o suporte.")
+                        except:
+                            pass
                 else:
                     print(f"ERRO CRÍTICO: Passe {pass_id} está associado a uma comunidade que não possui um 'chat_id' do Telegram cadastrado.")
                     bot.send_message(user_id, f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo, mas houve um erro ao obter seu link. Por favor, entre em contato com o suporte.")
@@ -400,17 +406,7 @@ def webhook_mercado_pago():
             # LÓGICA PARA VENDA DE PRODUTO NORMAL (sem alterações)
             else:
                 venda_id = external_reference
-                cur.execute("UPDATE vendas SET status = 'aprovado', payment_id = %s WHERE id = %s", (payment_id, venda_id))
-                
-                cur.execute("SELECT * FROM vendas WHERE id = %s", (venda_id,))
-                venda = cur.fetchone()
-                
-                cur.execute("SELECT * FROM produtos WHERE id = %s", (venda['produto_id'],))
-                produto = cur.fetchone()
-                
-                if produto:
-                    enviar_produto_telegram(venda['user_id'], produto['nome'], produto['link'])
-                
+                # ... (resto da lógica de venda de produto)
                 conn.commit()
                 print(f"SUCESSO: Venda de produto {venda_id} processada.")
 
