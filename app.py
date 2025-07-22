@@ -1836,7 +1836,7 @@ def access_expiration_worker():
                 conn.close()
         
         # Espera 1 hora (3600 segundos) antes da próxima verificação
-        time_module.sleep(3600)
+        time_module.sleep(60)
 
 # ────────────────────────────────────────────────────────────────────
 # 9. FINAL INITIALIZATION AND EXECUTION
