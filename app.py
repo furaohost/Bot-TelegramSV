@@ -1771,40 +1771,46 @@ def manage_community_access(user_id, community_id, should_have_access):
 def access_expiration_worker():
     """
     Worker que roda em segundo plano para verificar e expirar passes de acesso.
+    VERSÃO CORRIGIDA
     """
-    print("WORKER DE EXPIRAÇÃO: Iniciado. Verificando passes a cada hora.")
+    print("WORKER DE EXPIRAÇÃO: Iniciado. Verificando passes.")
     while True:
         conn = None
         try:
             conn = get_db_connection()
             with conn.cursor() as cur:
-                # Busca todos os acessos que estão ativos mas cuja data de expiração já passou
+                # ALTERAÇÃO AQUI: A query agora busca 'c.chat_id' da tabela de comunidades.
+                # Busca todos os acessos que estão ativos mas cuja data de expiração já passou.
                 cur.execute("""
-                    SELECT ua.id, ua.user_id, ap.community_id
+                    SELECT ua.id, ua.user_id, c.chat_id
                     FROM user_access ua
                     JOIN access_passes ap ON ua.pass_id = ap.id
+                    JOIN comunidades c ON ap.community_id = c.id
                     WHERE ua.status = 'active' AND ua.expiration_date <= NOW();
                 """)
                 expired_passes = cur.fetchall()
 
                 if expired_passes:
-                    print(f"WORKER DE EXPIRAÇÃO: Encontrados {len(expired_passes)} passes expirados.")
+                    print(f"WORKER DE EXPIRAÇÃO: Encontrados {len(expired_passes)} passes expirados para processar.")
                     for expired_pass in expired_passes:
                         user_id_to_remove = expired_pass['user_id']
-                        community_id_to_remove_from = expired_pass['community_id']
+                        # ALTERAÇÃO AQUI: Usamos a variável com o chat_id correto do Telegram.
+                        telegram_chat_id_to_remove_from = expired_pass['chat_id']
                         access_id_to_update = expired_pass['id']
 
-                        print(f"WORKER: Expirando acesso ID {access_id_to_update} para o usuário {user_id_to_remove}.")
+                        print(f"WORKER: Processando expiração do acesso ID {access_id_to_update} para o usuário {user_id_to_remove}.")
 
-                        # 1. Remove o acesso do usuário no Telegram
-                        manage_community_access(user_id_to_remove, community_id_to_remove_from, should_have_access=False)
+                        # 1. Tenta remover o usuário do grupo do Telegram usando o chat_id correto.
+                        manage_community_access(user_id_to_remove, telegram_chat_id_to_remove_from, should_have_access=False)
                         
-                        # 2. Atualiza o status do acesso no banco de dados para 'expired'
+                        # 2. Se a remoção for bem-sucedida (ou não gerar erro), atualiza o status no banco.
                         cur.execute("UPDATE user_access SET status = 'expired' WHERE id = %s", (access_id_to_update,))
+                        print(f"WORKER: Acesso ID {access_id_to_update} atualizado para 'expired'.")
                     
                     conn.commit()
-                else:
-                    print("WORKER DE EXPIRAÇÃO: Nenhum passe expirado encontrado nesta verificação.")
+                # else:
+                    # Removi o print para não poluir os logs a cada ciclo sem expirações.
+                    # print("WORKER DE EXPIRAÇÃO: Nenhum passe expirado encontrado nesta verificação.")
 
         except Exception as e:
             print(f"ERRO CRÍTICO no Worker de Expiração: {e}")
@@ -1813,7 +1819,8 @@ def access_expiration_worker():
             if conn:
                 conn.close()
         
-        # Espera 1 hora (3600 segundos) antes da próxima verificação
+        # Espera 1 hora (3600 segundos) antes da próxima verificação.
+        # Para testar, você pode diminuir este valor temporariamente para 60 segundos.
         time_module.sleep(60)
 
 # ────────────────────────────────────────────────────────────────────
