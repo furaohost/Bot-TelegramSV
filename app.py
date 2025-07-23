@@ -44,6 +44,7 @@ def escape_markdown(text: str) -> str:
     escape_chars = r'_*[]()~`>#+-=|{}.!'
     return ''.join(['\\' + char if char in escape_chars else char for char in text])
 
+
 # ────────────────────────────────────────────────────────────────────
 # 1. CONFIGURAÇÃO INICIAL (Variáveis de Ambiente)
 # ────────────────────────────────────────────────────────────────────
@@ -357,6 +358,13 @@ def webhook_mercado_pago():
 
                 if telegram_chat_id:
                     try:
+                        # ---> NOVO PASSO CRÍTICO AQUI <---
+                        # Antes de criar um novo link, removemos o usuário da lista de restrições (se ele estiver lá).
+                        # O argumento 'only_if_banned=True' garante que o bot não dará erro se o usuário nunca foi banido.
+                        print(f"DEBUG: Removendo possíveis restrições para o user {user_id} no chat {telegram_chat_id}.")
+                        bot.unban_chat_member(telegram_chat_id, user_id, only_if_banned=True)
+                        
+                        # Agora, o fluxo continua como antes
                         link_info = bot.create_chat_invite_link(
                             chat_id=telegram_chat_id,
                             expire_date=int(time_module.time()) + 86400,
@@ -381,7 +389,6 @@ def webhook_mercado_pago():
                         
                         print(f"SUCESSO: Novo acesso para user {user_id} (passe {pass_id}) registrado. Expira em: {expiration_date}")
 
-                        # ---> ALTERAÇÃO AQUI: Escapa o nome do passe antes de usá-lo na mensagem
                         pass_name_safe = escape_markdown(pass_item['name'])
 
                         success_message = (
@@ -392,21 +399,27 @@ def webhook_mercado_pago():
                         bot.send_message(user_id, success_message, parse_mode='Markdown')
 
                     except Exception as e:
-                        print(f"ERRO ao criar link ou registrar acesso para chat_id {telegram_chat_id}: {e}")
+                        print(f"ERRO ao re-autorizar, criar link ou registrar acesso para chat_id {telegram_chat_id}: {e}")
                         traceback.print_exc()
-                        # Tenta enviar uma mensagem de erro simples se a formatação falhar
-                        try:
-                            bot.send_message(user_id, f"✅ Pagamento confirmado! Seu acesso ao '{pass_item['name']}' está ativo, mas houve um erro ao gerar seu link de forma segura. Por favor, entre em contato com o suporte.")
-                        except:
-                            pass
+                        bot.send_message(user_id, f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo, mas houve um erro ao gerar seu link de re-entrada. Por favor, entre em contato com o suporte.")
                 else:
-                    print(f"ERRO CRÍTICO: Passe {pass_id} está associado a uma comunidade que não possui um 'chat_id' do Telegram cadastrado.")
+                    print(f"ERRO CRÍTICO: Passe {pass_id} não tem um 'chat_id' cadastrado.")
                     bot.send_message(user_id, f"✅ Pagamento confirmado! Seu acesso ao *{pass_item['name']}* está ativo, mas houve um erro ao obter seu link. Por favor, entre em contato com o suporte.")
 
             # LÓGICA PARA VENDA DE PRODUTO NORMAL (sem alterações)
             else:
                 venda_id = external_reference
-                # ... (resto da lógica de venda de produto)
+                cur.execute("UPDATE vendas SET status = 'aprovado', payment_id = %s WHERE id = %s", (payment_id, venda_id))
+                
+                cur.execute("SELECT * FROM vendas WHERE id = %s", (venda_id,))
+                venda = cur.fetchone()
+                
+                cur.execute("SELECT * FROM produtos WHERE id = %s", (venda['produto_id'],))
+                produto = cur.fetchone()
+                
+                if produto:
+                    enviar_produto_telegram(venda['user_id'], produto['nome'], produto['link'])
+                
                 conn.commit()
                 print(f"SUCESSO: Venda de produto {venda_id} processada.")
 
